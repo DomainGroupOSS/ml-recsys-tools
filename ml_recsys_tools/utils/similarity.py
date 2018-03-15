@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 from functools import partial
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc
 from ml_recsys_tools.utils.debug import print_time_and_shape
 
@@ -56,6 +56,9 @@ def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
 
     if simil_mode=='cosine':
         scores = cosine_similarity(source_mat[inds, :], target_mat)
+
+    elif simil_mode=='euclidean':
+        scores = 1 / (euclidean_distances(source_mat[inds, :], target_mat) + 0.001)
 
     elif simil_mode=='dot':
         scores = np.dot(source_mat[inds, :], target_mat.T)
