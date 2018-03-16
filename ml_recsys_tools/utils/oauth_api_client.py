@@ -97,24 +97,24 @@ class RequestFailure(RuntimeError):
         super(RequestFailure, self).__init__(message)
         self.response = response
 
-#usage
-CLIENT_ID = 'client-id'
-SECRET = 'secret'
-SCOPES = ['scope1', 'scope1']
-AUTH_SERVICE_URL = 'https://url.com'
-
-settings = AuthSettings(AUTH_SERVICE_URL, CLIENT_ID, SECRET)
-mem_cache = DictCache()
-api_request = Request(settings, mem_cache)
-
-@api_request
-def oauth_get(url, **kwargs):
-    # no 401 403 handler here
-    response = requests.get(url, **kwargs)
-    # print(response)
-    return response
-
-@api_request
-def oauth_post(url, **kwargs):
-    # no 401 403 handler here
-    return requests.post(url, **kwargs)
+# #usage
+# CLIENT_ID = 'client-id'
+# SECRET = 'secret'
+# SCOPES = ['scope1', 'scope1']
+# AUTH_SERVICE_URL = 'https://url.com'
+#
+# settings = AuthSettings(AUTH_SERVICE_URL, CLIENT_ID, SECRET)
+# mem_cache = DictCache()
+# api_request = Request(settings, mem_cache)
+#
+# @api_request
+# def oauth_get(url, **kwargs):
+#     # no 401 403 handler here
+#     response = requests.get(url, **kwargs)
+#     # print(response)
+#     return response
+#
+# @api_request
+# def oauth_post(url, **kwargs):
+#     # no 401 403 handler here
+#     return requests.post(url, **kwargs)
