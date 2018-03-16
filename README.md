@@ -8,6 +8,7 @@ Utilities:
   - similarity calculation helpers (similarity, top N)
   - parallelism utils
   - sklearn transformer extenstions
+  - google maps util for displaying geographical data
   - logging, debug printouts decorators
   - pandas utils
 
