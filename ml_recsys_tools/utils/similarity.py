@@ -20,7 +20,7 @@ def top_N_unsorted(mat, N):
 
     top_values = mat[_row_ind_mat(top_inds), top_inds]
 
-    return top_values, top_inds
+    return np.array(top_values), np.array(top_inds)
 
 def _argsort_mask_descending(mat):
     # gets index mask for sorting a matrix by last axis (sorts rows) in descending order
@@ -69,6 +69,8 @@ def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
         if target_biases is not None:
             scores += target_biases
 
+        scores = np.array(scores)
+
     else:
         raise NotImplementedError('unknown similarity mode')
 
@@ -82,7 +84,7 @@ def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
 
     # checks that top similar items are themselves
     if remove_self:
-        if not all(best_inds[list(inds[:, 0] for inds in sort_inds)] == np.array(inds)):
+        if not (best_inds[list(inds[:, 0] for inds in sort_inds)] == np.array(inds)).all():
             warnings.warn("LightFM: _most_similar_by_cosine: Most similar "
                           "element is not itself, something's wrong!")
         sort_inds = list(inds[:, 1:] for inds in sort_inds)
@@ -159,7 +161,7 @@ def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
                                     np.array(sub_mat_ll.data[i]))
             inds_list.append(inds_)
             vals_list.append(vals_)
-        return np.stack(inds_list), np.stack(vals_list)
+        return np.array(np.stack(inds_list)), np.array(np.stack(vals_list))
 
     batch_res = map_batches_multiproc(
         top_n_inds_batch, np.arange(sub_mat_ll.shape[0]), chunksize=chunksize, pbar=pbar)
