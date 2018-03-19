@@ -16,10 +16,11 @@ def singleton(cls):
 
 @singleton
 class AuthSettings:
-    def __init__(self, auth_uri, client_id, secret):
+    def __init__(self, auth_uri, client_id, secret, scopes):
         self.auth_service_url = auth_uri
         self.client_id = client_id
         self.secret = secret
+        self.scopes = scopes
 
 
 @singleton
@@ -32,6 +33,7 @@ class Request:
         self.auth_service_url = auth_settings.auth_service_url
         self.client_id = auth_settings.client_id
         self.secret = auth_settings.secret
+        self.scopes = auth_settings.scopes
         self.cache = cache
 
     def _load_read_token(self):
@@ -40,7 +42,7 @@ class Request:
                                           (self.client_id, self.secret)).encode()).decode()
         response = requests.post(self.auth_service_url + '/connect/token',
                                  headers={'Authorization': authorization},
-                                 data={'scope': ' '.join(SCOPES),
+                                 data={'scope': ' '.join(self.scopes),
                                        'grant_type': 'client_credentials'})
         if response.ok:
             oauth_response = response.json()
@@ -103,7 +105,7 @@ class RequestFailure(RuntimeError):
 # SCOPES = ['scope1', 'scope1']
 # AUTH_SERVICE_URL = 'https://url.com'
 #
-# settings = AuthSettings(AUTH_SERVICE_URL, CLIENT_ID, SECRET)
+# settings = AuthSettings(AUTH_SERVICE_URL, CLIENT_ID, SECRET, SCOPES)
 # mem_cache = DictCache()
 # api_request = Request(settings, mem_cache)
 #
