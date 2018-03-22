@@ -1,39 +1,53 @@
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
+from itertools import islice
 import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
 
 N_CPUS = multiprocessing.cpu_count()
 
+
 def batch_generator(iterable, n=1):
-    # https://stackoverflow.com/questions/8290397/how-to-split-an-iterable-in-constant-size-chunks
-    l = len(iterable)
-    for ndx in range(0, l, n):
-        yield iterable[ndx:min(ndx + n, l)]
+
+    if hasattr(iterable, '__len__'):
+        # https://stackoverflow.com/questions/8290397/how-to-split-an-iterable-in-constant-size-chunks
+        l = len(iterable)
+        for ndx in range(0, l, n):
+            yield iterable[ndx:min(ndx + n, l)]
+
+    elif hasattr(iterable, '__next__'):
+        # https://stackoverflow.com/questions/1915170/split-a-generator-iterable-every-n-items-in-python-splitevery
+        i = iter(iterable)
+        piece = list(islice(i, n))
+        while piece:
+            yield piece
+            piece = list(islice(i, n))
+    else:
+        raise ValueError('Iterable is not iterable?')
 
 
 def map_batches_multiproc(func, iterable, chunksize,
-                          pbar=None, threads_per_cpu=1.0, multiproc_mode='threads'):
-
-    if len(iterable) <= chunksize:
-        return [func(iterable)]
-
-    else:
+                          pbar=None, multiproc_mode='threads',
+                          n_threads=None, threads_per_cpu=1.0):
+    if n_threads is None:
         n_threads = int(threads_per_cpu*N_CPUS)
-        pool_type = ThreadPool if multiproc_mode=='threads' else Pool
-        with pool_type(n_threads) as pool:
-            if pbar is None:
-                return pool.map(func, batch_generator(iterable, n=chunksize))
-            else:
-                return list(tqdm(
-                    pool.imap(func, batch_generator(iterable, n=chunksize)),
-                    total=int(len(iterable) / chunksize),
-                    desc=pbar,
-                    mininterval=10.0,
-                    maxinterval=100.0,
-                    ascii=True))
+
+    pool_type = ThreadPool if multiproc_mode=='threads' else Pool
+
+    with pool_type(n_threads) as pool:
+        batches = batch_generator(iterable, n=chunksize)
+
+        if pbar is None:
+            return list(pool.imap(func, batches))
+        else:
+            return list(tqdm(
+                pool.imap(func, batch_generator(iterable, n=chunksize)),
+                total=int(len(iterable) / chunksize),
+                desc=pbar,
+                mininterval=10.0,
+                maxinterval=100.0,
+                ascii=True))
 
 
 def pool_type(parallelism_type):
