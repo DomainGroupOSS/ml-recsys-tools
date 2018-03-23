@@ -28,22 +28,25 @@ def print_time_and_shape(fn):
     @functools.wraps(fn)
     def inner(*args, **kwargs):
         mem_monitor = MaxMemoryMonitor().start()
+
         start = time.time()
 
         result = fn(*args, **kwargs)
 
         duration_str = '%.2f' % (time.time() - start)
-        max_mem = mem_monitor.stop()
 
-        mem_str = '%s%%(peak:%s%%)' % (str(virtual_memory().percent), max_mem)
+        cur_mem, peak_mem = mem_monitor.stop()
+
+        mem_str = '%s%%(peak:%s%%)' % (cur_mem, peak_mem)
 
         ret_str = variable_info(result)
 
-        stack_depth = len(inspect.stack())
+        stack_depth = get_stack_depth()
 
         fn_str = class_name(fn) + fn.__name__
 
-        msg = ' '*stack_depth + '%s, elapsed: %s, returned: %s, sys mem: %s' % \
+        msg = ' ' * stack_depth + \
+              '%s, elapsed: %s, returned: %s, sys mem: %s' % \
               (fn_str, duration_str, ret_str, mem_str)
 
         simple_logger.log(logging.INFO, msg)
@@ -76,12 +79,15 @@ class MaxMemoryMonitor:
     def __del__(self):
         self._run_condition = False
 
-    def _measure(self):
-        self.peak_memory = max(self.peak_memory, virtual_memory().percent)
+    def _current(self):
+        return virtual_memory().percent
+
+    def _measure_peak(self):
+        self.peak_memory = max(self.peak_memory, self._current())
 
     def _thread_loop(self):
         while self._run_condition:
-            self._measure()
+            self._measure_peak()
             time.sleep(self.interval)
 
     def start(self):
@@ -93,15 +99,21 @@ class MaxMemoryMonitor:
 
     def stop(self):
         self._run_condition = False
-        self._measure()
-        return self.peak_memory
+        self._measure_peak()
+        return self._current(), self.peak_memory
 
+
+def get_stack_depth():
+    try:
+        return len(inspect.stack())
+    except IndexError as e:
+        # there is a bug in inspect module: https://github.com/ipython/ipython/issues/1456/
+        return 0
 
 def class_name(fn):
     cls = get_class_that_defined_method(fn)
     cls_str = cls.__name__ + '.' if cls else ''
     return cls_str
-
 
 def get_class_that_defined_method(meth):
     # from https://stackoverflow.com/questions/3589311/
