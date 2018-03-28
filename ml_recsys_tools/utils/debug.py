@@ -4,11 +4,12 @@ import functools
 import time
 import inspect
 from threading import Thread
-
 from psutil import virtual_memory
 
 from ml_recsys_tools.utils.logger import simple_logger
 
+# set this to logging.DEBUG to silence the printouts
+WRAPPERS_LOGGING_LEVEL = logging.INFO
 
 def variable_info(result):
     if hasattr(result, 'shape'):
@@ -23,7 +24,7 @@ def variable_info(result):
     ret_str = str(type(result)) + ', ' + shape_str
     return ret_str
 
-def print_time_and_shape(fn):
+def log_time_and_shape(fn):
 
     @functools.wraps(fn)
     def inner(*args, **kwargs):
@@ -49,7 +50,7 @@ def print_time_and_shape(fn):
               '%s, elapsed: %s, returned: %s, sys mem: %s' % \
               (fn_str, duration_str, ret_str, mem_str)
 
-        simple_logger.log(logging.INFO, msg)
+        simple_logger.log(WRAPPERS_LOGGING_LEVEL, msg)
 
         return result
 
@@ -63,7 +64,8 @@ def timer_deco(fn):
         start = time.time()
         result = fn(*args, **kwargs)
         duration = time.time() - start
-        simple_logger.log(logging.INFO, log_format, fn.__name__, duration)
+        simple_logger.log(WRAPPERS_LOGGING_LEVEL, log_format,
+                          fn.__name__, duration)
         return result
 
     return inner

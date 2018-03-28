@@ -3,7 +3,7 @@ import warnings
 from functools import partial
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc
-from ml_recsys_tools.utils.debug import print_time_and_shape
+from ml_recsys_tools.utils.debug import log_time_and_shape
 
 
 def _row_ind_mat(ar):
@@ -145,7 +145,7 @@ def most_similar(ids, N, remove_self, source_encoder, source_mat, source_biases=
     return best_ids, best_scores
 
 
-@print_time_and_shape
+@log_time_and_shape
 def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
                               sparse_mat, row_func, chunksize=10000, pbar=None):
 
@@ -174,7 +174,7 @@ def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
 
     return best_ids, best_scores
 
-@print_time_and_shape
+@log_time_and_shape
 def top_N_sorted_on_sparse(ids, encoder, sparse_mat, n_top=10, chunksize=10000, pbar=None):
 
     def _pad_k_zeros(vec, k):

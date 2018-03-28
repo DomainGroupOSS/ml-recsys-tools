@@ -14,7 +14,7 @@ from skopt.optimizer import forest_minimize, gp_minimize, gbrt_minimize, dummy_m
 from skopt.utils import dimensions_aslist, point_asdict
 from skopt.space import Real, Categorical, Integer
 
-from ml_recsys_tools.utils.debug import print_time_and_shape
+from ml_recsys_tools.utils.debug import log_time_and_shape
 from ml_recsys_tools.utils.logger import simple_logger
 
 
@@ -60,7 +60,7 @@ class BayesSearchHoldOut:
         y_pred = pipeline.predict(self.data_dict['x_valid'])
         return self.loss(self.data_dict['y_valid'], y_pred)
 
-    @print_time_and_shape
+    @log_time_and_shape
     def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb'):
         """
         example code:
@@ -136,6 +136,55 @@ class BayesSearchHoldOut:
         return pd.DataFrame(best_x,
                             columns=sorted(search_space.keys()) + ['target_loss']).\
             sort_values('target_loss')
+
+
+def early_stopping_runner(
+        score_func, check_point_func,
+        epochs_max=200, epochs_step=10, stop_patience=10, decline_threshold=0.05,
+        plot_convergence=True):
+    res_list = []
+    max_score = 0
+    decline_counter = 0
+    cur_epoch = 0
+    epochs_list = []
+    max_epoch = 0
+    # find optimal number of epochs on validation data
+    while cur_epoch <= epochs_max:
+        simple_logger.info('Training epochs %d - %d.' %
+                           (cur_epoch, cur_epoch + epochs_step))
+
+        cur_score = score_func()
+
+        res_list.append(cur_score)
+        cur_epoch += epochs_step
+        epochs_list.append(cur_epoch)
+
+        # early stopping logic
+        if max_score * (1 - decline_threshold) > cur_score:
+            decline_counter += epochs_step
+            if decline_counter >= stop_patience:
+                break
+        else:
+            decline_counter = 0
+
+        if cur_score > max_score:
+            max_score = cur_score
+            max_epoch = cur_epoch
+            check_point_func()
+
+    # print logging info
+    scores_str = ','.join(['%d%%(%d)' % (int(100 * s / max_score), e)
+                           for s, e in zip(res_list, epochs_list)])
+
+    simple_logger.info('Early stopping: stopped fit after %d '
+                       'epochs (max validation score: %f (@%d), all scores: %s)'
+                       % (cur_epoch, max_score, max_epoch, scores_str))
+
+    if plot_convergence:
+        pyplot.figure()
+        pyplot.plot(epochs_list, res_list)
+
+    return max_epoch
 
 
 class VotingEnsemble(VotingClassifier):
