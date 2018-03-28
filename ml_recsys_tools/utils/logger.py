@@ -36,15 +36,17 @@ logging.config.dictConfig(LOGGING_CONFIG)
 LOGGER = logging.getLogger('ml-logger')
 short_time_fmt = logging.Formatter('[%(asctime)s:%(levelname)s] %(message)s', datefmt='%H:%M')
 
+
 def add_file_output(logger, filename, level=logging.DEBUG):
-    dir = os.path.dirname(filename)
-    if not os.path.exists(dir):
-        os.mkdir(dir)
+    dir_name = os.path.dirname(filename)
+    if not os.path.exists(dir_name):
+        os.mkdir(dir_name)
     f_handler = logging.FileHandler(filename)
     f_handler.setLevel(level)
     f_handler.setFormatter(short_time_fmt)
     logger.addHandler(f_handler)
     return logger
+
 
 def console_logger():
     logger = logging.getLogger()
@@ -59,4 +61,3 @@ def console_logger():
 
 
 simple_logger = console_logger()
-

@@ -4,7 +4,10 @@ import sklearn.preprocessing
 
 
 class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
-    def __init__(self, n_bins = 50):
+    '''
+    class for label-encoding a continuous variable by binning
+    '''
+    def __init__(self, n_bins=50):
         super().__init__()
         self.n_bins = n_bins
         self.bins = None
@@ -14,41 +17,34 @@ class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
         self.bins = np.percentile(y, percentiles[1:])
 
         if len(np.unique(self.bins)) != len(self.bins):
-            # non-unique bins using simple linear binning
             self.bins = list(np.linspace(
                 np.min(y) - 0.001, np.max(y) + 0.001, num=(self.n_bins + 1)))
 
         return self
 
     def transform(self, y):
-        # copy bins
-        inclusive_bins = list(self.bins)
+        inc_bins = list(self.bins)
+        inc_bins[0] = min(inc_bins[0], np.min(y))
+        inc_bins[-1] = max(inc_bins[-1], np.max(y))
 
-        # extend the bins to the current edges safely
-        inclusive_bins[0] = min(inclusive_bins[0], np.min(y))
-        inclusive_bins[-1] = max(inclusive_bins[-1], np.max(y))
-
-        # get the bin indices
-        y_binned = pd.cut(
-            y, bins=inclusive_bins, labels=False, include_lowest=True)
-        y_indeces = y_binned.astype(int, copy=False)
-        return y_indeces
+        y_binned = pd.cut(y, bins=inc_bins, labels=False, include_lowest=True)
+        y_ind = y_binned.astype(int, copy=False)
+        return y_ind
 
 
 class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
-    def __init__(self, n_bins = 50, **kwargs):
+    '''
+    class for one-hot encoding a continuous variable by binning
+    '''
+    def __init__(self, n_bins=50, **kwargs):
         super().__init__(**kwargs)
-        self._pre_encoder = FloatBinningEncoder(n_bins=n_bins)
+        self._binner = FloatBinningEncoder(n_bins=n_bins)
 
     def fit(self, y):
-        self._pre_encoder.fit(y)
-        # this is because encoder just returns indices
-        # and in order to protect from the binarizer ignoring empty
-        # bins and having fewer classes than expected
-        super().fit(range(len(self._pre_encoder.bins)))
+        self._binner.fit(y)
+        super().fit(range(len(self._binner.bins)))
         return self
 
     def transform(self, y):
-        y_binned = self._pre_encoder.transform(y)
+        y_binned = self._binner.transform(y)
         return super().transform(y_binned)
-

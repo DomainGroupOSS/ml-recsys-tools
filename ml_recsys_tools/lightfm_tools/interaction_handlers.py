@@ -22,6 +22,7 @@ console_settings()
 
 RANDOM_STATE = 42
 
+
 class ObservationsDF:
 
     def __init__(self, df_obs=None, uid_col='userid', iid_col='itemid', rating_col='rating', **kwargs):
@@ -61,14 +62,14 @@ class ObservationsDF:
                             min_user_hist=0,
                             min_item_hist=0,
                             random_state=None):
-        '''
+        """
         :param n_users: number of users to sample
         :param n_items: number of listings to sample
         :param method: either 'random' or 'top' (sample the top users and top items by views)
         :param min_user_hist: minimal number of unique items viewed by a user
         :param min_item_hist: minimal number of unique users who viewed a item
         :return: dataframe
-        '''
+        """
         self.user_and_item_counts()
 
         if min_item_hist:
@@ -85,7 +86,7 @@ class ObservationsDF:
 
         if n_users is None:
             users_sample = users_filt[self.uid_col]
-        elif method=='random':
+        elif method == 'random':
             users_sample = users_filt.sample(n_users, random_state=random_state)[self.uid_col]
         elif method == 'top':
             users_sample = users_filt.iloc[:n_users][self.uid_col]
@@ -120,7 +121,7 @@ class ObservationsDF:
             self.df_obs, users_col=self.uid_col, items_col=self.iid_col, rating_col=self.rating_col)
         return mat_builder
 
-    def _split_train_test_to_dfs(self, ratio=0.2, users_ratio=1.0, random_state=None):
+    def split_train_test_to_dfs(self, ratio=0.2, users_ratio=1.0, random_state=None):
         if users_ratio < 1.0:
             return train_test_split_by_col(
                 self.df_obs, col_ratio=users_ratio, test_ratio=ratio,
@@ -129,7 +130,7 @@ class ObservationsDF:
             return train_test_split(self.df_obs, test_size=ratio, random_state=random_state)
 
     def split_train_test(self, ratio=0.2, users_ratio=1.0, random_state=None):
-        obs_train, obs_test = self._split_train_test_to_dfs(
+        obs_train, obs_test = self.split_train_test_to_dfs(
             ratio=ratio, users_ratio=users_ratio, random_state=random_state)
 
         train_other = copy.deepcopy(self)
@@ -142,7 +143,6 @@ class ObservationsDF:
 
 
 def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid', random_state=None):
-
     # split field unique values
     vals_train, vals_test = train_test_split(
         df[col_name].unique(), test_size=col_ratio, random_state=random_state)
@@ -191,7 +191,7 @@ class InteractionMatrixBuilder:
 
     @log_time_and_shape
     def build_sparse_interaction_matrix(self, df, job_size=150000):
-        '''
+        """
         note:
             all this complexity if to to prevent spikes of memory usage and still keep the time close to optimal
             the DF is split into chunks, and each chunk is processed in parallel
@@ -201,7 +201,7 @@ class InteractionMatrixBuilder:
             large values will be faster but will spike the memory
         :return: the sparse matrix populated with interactions, of shape (n_users, n_items)
             of the source DF (which which this builder with initialized
-        '''
+        """
 
         df = self.remove_unseen_labels(df)
 
@@ -215,7 +215,6 @@ class InteractionMatrixBuilder:
         r, c = [], []
         with Pool(n_parallel, maxtasksperchild=5) as pool:
             for sub_u, sub_i in zip(u_arrays, i_arrays):
-
                 r.append(np.concatenate(
                     pool.map(self.uid_encoder.transform, np.array_split(sub_u, n_parallel))))
                 c.append(np.concatenate(
@@ -249,7 +248,7 @@ class InteractionMatrixBuilder:
             logger.info(
                 'Discarding %.1f%% samples with unseen '
                 'users(%.1f%%) / unseen items (%.1f%%) from DF(len: %s).' % \
-                (100*np.mean(new_u | new_i), 100*percent_new_u, 100*percent_new_i, len(df)))
+                (100 * np.mean(new_u | new_i), 100 * percent_new_u, 100 * percent_new_i, len(df)))
             return df[~new_u & ~new_i].copy()
         else:
             return df
@@ -269,7 +268,7 @@ class InteractionMatrixBuilder:
             ranks_mat.data[ranks_mat.indptr[i]: ranks_mat.indptr[i + 1]] = \
                 np.argsort(
                     np.argsort(
-                        -ranks_mat.data[ranks_mat.indptr[i]: ranks_mat.indptr[i + 1]])).\
+                        -ranks_mat.data[ranks_mat.indptr[i]: ranks_mat.indptr[i + 1]])). \
                     astype(np.float32)
         return ranks_mat
 
@@ -304,20 +303,20 @@ class InteractionMatrixBuilder:
     @classmethod
     @log_time_and_shape
     def filter_all_ranks_by_sparse_selection(cls, sparse_filter_mat, all_recos_ranks_mat):
-        '''
+        """
         generates rankings for a an evaluation of a dataset (test set), relative to all valid predictions
 
         :param sparse_filter_mat: sparse matrix of known predictions (test set interactions - ground truth)
         :param all_recos_ranks_mat: sparse matrix of all ranked predictions
         :return: sparse matrix of ranks of the predictions for GT observations in the full prediction matrix
-        '''
+        """
 
         def crop_rows(mat, ind_start, ind_end):
             mat = mat.tocsr().copy()
             mat.sort_indices()
             mat.data += 1
             mat.data[:mat.indptr[ind_start]] *= 0
-            mat.data[(mat.indptr[ind_end + 1]+1):] *= 0
+            mat.data[(mat.indptr[ind_end + 1] + 1):] *= 0
             mat.eliminate_zeros()
             mat.data -= 1
             return mat
@@ -361,16 +360,24 @@ class InteractionMatrixBuilder:
                                      add_identity_mat=True,
                                      numeric_n_bins=100,
                                      feat_weight=1.0):
-        '''
+        """
         creates a sparse feature matrix from item features
+
         :param features_df: item features dataframe
         :param iid_col: the name of the column of the item id (foreign key to observation handler dataframe)
         :param numeric_feat_cols: the columns that should be encoded using binning strategy
         :param categorical_feat_cols: the columns that should be encoded as categorical features
         :param add_identity_mat: indicator whether to add a sparse identity matrix
             (as used when no features are used), as per LightFM's docs suggestion
-        :return: sparse feature man n_items x n_features
-        '''
+        :param normalize_output:
+            None (default) - no normalization
+            'rows' - normalize rows with l1 norm
+            anything else - normalize cols with l1 norm
+        :param numeric_n_bins: number of bins for binning numeric features
+        :param feat_weight: feature weight relative to identity matrix (can be used to emphasize one or the other)
+
+        :return: sparse feature mat n_items x n_features
+        """
 
         # get numeric cols
         feat_df = features_df[[iid_col] + categorical_feat_cols + numeric_feat_cols]
@@ -384,7 +391,7 @@ class InteractionMatrixBuilder:
         full_feat_df = pd.merge(
             pd.DataFrame({'item_ind': np.arange(n_items)}),
             feat_df.drop([iid_col], axis=1), on='item_ind', how='left'). \
-            drop_duplicates('item_ind').\
+            drop_duplicates('item_ind'). \
             set_index('item_ind', drop=True)
 
         # remove nans resulting form join
@@ -402,7 +409,7 @@ class InteractionMatrixBuilder:
 
             # normalize each row
             if normalize_output:
-                axis = int(normalize_output=='rows')
+                axis = int(normalize_output == 'rows')
                 feat_mat = normalize(feat_mat, norm='l1', axis=axis, copy=False)
 
             # weight down the features before adding the identity mat
@@ -448,5 +455,3 @@ def ohe_hot_encode_features_df(full_feat_df, categorical_feat_cols, numeric_feat
     feat_mat = feat_mapper.fit_transform(full_feat_df)
     feat_mat.eliminate_zeros()
     return feat_mat, feat_mapper
-
-

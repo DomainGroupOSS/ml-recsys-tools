@@ -33,7 +33,7 @@ def map_batches_multiproc(func, iterable, chunksize,
     if n_threads is None:
         n_threads = int(threads_per_cpu*N_CPUS)
 
-    pool_type = ThreadPool if multiproc_mode=='threads' else Pool
+    pool_type = ThreadPool if multiproc_mode == 'threads' else Pool
 
     with pool_type(n_threads) as pool:
         batches = batch_generator(iterable, n=chunksize)

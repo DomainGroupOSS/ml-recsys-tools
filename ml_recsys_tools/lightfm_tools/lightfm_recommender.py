@@ -20,7 +20,6 @@ lightfm.lightfm.print = simple_logger.info
 
 
 class LightFMRecommender(BaseDFSparseRecommender):
-
     default_fit_params = {
         'epochs': 100,
         'item_features': None,
@@ -76,7 +75,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
                             plot_convergence=True, decline_threshold=0.05):
 
         # split validation data
-        sqrt_ratio = valid_ratio**0.5
+        sqrt_ratio = valid_ratio ** 0.5
         train_obs_internal, valid_obs = train_obs.split_train_test(
             users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
 
@@ -105,25 +104,25 @@ class LightFMRecommender(BaseDFSparseRecommender):
         )
 
         if not refit_on_all:
-            simple_logger.info('Loading best model from checkpoint at %d epochs' % (max_epoch))
+            simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)
             self.fit_params = self._dict_update(self.fit_params, {'epochs': max_epoch})
             self.model = self.model_checkpoint
             self.model_checkpoint = None
         else:
             # refit on whole data
-            simple_logger.info('Refitting on whole train data for %d epochs' % (max_epoch))
+            simple_logger.info('Refitting on whole train data for %d epochs' % max_epoch)
             self.fit(train_obs, epochs=max_epoch)
 
         return self
 
     def set_params(self, **params):
-        '''
+        """
         this is for skopt / sklearn compatibility
-        '''
+        """
         if 'epochs' in params:
             self._set_fit_params({'epochs': params.pop('epochs')})
         if 'use_sample_weight' in params:
-            self.use_sample_weight =  params.pop('use_sample_weight')
+            self.use_sample_weight = params.pop('use_sample_weight')
         super().set_params(**params)
 
     def _get_item_representations(self, mode=None):
@@ -133,7 +132,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         biases, representations = self.model.get_item_representations(self.fit_params['item_features'])
 
         if mode is None:
-            pass  #default mode
+            pass  # default mode
 
         elif mode == 'external_features':
             external_features_mat = self.external_features_mat
@@ -146,7 +145,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         elif (mode == 'no_features') and (self.fit_params['item_features'] is not None):
 
             simple_logger.info('LightFM recommender: get_similar_items: "no_features" mode '
-                                'assumes ID mat was added and is the last part of the feature matrix.')
+                               'assumes ID mat was added and is the last part of the feature matrix.')
 
             assert self.model.item_embeddings.shape[0] > n_items, \
                 'Either no ID matrix was added, or no features added'
@@ -161,13 +160,29 @@ class LightFMRecommender(BaseDFSparseRecommender):
     @log_time_and_shape
     def get_similar_items(self, itemids, N=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', pbar=None):
-        '''
+        """
         uses learned embeddings to get N most similar items
+
         :param itemids: vector of item IDs
         :param N: number of most similar items to retrieve
         :param remove_self: whether to remove the the query items from the lists (similarity to self should be maximal)
+        :param embeddings_mode: the item representations to use for calculation:
+             None (default) - means full representations
+             'external_features' - calculation based only external features (assumes those exist)
+             'no_features' - calculation based only on internal features (assumed identity mat was part of the features)
+        :param simil_mode: mode of similairyt calculation:
+            'cosine' (default) - cosine similarity bewtween representations (normalized dot product with no biases)
+            'dot' - unnormalized dot product with addition of biases
+            'euclidean' - inverse of euclidean distance
+            'cooccurance' - no usage of learned features - just cooccurence of items matrix
+                (number of 2nd degree connections in user-item graph)
+        :param results_format:
+            'flat' for dataframe of triplets (source_item, similar_item, similarity)
+            'lists' for dataframe of lists (source_item, list of similar items, list of similarity scores)
+        :param pbar: name of tqdm progress bar (None means no tqdm)
+
         :return: a matrix of most similar IDs [n_ids, N], a matrix of score of those similarities [n_ids, N]
-        '''
+        """
 
         if simil_mode in ['cosine', 'dot', 'euclidean']:
             biases, representations = self._get_item_representations(mode=embeddings_mode)
@@ -177,16 +192,15 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 source_encoder=self.sparse_mat_builder.iid_encoder,
                 source_mat=representations,
                 source_biases=biases,
-                N=N,
+                n=N,
                 remove_self=remove_self,
                 simil_mode=simil_mode,
                 pbar=pbar
             )
 
-        elif simil_mode=='cooccurrence':
+        elif simil_mode == 'cooccurrence':
             if self.cooc_mat is None or \
-                    self.cooc_mat.shape[1]!=self.train_mat.shape[1]:
-
+                    self.cooc_mat.shape[1] != self.train_mat.shape[1]:
                 self.cooc_mat = interactions_mat_to_cooccurrence_mat(self.train_mat)
 
             best_ids, best_scores = top_N_sorted_on_sparse(
@@ -207,16 +221,16 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
     @log_time_and_shape
     def get_similar_users(self, userids, N=10, remove_self=True, simil_mode='cosine', pbar=None):
-        '''
+        """
         same as get_similar_items but for users
-        '''
+        """
         user_biases, user_representations = self.model.get_user_representations()
         best_ids, best_scores = most_similar(
             ids=userids,
-            source_encoder= self.sparse_mat_builder.uid_encoder,
+            source_encoder=self.sparse_mat_builder.uid_encoder,
             source_mat=user_representations,
             source_biases=user_biases,
-            N=N,
+            n=N,
             remove_self=remove_self,
             simil_mode=simil_mode,
             pbar=pbar
@@ -224,7 +238,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         simil_df = self._format_results_df(
             userids, target_ids_mat=best_ids,
-            scores_mat=best_scores, results_format='similarities_lists').\
+            scores_mat=best_scores, results_format='similarities_lists'). \
             rename({self._item_col_simil: self._user_col})
         # this is UGLY, if this function is ever used, fix this please (the renaming shortcut)
 
@@ -247,15 +261,15 @@ class LightFMRecommender(BaseDFSparseRecommender):
             target_mat=item_representations,
             source_biases=user_biases,
             target_biases=item_biases,
-            N=n_rec_unfilt,
+            n=n_rec_unfilt,
             remove_self=False,
             simil_mode='dot',
             pbar=pbar
         )
 
         return self._format_results_df(
-                source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
-                results_format='recommendations_flat')
+            source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
+            results_format='recommendations_flat')
 
     @log_time_and_shape
     def predict_on_df(self, df):
@@ -315,7 +329,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
     def _predict_for_users_dense(self, user_ids, exclude_training):
 
-        mat_builder =  self.sparse_mat_builder
+        mat_builder = self.sparse_mat_builder
         n_items = mat_builder.n_cols
 
         user_inds = mat_builder.uid_encoder.transform(user_ids)
@@ -343,15 +357,14 @@ class LightFMRecommender(BaseDFSparseRecommender):
         return full_pred_mat
 
     def _get_recommendations_exact_and_slow(self, user_ids, n_rec=10, exclude_training=True,
-                                   results_format='lists'):
+                                            results_format='lists'):
 
         full_pred_mat = self._predict_for_users_dense(user_ids, exclude_training=exclude_training)
 
-        top_scores, top_inds = top_N_sorted(full_pred_mat, N=n_rec)
+        top_scores, top_inds = top_N_sorted(full_pred_mat, n=n_rec)
 
         item_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
 
         return self._format_results_df(
             source_vec=user_ids, target_ids_mat=item_ids,
             scores_mat=top_scores, results_format='recommendations_' + results_format)
-

@@ -17,7 +17,6 @@ from skopt.space import Real, Categorical, Integer
 from ml_recsys_tools.utils.debug import log_time_and_shape
 from ml_recsys_tools.utils.logger import simple_logger
 
-
 # monkey patch print function
 skopt.callbacks.print = simple_logger.info
 
@@ -46,7 +45,6 @@ class BayesSearchHoldOut:
             values = result.x_iters[-1]
             params = point_asdict(self.search_inst.search_space, values)
             simple_logger.info(params)
-
 
     def init_pipeline(self, params):
         params_dict = point_asdict(self.search_space, params)
@@ -89,16 +87,16 @@ class BayesSearchHoldOut:
 
         """
 
-        if optimizer=='rf':
+        if optimizer == 'rf':
             opt_func = partial(forest_minimize,
                                # base_estimator="RF",
                                n_points=1000,
                                acq_func="EI")
-        elif optimizer=='gb':
+        elif optimizer == 'gb':
             opt_func = gbrt_minimize
-        elif optimizer=='random':
+        elif optimizer == 'random':
             opt_func = dummy_minimize
-        elif optimizer == 'gp': # too slow
+        elif optimizer == 'gp':  # too slow
             opt_func = gp_minimize
         else:
             raise NotImplementedError('unknown optimizer')
@@ -131,10 +129,10 @@ class BayesSearchHoldOut:
     def best_results_report(res_bo, percentile, search_space):
         cut_off = np.percentile(res_bo.func_vals, 100 - percentile)
         best_x = [x + [res_bo.func_vals[i]] for
-                    i, x in enumerate(res_bo.x_iters)
-                        if res_bo.func_vals[i] <= cut_off]
+                  i, x in enumerate(res_bo.x_iters)
+                  if res_bo.func_vals[i] <= cut_off]
         return pd.DataFrame(best_x,
-                            columns=sorted(search_space.keys()) + ['target_loss']).\
+                            columns=sorted(search_space.keys()) + ['target_loss']). \
             sort_values('target_loss')
 
 
@@ -188,27 +186,28 @@ def early_stopping_runner(
 
 
 class VotingEnsemble(VotingClassifier):
-    '''
+    """
     Adds caching for probabilities to the VotingClassifer to enable quick predictions with updated weights
     (functools lru_cache is no good because it expects immutable inputs)
-    '''
+    """
+
     def __init__(self, estimators, voting='hard', weights=None, n_jobs=1,
                  flatten_transform=None):
         super().__init__(estimators, voting, weights, n_jobs, flatten_transform)
         self._proba_cache = None
         self._x_cache = None
 
-    def _collect_probas(self, X):
+    def _collect_probas(self, x):
         if (self._proba_cache is None) or (self._x_cache is None) or \
-                (not np.asarray(list(self._x_cache) == list(X)).all()):
-            self._proba_cache = VotingClassifier._collect_probas(self, X)
-            self._x_cache = X
+                (not np.asarray(list(self._x_cache) == list(x)).all()):
+            self._proba_cache = VotingClassifier._collect_probas(self, x)
+            self._x_cache = x
         return self._proba_cache
 
 
 class EnsembleTrainer:
     def __init__(self, models_losses, models_params, cutoff_ratio, pipeline, data_dict):
-        '''
+        """
 
         example usage:
 
@@ -231,7 +230,7 @@ class EnsembleTrainer:
         ens, res_ens = ens_selection.optimize_weights_by_skopt(n_iter=1000)
         ens, traj = ens_selection.optimize_weights_by_forward_selection(n_iter=1000)
 
-        '''
+        """
         self.data_dict = data_dict
         self.pipeline = pipeline
         self.cutoff_ratio = cutoff_ratio
@@ -257,7 +256,7 @@ class EnsembleTrainer:
 
         # instantiate the models
         candidates = [copy.deepcopy(self.pipeline.set_params(**ens_params[i]))
-                    for i in range(len(ens_params))]
+                      for i in range(len(ens_params))]
 
         return candidates
 
@@ -266,7 +265,7 @@ class EnsembleTrainer:
 
         # define and fit initial ensemeble
         ensemble = VotingEnsemble([(str(i), self._candidates[i])
-                              for i in range(len(self._candidates))], voting='soft')
+                                   for i in range(len(self._candidates))], voting='soft')
 
         ensemble.fit(self.data_dict['x_train'], self.data_dict['y_train'])
 
@@ -278,7 +277,6 @@ class EnsembleTrainer:
             recall_score(self.data_dict['y_valid'],
                          self.ensemble.predict(self.data_dict['x_valid']),
                          average=None))
-
 
     def _initial_guess(self):
         return list(np.array([1] + list(np.zeros(len(self._candidates) - 1))))  # top model
@@ -294,7 +292,7 @@ class EnsembleTrainer:
             n_random_starts=int(n_iter * 0.5),
             base_estimator="RF",
             n_points=1000
-            )
+        )
 
         plot_convergence(res_ens)
 
@@ -335,7 +333,7 @@ class EnsembleTrainer:
             for ens_i in range(n_models):
                 new_weights = cur_weights.copy()
                 new_weights[ens_i] = 0
-                if (sum(new_weights) == 0.0):
+                if sum(new_weights) == 0.0:
                     break
 
                 new_loss = self._loss_function(new_weights)
@@ -349,9 +347,6 @@ class EnsembleTrainer:
 
         self.ensemble.weights = cur_weights
         return self.ensemble, trajectory
-
-
-
 
 # def train_ensemble_by_skopt(models_losses, models_params, cutoff_ratio,
 #                             n_iter, pipeline, data_dict):

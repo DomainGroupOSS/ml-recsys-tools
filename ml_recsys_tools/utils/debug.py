@@ -1,4 +1,3 @@
-import logging.config
 import logging
 import functools
 import time
@@ -10,6 +9,7 @@ from ml_recsys_tools.utils.logger import simple_logger
 
 # set this to logging.DEBUG to silence the printouts
 WRAPPERS_LOGGING_LEVEL = logging.INFO
+
 
 def variable_info(result):
     if hasattr(result, 'shape'):
@@ -24,8 +24,8 @@ def variable_info(result):
     ret_str = str(type(result)) + ', ' + shape_str
     return ret_str
 
-def log_time_and_shape(fn):
 
+def log_time_and_shape(fn):
     @functools.wraps(fn)
     def inner(*args, **kwargs):
         mem_monitor = MaxMemoryMonitor().start()
@@ -56,6 +56,7 @@ def log_time_and_shape(fn):
 
     return inner
 
+
 def timer_deco(fn):
     log_format = 'function %s: %s s'
 
@@ -81,7 +82,8 @@ class MaxMemoryMonitor:
     def __del__(self):
         self._run_condition = False
 
-    def _current(self):
+    @staticmethod
+    def _current():
         return virtual_memory().percent
 
     def _measure_peak(self):
@@ -112,10 +114,12 @@ def get_stack_depth():
         # there is a bug in inspect module: https://github.com/ipython/ipython/issues/1456/
         return 0
 
+
 def class_name(fn):
     cls = get_class_that_defined_method(fn)
     cls_str = cls.__name__ + '.' if cls else ''
     return cls_str
+
 
 def get_class_that_defined_method(meth):
     # from https://stackoverflow.com/questions/3589311/
@@ -123,7 +127,7 @@ def get_class_that_defined_method(meth):
     # modified to return first parent in reverse MRO
     if inspect.ismethod(meth):
         for cls in inspect.getmro(meth.__self__.__class__)[::-1]:
-           if cls.__dict__.get(meth.__name__) is meth:
+            if cls.__dict__.get(meth.__name__) is meth:
                 return cls
         meth = meth.__func__  # fallback to __qualname__ parsing
     if inspect.isfunction(meth):

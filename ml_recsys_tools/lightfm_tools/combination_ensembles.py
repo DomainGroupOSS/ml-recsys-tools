@@ -170,7 +170,7 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
                     self._simil_flat_to_lists(
                         simil_df, n_cutoff=similarity_queue_cutoff))
 
-            if i==0:
+            if i == 0:
                 super().fit(train_obs, simil_df, **fit_params)
             else:
                 super().continue_fit(simil_df)

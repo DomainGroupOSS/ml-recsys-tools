@@ -11,6 +11,7 @@ def best_possible_ranks(test_mat):
     best_ranks.data = np.concatenate([np.arange(n) for n in nnz_counts]).astype(np.float32)
     return best_ranks
 
+
 def chance_ranks(test_mat):
     n_users, n_items = test_mat.shape
     item_inds = np.arange(n_items)
@@ -19,10 +20,12 @@ def chance_ranks(test_mat):
     rand_ranks.data = np.concatenate([np.random.choice(item_inds, n) for n in nnz_counts]).astype(np.float32)
     return rand_ranks
 
+
 @log_time_and_shape
 def mean_scores_report(model, datasets, dataset_names):
     ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
     return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names)
+
 
 @log_time_and_shape
 def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names):
@@ -32,19 +35,19 @@ def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names):
         data.append(res)
     return pd.DataFrame(data=data, index=dataset_names)
 
-def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
 
+def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
     ranks_kwargs = \
-        {'ranks':ranks,
-        'test_interactions': test_data,
-        'train_interactions': train_data,
-        }
+        {'ranks': ranks,
+         'test_interactions': test_data,
+         'train_interactions': train_data,
+         }
 
     best_possible_kwargs = \
         {'ranks': best_possible_ranks(test_data),
-        'test_interactions': test_data,
-        'train_interactions': train_data,
-        }
+         'test_interactions': test_data,
+         'train_interactions': train_data,
+         }
 
     # chance_ranks_kwargs = {'ranks': chance_ranks(test_data),
     #                    'test_interactions': test_data,
@@ -52,12 +55,12 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
     #                    }
     metrics = {'recall (k=%d)' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k),
                'n-recall': recall_at_k_on_ranks(**ranks_kwargs, k=k) /
-                               recall_at_k_on_ranks(**best_possible_kwargs, k=k),
+                           recall_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'recall MAX poss': recall_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'recall chance': recall_at_k_on_ranks(**chance_ranks_kwargs, k=k),
                'precision (k=%d)' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k),
                'n-precision': precision_at_k_on_ranks(**ranks_kwargs, k=k) /
-                                  precision_at_k_on_ranks(**best_possible_kwargs, k=k),
+                              precision_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'precision MAX poss': precision_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'precision chance': precision_at_k_on_ranks(**chance_ranks_kwargs, k=k),
                'AUC': auc_score_on_ranks(**ranks_kwargs),
@@ -71,12 +74,13 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
 
 
 class ModelMockRanksCacher:
-    '''
+    """
     this is used in order to use lightfm functions without copying them out and rewriting
     this makes possible to:
         - not calculate ranks every time from scratch (if you have them precalculated)
         - use the functions to score non lightfm models
-    '''
+    """
+
     def __init__(self, cached_mat):
         self.cached_mat = cached_mat
 
@@ -86,7 +90,6 @@ class ModelMockRanksCacher:
 
 def precision_at_k_on_ranks(
         ranks, test_interactions, train_interactions=None, k=10, preserve_rows=False):
-
     return precision_at_k(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
@@ -97,7 +100,6 @@ def precision_at_k_on_ranks(
 
 def recall_at_k_on_ranks(
         ranks, test_interactions, train_interactions=None, k=10, preserve_rows=False):
-
     return recall_at_k(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
@@ -109,7 +111,6 @@ def recall_at_k_on_ranks(
 
 def auc_score_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False):
-
     return auc_score(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
@@ -120,7 +121,6 @@ def auc_score_on_ranks(
 
 def reciprocal_rank_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False):
-
     return reciprocal_rank(
         model=ModelMockRanksCacher(ranks.copy()),
         test_interactions=test_interactions,
@@ -131,7 +131,6 @@ def reciprocal_rank_on_ranks(
 
 def mrr_norm_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False):
-
     def harmonic_number(n):
         # https://stackoverflow.com/questions/404346/python-program-to-calculate-harmonic-series
         """Returns an approximate value of n-th harmonic number.
@@ -165,7 +164,6 @@ def mrr_norm_on_ranks(
 
 def dcg_binary_at_k(
         ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
-
     ranks = ranks.copy()
 
     ranks.data += 1
@@ -180,5 +178,3 @@ def dcg_binary_at_k(
         dcg = dcg[test_interactions.getnnz(axis=1) > 0]
 
     return dcg
-
-

@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import pickle
 
-
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut
 from ml_recsys_tools.lightfm_tools.evaluation_utils import mean_scores_report_on_ranks
@@ -16,7 +15,6 @@ from ml_recsys_tools.utils.debug import log_time_and_shape
 
 
 class BaseDFRecommender(ABC):
-
     default_model_params = {}
     default_fit_params = {}
 
@@ -58,9 +56,9 @@ class BaseDFRecommender(ABC):
         self.fit_params = self._dict_update(self.fit_params, params)
 
     def set_params(self, **params):
-        '''
+        """
         this is for skopt / sklearn compatibility
-        '''
+        """
         self._set_model_params(params)
 
     @abstractmethod
@@ -89,7 +87,8 @@ class BaseDFRecommender(ABC):
 
         return recos_df_flat
 
-    def _flat_df_to_lists(self, df, sort_col, group_col, n_cutoff):
+    @staticmethod
+    def _flat_df_to_lists(df, sort_col, group_col, n_cutoff):
         return df. \
             sort_values(sort_col, ascending=False). \
             groupby(group_col). \
@@ -193,7 +192,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         self.external_features_mat = self.sparse_mat_builder. \
             create_items_features_matrix(**external_features_params)
         logger.info('External item features matrix: %s' %
-                           str(self.external_features_mat.shape))
+                    str(self.external_features_mat.shape))
 
     @log_time_and_shape
     def _remove_training_from_df(self, flat_df):
@@ -210,7 +209,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
     @staticmethod
     def _eval_on_test_by_ranking_LFM(train_ranks_func, test_tanks_func,
                                      test_dfs, test_names=('',), prefix='', include_train=True):
-        '''
+        """
         this is just to avoid the same flow twice (or more)
         :param train_ranks_func: function that return the ranks and sparse mat of training set
         :param test_tanks_func: function that return the ranks and sparse mat of a test set
@@ -219,7 +218,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         :param prefix: prefix for this report
         :param include_train: whether to evaluate training or not
         :return: a report dataframe
-        '''
+        """
 
         # test
         if isinstance(test_dfs, pd.DataFrame):
@@ -298,7 +297,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
 
     @log_time_and_shape
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True,
-                                      n_rec=10, n_rec_unfilt=200, results_format='flat'):
+                                n_rec=10, n_rec_unfilt=200, results_format='flat'):
         @log_time_and_shape
         def relevant_users():
             # get only those users that are present in the evaluation / training dataframes
@@ -310,7 +309,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             if n_unseen_users > 0:
                 logger.info(
                     'Discarding %d (out of %d) users in test sets that were '
-                    'not in train set' % (n_unseen_users, len(all_test_users)))
+                    'not in train set' % (int(n_unseen_users), len(all_test_users)))
             return all_test_users[relevance_mask]
 
         if isinstance(test_dfs, pd.DataFrame):
@@ -337,18 +336,18 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         @log_time_and_shape
         def _get_training_ranks():
             train_df = self.train_df[self.train_df[self._user_col].isin(users)].copy()
-            sp_train = self.sparse_mat_builder.\
+            sp_train = self.sparse_mat_builder. \
                 build_sparse_interaction_matrix(train_df).tocsr()
-            sp_train_ranks = pred_mat_builder.\
+            sp_train_ranks = pred_mat_builder. \
                 filter_all_ranks_by_sparse_selection(
                 sp_train, pred_mat_builder.predictions_df_to_sparse_ranks(recos_flat_unfilt))
             return sp_train_ranks, sp_train
 
         @log_time_and_shape
         def _get_test_ranks(test_df):
-            sp_test = self.sparse_mat_builder.\
+            sp_test = self.sparse_mat_builder. \
                 build_sparse_interaction_matrix(test_df).tocsr()
-            sp_test_ranks = pred_mat_builder.\
+            sp_test_ranks = pred_mat_builder. \
                 filter_all_ranks_by_sparse_selection(sp_test, ranks_all_no_train)
             return sp_test_ranks, sp_test
 
@@ -382,7 +381,7 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
                                        % self.interrupt_message_file)
             elif 'pause' in message:
                 logger.warn('Paused by "pause" message in %s'
-                                       % self.interrupt_message_file)
+                            % self.interrupt_message_file)
                 while 'pause' in message:
                     sleep(1)
                     with open(self.interrupt_message_file) as f:
@@ -393,7 +392,6 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
                 logger.warn('Updating HP space due to "update" message in %s'
                             % self.interrupt_message_file)
                 raise NotImplementedError('not yet implemented')
-
 
     @log_time_and_shape
     def objective_func(self, params):

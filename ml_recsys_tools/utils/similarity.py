@@ -10,40 +10,44 @@ def _row_ind_mat(ar):
     # returns a matrix of column indexes of the right shape to enable indexing
     return np.indices(ar.shape)[0]
 
-def top_N_unsorted(mat, N):
+
+def top_N_unsorted(mat, n):
     # returns top N values and their indexes for each row in a matrix (axis=1)
     # results are unsorted (to save on sort, when only filtering is needed)
 
-    N = np.min([N, mat.shape[-1]])
+    n = np.min([n, mat.shape[-1]])
 
-    top_inds = np.argpartition(mat, -N)[:, -N:]
+    top_inds = np.argpartition(mat, -n)[:, -n:]
 
     top_values = mat[_row_ind_mat(top_inds), top_inds]
 
     return np.array(top_values), np.array(top_inds)
+
 
 def _argsort_mask_descending(mat):
     # gets index mask for sorting a matrix by last axis (sorts rows) in descending order
     sort_inds = (_row_ind_mat(mat), np.argsort(-mat, axis=1))
     return sort_inds
 
-def top_N_sorted(mat, N):
+
+def top_N_sorted(mat, n):
     # returns sorted top N elements and indexes in each row of matrix mat
 
-    top_values, top_inds = top_N_unsorted(mat, N)
+    top_values, top_inds = top_N_unsorted(mat, n)
 
     sort_inds = _argsort_mask_descending(top_values)
 
     return top_values[sort_inds], top_inds[sort_inds]
 
-def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
+
+def _top_N_similar(inds, source_mat, target_mat, n, remove_self,
                    source_biases=None, target_biases=None, simil_mode='cosine'):
-    '''
+    """
     for each row in specified inds in source_mat calculates top N similar items in target_mat
     :param inds: indices into source mat
     :param source_mat: matrix of features for similarity calculation (left side)
     :param target_mat: matrix of features for similarity calculation (right side)
-    :param N: number of top elements to retreive
+    :param n: number of top elements to retreive
     :param remove_self: whether to remove first element - for cases when
         source elements are present in target_mat (self similarity)
     :param source_biases: bias terms for source_mat
@@ -52,15 +56,15 @@ def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
         'cosine' dot product of normalized matrices (each row sums to 1), without biases
         'dot' regular dot product, without normalization
     :return:
-    '''
+    """
 
-    if simil_mode=='cosine':
+    if simil_mode == 'cosine':
         scores = cosine_similarity(source_mat[inds, :], target_mat)
 
-    elif simil_mode=='euclidean':
+    elif simil_mode == 'euclidean':
         scores = 1 / (euclidean_distances(source_mat[inds, :], target_mat) + 0.001)
 
-    elif simil_mode=='dot':
+    elif simil_mode == 'dot':
         scores = np.dot(source_mat[inds, :], target_mat.T)
 
         if source_biases is not None:
@@ -76,9 +80,9 @@ def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
 
     # get best N
     if remove_self:
-        N = N + 1
+        n = n + 1
 
-    best_scores, best_inds = top_N_unsorted(scores, N)
+    best_scores, best_inds = top_N_unsorted(scores, n)
 
     sort_inds = _argsort_mask_descending(best_scores)
 
@@ -91,15 +95,16 @@ def _top_N_similar(inds, source_mat, target_mat, N, remove_self,
 
     return best_inds[sort_inds], best_scores[sort_inds]
 
-def most_similar(ids, N, remove_self, source_encoder, source_mat, source_biases=None,
-                 target_encoder=None, target_mat=None,  target_biases=None,
+
+def most_similar(ids, n, remove_self, source_encoder, source_mat, source_biases=None,
+                 target_encoder=None, target_mat=None, target_biases=None,
                  chunksize=1000, simil_mode='cosine', pbar=None):
-    '''
+    """
     multithreaded batched version of _top_N_similar() that works with IDs instead of indices
     for each row in specified IDS in source_mat calculates top N similar items in target_mat
 
     :param ids: IDS of query items in source mat
-    :param N: number of top items to find for each query item
+    :param n: number of top items to find for each query item
     :param remove_self: whether to remove first element - for cases when
         source elements are present in target_mat (self similarity)
     :param source_encoder: encoder for transforming IDS to indeces in source_mat
@@ -111,11 +116,13 @@ def most_similar(ids, N, remove_self, source_encoder, source_mat, source_biases=
     :param chunksize: chunksize for batching (in term of query items)
     :param simil_mode: mode of similarity calculation:
         'cosine' dot product of normalized matrices (each row sums to 1), without biases
-        'dot' regular dot product, without normalization
+        'dot' regular dot product, without normalization, with added biases if supplied
+        'euclidean' inverse of euclidean distance
+    :param pbar: name of tqdm progress bar (None means no tqdm)
     :return:
         best_ids - matrix (n_ids, N) of N top items from target_mat for each item in IDS of source_mat
         best_scores - similarity scores for best_ids (n_ids, N)
-    '''
+    """
 
     if target_mat is None:
         target_mat = source_mat
@@ -128,7 +135,7 @@ def most_similar(ids, N, remove_self, source_encoder, source_mat, source_biases=
     chunksize = int(35000 * chunksize / max(source_mat.shape))
 
     calc_func = partial(
-        _top_N_similar, source_mat=source_mat, target_mat=target_mat, N=N,
+        _top_N_similar, source_mat=source_mat, target_mat=target_mat, n=n,
         remove_self=remove_self, source_biases=source_biases, target_biases=target_biases,
         simil_mode=simil_mode)
 
@@ -148,7 +155,6 @@ def most_similar(ids, N, remove_self, source_encoder, source_mat, source_biases=
 @log_time_and_shape
 def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
                               sparse_mat, row_func, chunksize=10000, pbar=None):
-
     source_inds = source_encoder.transform(ids)
 
     sub_mat_ll = sparse_mat.tocsr()[source_inds, :].tolil()
@@ -174,9 +180,9 @@ def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
 
     return best_ids, best_scores
 
+
 @log_time_and_shape
 def top_N_sorted_on_sparse(ids, encoder, sparse_mat, n_top=10, chunksize=10000, pbar=None):
-
     def _pad_k_zeros(vec, k):
         return np.pad(vec, (0, k), 'constant', constant_values=0)
 

@@ -13,7 +13,6 @@ from ml_recsys_tools.utils.debug import log_time_and_shape
 def interactions_mat_to_cooccurrence_mat(
         obs_mat, normalize_items=True, degree=1, base_min_cooccurrence=1,
         prune_ratio=0.5, decay=0.3, min_cooccurrence=3, trans_func='ones'):
-
     def prune_mat(m, ratio=0.0, cutoff=0):
         if (ratio == 0.0 and cutoff == 0) or (not len(m.data)):
             return m
@@ -30,14 +29,14 @@ def interactions_mat_to_cooccurrence_mat(
             m.eliminate_zeros()
         return m
 
-    def first_degree_cooccurrence(obs_mat, min_cooc=1):
+    def first_degree_cooccurrence(mat, min_cooc=1):
 
         if trans_func == 'ones':
             # binarize interaction
-            obs_mat.data = np.ones(obs_mat.data.shape)
+            mat.data = np.ones(mat.data.shape)
 
         elif trans_func == 'log':
-            obs_mat.data = np.log10(obs_mat.data + 1)
+            mat.data = np.log10(mat.data + 1)
 
         elif trans_func == 'none':
             pass
@@ -46,7 +45,7 @@ def interactions_mat_to_cooccurrence_mat(
             raise ValueError('Unknown trans_func: %s' % trans_func)
 
         # 1st degree interaction matrix
-        cooc_mat = obs_mat.T * obs_mat
+        cooc_mat = mat.T * mat
         # remove self similarities
         cooc_mat.setdiag(0)
         # maybe less memory
@@ -68,9 +67,8 @@ def interactions_mat_to_cooccurrence_mat(
         higher_deg_cooc = prune_mat(cooc_mat_base.copy(), prune_ratio, min_cooccurrence)
 
         for i in range(degree - 1):
-
             higher_deg_cooc += \
-                decay**(i+1) * \
+                decay ** (i + 1) * \
                 higher_deg_cooc * \
                 higher_deg_cooc
 
@@ -133,7 +131,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         self._check_no_negatives()
 
         top_simil_for_users = partial(self._recommend_for_item_inds,
-                                     n_rec_unfilt=n_rec_unfilt, remove_self=False)
+                                      n_rec_unfilt=n_rec_unfilt, remove_self=False)
 
         best_ids, best_scores = custom_row_func_on_sparse(
             row_func=top_simil_for_users,
@@ -146,8 +144,8 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         )
 
         return self._format_results_df(
-                source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
-                results_format='recommendations_flat')
+            source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
+            results_format='recommendations_flat')
 
     @log_time_and_shape
     def get_similar_items(self, itemids, N=10, results_format='lists', pbar=None, **kwargs):
@@ -175,7 +173,7 @@ class ItemCoocRecommender(BaseSimilarityRecommeder):
                  base_min_cooccurrence=1, trans_func='ones', *args, **kwargs):
         super().__init__(
             *args,
-            fit_params = dict(
+            fit_params=dict(
                 normalize_items=normalize_items,
                 degree=degree,
                 prune_ratio=prune_ratio,
@@ -186,7 +184,6 @@ class ItemCoocRecommender(BaseSimilarityRecommeder):
             ),
             **kwargs)
 
-
     @log_time_and_shape
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
@@ -195,9 +192,9 @@ class ItemCoocRecommender(BaseSimilarityRecommeder):
         self.similarity_mat += self.similarity_mat.T
 
     def set_params(self, **params):
-        '''
+        """
         this is for skopt / sklearn compatibility
-        '''
+        """
         params = self._pop_set_dict(
             self.fit_params,
             params,
@@ -222,12 +219,11 @@ class UserCoocRecommender(ItemCoocRecommender):
     @log_time_and_shape
     def _get_recommendations_flat_unfilt(
             self, user_ids, n_rec_unfilt=100, pbar=None, **kwargs):
-
         def row_func(user_inds, row_data):
             sub_mat = self.train_mat[user_inds, :]
             sub_mat.sort_indices()
             for i, r in enumerate(row_data):
-                sub_mat.data[sub_mat.indptr[i]:sub_mat.indptr[i+1]] *= r
+                sub_mat.data[sub_mat.indptr[i]:sub_mat.indptr[i + 1]] *= r
 
             sum_weight_occurs = np.array(np.sum(sub_mat.tocsr(), axis=0)).ravel()
 
@@ -246,8 +242,8 @@ class UserCoocRecommender(ItemCoocRecommender):
         )
 
         return self._format_results_df(
-                source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
-                results_format='recommendations_flat')
+            source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
+            results_format='recommendations_flat')
 
     def get_similar_items(self, itemids, N=10, results_format='lists', pbar=None, **kwargs):
         raise NotImplementedError
@@ -273,7 +269,7 @@ class SimilarityDFRecommender(BaseSimilarityRecommeder):
     @log_time_and_shape
     def fit(self, train_obs, simil_df_flat, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
-        self.similarity_mat = self.similarity_mat_builder.\
+        self.similarity_mat = self.similarity_mat_builder. \
             build_sparse_interaction_matrix(simil_df_flat)
         self.similarity_mat += self.similarity_mat.T
 
@@ -281,5 +277,3 @@ class SimilarityDFRecommender(BaseSimilarityRecommeder):
         partial_similarity_mat = self.similarity_mat_builder. \
             build_sparse_interaction_matrix(simil_df_flat)
         self.similarity_mat += partial_similarity_mat + partial_similarity_mat.T
-
-

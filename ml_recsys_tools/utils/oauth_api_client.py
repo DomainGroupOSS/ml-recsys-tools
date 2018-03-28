@@ -81,7 +81,7 @@ class DictCache:
         self.dict = {}
 
     def not_expired(self, cached_dict):
-        return (time.time() < cached_dict['expiry'])
+        return time.time() < cached_dict['expiry']
 
     def get(self, key, default=None):
         cached = self.dict.get(key, default)
@@ -93,6 +93,7 @@ class DictCache:
     def set(self, key, value, expiry=300):
         self.dict[key] = {'value': value,
                           'expiry': time.time() + expiry}
+
 
 class RequestFailure(RuntimeError):
     def __init__(self, message, response):

@@ -46,6 +46,6 @@ Utilities:
 
 Still to add:
 - examples
-- comments and documentation
+- comments and docstrings
 - tests
  

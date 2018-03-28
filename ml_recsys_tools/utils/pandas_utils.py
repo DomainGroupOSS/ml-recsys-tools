@@ -12,6 +12,7 @@ def console_settings():
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', 1000)
 
+
 def hist_by_groups(groups):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(3, 7)
@@ -21,10 +22,12 @@ def hist_by_groups(groups):
         ax[i].legend()
     return ax
 
+
 def classification_report_df(y_true, y_pred):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         return pd.read_csv(StringIO(classification_report(y_true, y_pred)), sep=r"[ \t]{2,}")
+
 
 # slow
 def explode_df(df, cols):
@@ -40,9 +43,9 @@ def explode_df(df, cols):
             rows.append(new_row)
     return pd.DataFrame(rows, columns=cols + static_cols)
 
+
 def explode_df_parallel(df, cols):
     return parallelize_dataframe(df, partial(explode_df, cols=cols))
-
 
 # def explode_df_np(df, cols):
 #     static_cols = [col for col in df.columns if col not in cols]

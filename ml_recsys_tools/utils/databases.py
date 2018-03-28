@@ -16,13 +16,13 @@ class RedisTable(redis.StrictRedis):
         return self.table_name + ':' + key + ':' + value
 
     def query(self, index_key, index_value):
-        '''
+        """
         example:
             table = RedisTable('p-bla-bla')
             result_dict = table.query('uuid', '1234')
 
         :returns response JSON as dict, None if not found, or response string if JSON conversion fails
-        '''
+        """
         key = self.table_index_key(index_key, index_value)
         response = self.get(key)
         if response:

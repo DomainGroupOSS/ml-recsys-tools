@@ -82,9 +82,9 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         with self.get_workers_pool() as pool:
             self.sub_models = list(
                 pool.imap(self._fit_sub_model,
-                      zip(range(self.n_models),
-                          sub_model_train_df_generator,
-                          repeat(fit_params, self.n_models))))
+                          zip(range(self.n_models),
+                              sub_model_train_df_generator,
+                              repeat(fit_params, self.n_models))))
         return self
 
     @log_time_and_shape
@@ -95,7 +95,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             relevance_mask = np.isin(user_ids, model.all_training_users())
             if np.sum(relevance_mask) >= 1.0:
                 return model._get_recommendations_flat_unfilt(
-                    user_ids=np.array(user_ids)[relevance_mask],n_rec_unfilt=n_rec_unfilt, **kwargs)
+                    user_ids=np.array(user_ids)[relevance_mask], n_rec_unfilt=n_rec_unfilt, **kwargs)
             else:
                 return pd.DataFrame()
 
@@ -125,11 +125,11 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         with self.get_workers_pool('threads') as pool:
             simil_dfs = pool.map(_calc_simils_sub_model, np.arange(len(self.sub_models)))
 
-        simil_all = pd.concat(simil_dfs, axis=0).\
-            sort_values(self._prediction_col, ascending=False).\
+        simil_all = pd.concat(simil_dfs, axis=0). \
+            sort_values(self._prediction_col, ascending=False). \
             drop_duplicates(subset=[self._item_col_simil, self._item_col], keep='first')
 
-        return simil_all if results_format=='flat' \
+        return simil_all if results_format == 'flat' \
             else self._simil_flat_to_lists(simil_all, n_cutoff=N)
 
     def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
@@ -163,5 +163,3 @@ class CombinationEnsembleBase(BaseDFSparseRecommender):
 
     def fit(self, *args, **kwargs):
         raise NotImplementedError('fit is not supported, recommenders should already be fitted')
-
-

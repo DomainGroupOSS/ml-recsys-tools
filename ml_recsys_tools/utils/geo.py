@@ -124,7 +124,7 @@ class ItemsGeoMapper:
 
     @staticmethod
     def random_color():
-        return tuple(map(int, np.random.randint(0, 255, (3))))  #because of bug in gmaps type checking
+        return tuple(map(int, np.random.randint(0, 255, 3)))  # because of bug in gmaps type checking
 
     @staticmethod
     def get_n_spaced_colors(n):
@@ -133,10 +133,9 @@ class ItemsGeoMapper:
         # colors = [hex(I)[2:].zfill(6) for I in range(0, max_value, interval)]
         # return [(int(i[:2], 16), int(i[2:4], 16), int(i[4:], 16)) for i in colors]
 
-        HSV_tuples = [(x*1.0/n, 1.0, 0.8) for x in range(n)]
+        HSV_tuples = [(x * 1.0 / n, 1.0, 0.8) for x in range(n)]
         RGB_tuples = list(map(lambda x:
-                              tuple(list(map(lambda f: int(f*255),
+                              tuple(list(map(lambda f: int(f * 255),
                                              colorsys.hsv_to_rgb(*x)))),
                               HSV_tuples))
         return RGB_tuples
-
