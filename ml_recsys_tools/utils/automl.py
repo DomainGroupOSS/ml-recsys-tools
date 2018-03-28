@@ -61,7 +61,7 @@ class BayesSearchHoldOut:
         return self.loss(self.data_dict['y_valid'], y_pred)
 
     @print_time_and_shape
-    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='rf'):
+    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb'):
         """
         example code:
 
