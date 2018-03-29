@@ -7,7 +7,7 @@ from functools import partial
 from lightfm import LightFM
 import lightfm.lightfm
 
-from ml_recsys_tools.lightfm_tools.interaction_handlers import RANDOM_STATE
+from ml_recsys_tools.lightfm_tools.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.utils.automl import early_stopping_runner
 from ml_recsys_tools.utils.debug import log_time_and_shape, simple_logger
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS

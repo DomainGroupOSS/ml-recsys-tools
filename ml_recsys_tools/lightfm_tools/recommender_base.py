@@ -7,10 +7,11 @@ import numpy as np
 import pandas as pd
 import pickle
 
+from ml_recsys_tools.lightfm_tools.interactions_with_features import ExternalFeaturesDF
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut
 from ml_recsys_tools.lightfm_tools.evaluation_utils import mean_scores_report_on_ranks
-from ml_recsys_tools.lightfm_tools.interaction_handlers import InteractionMatrixBuilder, RANDOM_STATE
+from ml_recsys_tools.lightfm_tools.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE
 from ml_recsys_tools.utils.debug import log_time_and_shape
 
 
@@ -185,12 +186,9 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         return self.train_df[self.sparse_mat_builder.iid_source_col].unique().tolist()
 
     def add_external_features(
-            self, features_df, numeric_feat_cols, categorical_feat_cols, **external_features_params):
-        external_features_params['features_df'] = features_df
-        external_features_params['numeric_feat_cols'] = numeric_feat_cols
-        external_features_params['categorical_feat_cols'] = categorical_feat_cols
-        self.external_features_mat = self.sparse_mat_builder. \
-            create_items_features_matrix(**external_features_params)
+            self, external_features: ExternalFeaturesDF, **external_features_params):
+        self.external_features_mat = external_features.create_items_features_matrix(
+            self.sparse_mat_builder.iid_encoder, **external_features_params)
         logger.info('External item features matrix: %s' %
                     str(self.external_features_mat.shape))
 

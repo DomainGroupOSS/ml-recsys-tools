@@ -1,6 +1,7 @@
 # ml-recsys-tools
 
-Open source repo for various tools for recommender systems development work.
+Open source repo for various tools for recommender systems development work. Work in progress.
+
 Includes:
 
 Recommender model and LightFM tools:
@@ -18,21 +19,25 @@ Recommender model and LightFM tools:
             - cooccurence (items, users)
             - generic similarity based
         - ensembles:
-            - subdivision based (multiple recommenders each on subset of data - e.g. geographical region)
+            - subdivision based (multiple recommenders each on subset of data - e.g. geographical region):
+                - geo based: simple grid, equidense grid, geo clustering
+                - LightFM and cooccurrence based
             - combination based - combining recommendations from multiple recommenders
             - similarity combination based - similarity based recommender on similarities from multiple recommenders
             - cascade ensemble
 
-  - interaction dataframe and sparse matrix handlers / builders:
-    - sampling, data splitting,
-    - external features matrix creation (additional item features),
-        with feature engineering: binning / one-hot encoding (via pandas_sklearn)
-    - evaluation and ranking helpers
+    - interaction dataframe and sparse matrix handlers / builders:
+        - sampling, data splitting,
+        - external features matrix creation (additional item features),
+            with feature engineering: binning / one-hot encoding (via pandas_sklearn)
+        - evaluation and ranking helpers
+        - handlers for observations coupled with external features and features with geo coordinates
+        - mappers for geo features, observations, recommendations, similarities etc.
 
-  - evaluation utils:
-    - score reports on lightfm metrics (AUC, precision, recall, reciprocal)
-    - n-DCG, and n-MRR metrics, n-precision / recall
-    - references: best possible ranking and chance ranking
+    - evaluation utils:
+        - score reports on lightfm metrics (AUC, precision, recall, reciprocal)
+        - n-DCG, and n-MRR metrics, n-precision / recall
+        - references: best possible ranking and chance ranking
 
 Utilities:
     - hyperparameter tuning utils (by skopt)
