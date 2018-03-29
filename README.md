@@ -50,6 +50,7 @@ Utilities:
     - google maps util for displaying geographical data
     - logging, debug printouts decorators
     - pandas utils
+    - data helpers: redis, s3
 
 
 Still to add:
