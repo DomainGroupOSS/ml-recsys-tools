@@ -1,10 +1,12 @@
 # ml-recsys-tools
 
+```
 Open source repo for various tools for recommender systems development work. Work in progress.
 
 Includes:
 
 Recommender model and LightFM tools:
+
     - LightFM and other recommenders with:
             - dataframes for all inputs and outputs
             - adding external features
@@ -14,6 +16,7 @@ Recommender model and LightFM tools:
             - fast batched similar items samplilng with different similarity measures
             - fast batched similar users sampling
             - fast evaluation by sampling and ranking
+
     - additional models:
         - similarity based recommenders:
             - cooccurence (items, users)
@@ -53,4 +56,5 @@ Still to add:
 - examples
 - comments and docstrings
 - tests
- 
+
+ ```
