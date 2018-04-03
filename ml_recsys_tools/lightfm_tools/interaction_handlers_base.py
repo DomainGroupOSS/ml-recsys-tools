@@ -275,7 +275,8 @@ class InteractionMatrixBuilder:
         ranks_mat.sort_indices()
         filter_mat.sort_indices()
         filt_ranks = filter_mat.copy()
-        filt_ranks.data *= 0
+        filt_ranks.data *= 0  # remove actual data
+        filt_ranks.data += filt_ranks.shape[1]-1  # add number of columns - meaning worst possible rank
         for i in inds:
             f_s = filt_ranks.indptr[i]
             f_e = filt_ranks.indptr[i + 1]
@@ -288,7 +289,7 @@ class InteractionMatrixBuilder:
             mask_filt = np.isin(f_cols, r_cols)
             mask_ranks = np.isin(r_cols, f_cols)
 
-            # adding one to differentiate from 0 as first rank
+            # adding 1 to differentiate from 0 as first rank
             filt_ranks.data[f_s: f_e][mask_filt] = ranks_mat.data[r_s: r_e][mask_ranks] + 1
 
         filt_ranks.eliminate_zeros()
@@ -302,7 +303,7 @@ class InteractionMatrixBuilder:
         """
         generates rankings for a an evaluation of a dataset (test set), relative to all valid predictions
 
-        :param sparse_filter_mat: sparse matrix of known predictions (test set interactions - ground truth)
+        :param sparse_filter_mat: sparse matrix of test observations (ground truth)
         :param all_recos_ranks_mat: sparse matrix of all ranked predictions
         :return: sparse matrix of ranks of the predictions for GT observations in the full prediction matrix
         """
