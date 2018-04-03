@@ -65,16 +65,20 @@ class S3FileIO:
             logger.exception(e)
 
     def pickle(self, obj, remote_path):
+        logger.info('S3: pickling to %s' % remote_path)
         return self.write(pickle.dumps(obj), remote_path)
 
     def unpickle(self, remote_path):
+        logger.info('S3: unpickling from %s' % remote_path)
         return pickle.loads(self.read(remote_path))
 
     def remote_to_local(self, remote_path, local_path):
+        logger.info('S3: copying from %s to %s' % (remote_path, local_path))
         with open(local_path, 'wb') as local:
             local.write(self.read(remote_path))
 
     def local_to_remote(self, local_path, remote_path):
+        logger.info('S3: copying from %s to %s' % (local_path, remote_path))
         with open(local_path, 'rb') as local:
             self.write(local.read(), remote_path)
 
