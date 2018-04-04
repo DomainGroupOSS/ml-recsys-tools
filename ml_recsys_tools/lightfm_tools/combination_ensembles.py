@@ -54,7 +54,10 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
                 df = func()
 
             rank_cols.append('rank_' + str(i))
-            df[rank_cols[-1]] = df.groupby(groupby_col)[scores_col].rank(ascending=False)
+
+            df[rank_cols[-1]] = df.reset_index().\
+                groupby(groupby_col)[scores_col].rank(ascending=False)  # resetting index due to pandas bug
+
             df.drop(scores_col, axis=1, inplace=True)
 
             if merged_df is None:
