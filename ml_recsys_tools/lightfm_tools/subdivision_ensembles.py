@@ -61,10 +61,10 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
     def __init__(self,
                  use_item_features=False,
                  item_features_params=None,
-                 *args, **kwargs):
+                 **kwargs):
         self.use_item_features = use_item_features
         self.item_features_params = item_features_params
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
 
     def _init_sub_models(self):
         super()._init_sub_models()

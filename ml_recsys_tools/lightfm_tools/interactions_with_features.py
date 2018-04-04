@@ -10,7 +10,7 @@ from sklearn_pandas import DataFrameMapper
 from ml_recsys_tools.utils.sklearn_extenstions import FloatBinningBinarizer
 
 from ml_recsys_tools.lightfm_tools.interaction_handlers_base import ObservationsDF, RANDOM_STATE
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.geo import ItemsGeoMapper
 from ml_recsys_tools.utils.logger import simple_logger as logger
 

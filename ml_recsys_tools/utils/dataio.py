@@ -7,12 +7,12 @@ from ml_recsys_tools.utils.logger import simple_logger as logger
 
 class RedisTable(redis.StrictRedis):
 
-    def __init__(self, host_url, table_name, timeout=10, *args, **kwargs):
+    def __init__(self, host_url, table_name, timeout=10, **kwargs):
         self.table_name = table_name
         super().__init__(
             host=host_url, port=6379, decode_responses=True,
             socket_timeout=timeout, socket_connect_timeout=timeout,
-            *args, **kwargs)
+            **kwargs)
 
     def table_index_key(self, key, value):
         return self.table_name + ':' + key + ':' + value

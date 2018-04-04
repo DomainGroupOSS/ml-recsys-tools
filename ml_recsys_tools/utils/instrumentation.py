@@ -2,6 +2,7 @@ import logging
 import functools
 import time
 import inspect
+from abc import ABC
 from threading import Thread
 from psutil import virtual_memory
 
@@ -136,3 +137,30 @@ def get_class_that_defined_method(meth):
         if isinstance(cls, type):
             return cls
     return getattr(meth, '__objclass__', None)  # handle special descriptor objects
+
+
+def collect_named_init_params(cls, skip_empty=True, ignore_classes=(object, ABC)):
+    """
+    a method to get all named params from all classed in this class' MRO
+    can be used to infer the possible search space for hyperparam optimization
+
+    :param skip_empty: whether to skip classes with no named parameters
+    :return: a nested dict of {class-name: dict of {named-init-params: default values}}
+    """
+    params = {}
+    for c in inspect.getmro(cls):
+        if c not in ignore_classes:
+            named_params = [
+                p for p in inspect.signature(c.__init__).parameters.values()
+                if p.name != 'self'
+                   and p.kind != p.VAR_KEYWORD
+                   and p.kind != p.VAR_POSITIONAL]
+
+            if skip_empty and not named_params:
+                continue
+
+            params[c.__name__] = {
+                p.name: p.default
+                if p.default is not p.empty else ''
+                for p in named_params}
+    return params

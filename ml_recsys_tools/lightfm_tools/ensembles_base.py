@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from ml_recsys_tools.lightfm_tools.recommender_base import BaseDFSparseRecommender
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import N_CPUS
 
 
@@ -15,12 +15,11 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def __init__(self,
                  n_models=1,
                  max_concurrent=2,
-                 concurrency_backend='threads',
-                 *args, **kwargs):
+                 concurrency_backend='threads', **kwargs):
         self.n_models = n_models
         self.max_concurrent = max_concurrent
         self.concurrency_backend = concurrency_backend
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.sub_class_type = None
         self._init_sub_models()
 
@@ -154,10 +153,10 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
 class CombinationEnsembleBase(BaseDFSparseRecommender):
 
-    def __init__(self, recommenders, *args, **kwargs):
+    def __init__(self, recommenders, **kwargs):
         self.recommenders = recommenders
         self.n_recommenders = len(self.recommenders)
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.sparse_mat_builder = self.recommenders[0].sparse_mat_builder
         self.train_df = self.recommenders[0].train_df
 

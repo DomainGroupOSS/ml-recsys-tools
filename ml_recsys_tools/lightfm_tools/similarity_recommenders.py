@@ -6,7 +6,7 @@ from sklearn.preprocessing import normalize
 
 from ml_recsys_tools.lightfm_tools.recommender_base import BaseDFSparseRecommender
 from ml_recsys_tools.utils.similarity import top_N_sorted_on_sparse, custom_row_func_on_sparse
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 
 
 @log_time_and_shape
@@ -88,8 +88,8 @@ def interactions_mat_to_cooccurrence_mat(
 
 class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.similarity_mat = None
 
     def _prep_for_fit(self, train_obs, **fit_params):
@@ -170,9 +170,8 @@ class ItemCoocRecommender(BaseSimilarityRecommeder):
 
     def __init__(self, degree=1, normalize_items=True,
                  prune_ratio=0.0, decay=0.5, min_cooccurrence=1,
-                 base_min_cooccurrence=1, trans_func='ones', *args, **kwargs):
+                 base_min_cooccurrence=1, trans_func='ones', **kwargs):
         super().__init__(
-            *args,
             fit_params=dict(
                 normalize_items=normalize_items,
                 degree=degree,

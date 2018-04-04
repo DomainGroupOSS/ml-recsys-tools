@@ -48,7 +48,7 @@ Utilities:
     - parallelism utils
     - sklearn transformer extenstions (for feature engineering)
     - google maps util for displaying geographical data
-    - logging, debug printouts decorators
+    - logging, debug printouts decorators and other isntrumentation and inspection tools
     - pandas utils
     - data helpers: redis, s3
 
