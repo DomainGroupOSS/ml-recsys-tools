@@ -70,7 +70,7 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
         super()._init_sub_models()
         self.sub_class_type = LightFMRecommender
         self._set_sub_class_params({'use_sample_weight': self.use_sample_weight,
-                                    'sparse_mat_builder': self.sparse_mat_builder,
+                                    # 'sparse_mat_builder': self.sparse_mat_builder,
                                     'model_params': self.model_params,
                                     'fit_params': self.fit_params
                                     })
@@ -126,8 +126,9 @@ class CoocEnsembleBase(SubdivisionEnsembleBase, ItemCoocRecommender):
     def _init_sub_models(self):
         super()._init_sub_models()
         self.sub_class_type = ItemCoocRecommender
-        self._set_sub_class_params(
-            dict(**{'sparse_mat_builder': self.sparse_mat_builder}, **self.fit_params))
+        self._set_sub_class_params(self.fit_params)
+        # self._set_sub_class_params(
+        #     dict(**{'sparse_mat_builder': self.sparse_mat_builder}, **self.fit_params))
 
     def _fit_sub_model(self, args):
         i_m, obs, fit_params = args

@@ -111,19 +111,13 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
                  n_unfilt=100,
                  numeric_n_bins=30,
                  combination_mode='hmean',
-                 use_external_feat_simil=True,
-                 use_lfm_simil=True,
-                 use_cooc_simil=True,
                  *args, **kwargs):
         self.recommenders = recommenders
         self.similarity_func_params = similarity_func_params
         self.n_unfilt = n_unfilt
         self.combination_mode = combination_mode
         self.numeric_n_bins = numeric_n_bins
-        self.use_external_feat_simil = use_external_feat_simil
-        self.use_lfm_simil = use_lfm_simil
-        self.use_cooc_simil = use_cooc_simil
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
 
     def set_params(self, **params):
         params = self._pop_set_params(
