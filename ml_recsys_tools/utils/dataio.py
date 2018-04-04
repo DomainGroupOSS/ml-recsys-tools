@@ -14,6 +14,15 @@ class RedisTable(redis.StrictRedis):
             socket_timeout=timeout, socket_connect_timeout=timeout,
             **kwargs)
 
+    def set_json(self, key_name, key_value, data, **kwargs):
+        return super().set(self.table_index_key(key_name, key_value),
+                           json.dumps(data), **kwargs)
+
+    def set_json_to_pipeline(
+            self, pipeline, key, name, data, **kwargs):
+        return pipeline.set(self.table_index_key(key, name),
+                            json.dumps(data), **kwargs)
+
     def table_index_key(self, key, value):
         return self.table_name + ':' + key + ':' + value
 
