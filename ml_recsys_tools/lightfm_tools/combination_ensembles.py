@@ -7,7 +7,7 @@ import pandas as pd
 import scipy.stats
 
 from ml_recsys_tools.lightfm_tools.similarity_recommenders import SimilarityDFRecommender
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import batch_generator
 from ml_recsys_tools.lightfm_tools.ensembles_base import CombinationEnsembleBase
 
@@ -15,8 +15,8 @@ from ml_recsys_tools.lightfm_tools.ensembles_base import CombinationEnsembleBase
 class CombinedRankEnsemble(CombinationEnsembleBase):
 
     def __init__(self, recommenders, fill_na_val=None,
-                 rank_combination_mode='hmean', *args, **kwargs):
-        super().__init__(recommenders=recommenders, *args, **kwargs)
+                 rank_combination_mode='hmean', **kwargs):
+        super().__init__(recommenders=recommenders, **kwargs)
         self.fill_na_val = fill_na_val
         self.rank_combination_mode = rank_combination_mode
 
@@ -183,8 +183,8 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
 
 class CascadeEnsemble(CombinationEnsembleBase):
 
-    def __init__(self, recommenders, *args, **kwargs):
-        super().__init__(recommenders, *args, **kwargs)
+    def __init__(self, recommenders, **kwargs):
+        super().__init__(recommenders, **kwargs)
         assert self.n_recommenders == 2, 'only 2 recommenders supported'
 
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):

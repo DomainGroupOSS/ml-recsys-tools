@@ -9,7 +9,7 @@ import lightfm.lightfm
 
 from ml_recsys_tools.lightfm_tools.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.utils.automl import early_stopping_runner
-from ml_recsys_tools.utils.debug import log_time_and_shape, simple_logger
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape, simple_logger
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS
 from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted, top_N_sorted_on_sparse
 from ml_recsys_tools.lightfm_tools.recommender_base import BaseDFSparseRecommender
@@ -20,6 +20,7 @@ lightfm.lightfm.print = simple_logger.info
 
 
 class LightFMRecommender(BaseDFSparseRecommender):
+
     default_fit_params = {
         'epochs': 100,
         'item_features': None,
@@ -27,11 +28,11 @@ class LightFMRecommender(BaseDFSparseRecommender):
         'verbose': True,
     }
 
-    def __init__(self, use_sample_weight=False, external_features_params=None, *args, **kwargs):
+    def __init__(self, use_sample_weight=False, external_features_params=None, **kwargs):
         self.use_sample_weight = use_sample_weight
         self.sample_weight = None
         self.cooc_mat = None
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         if external_features_params is not None:
             self.add_external_features(**external_features_params)
 

@@ -1,4 +1,4 @@
-from builtins import staticmethod
+import pprint
 from functools import partial
 import numpy as np
 import pandas as pd
@@ -14,11 +14,61 @@ from skopt.optimizer import forest_minimize, gp_minimize, gbrt_minimize, dummy_m
 from skopt.utils import dimensions_aslist, point_asdict
 from skopt.space import Real, Categorical, Integer
 
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape, collect_named_init_params
 from ml_recsys_tools.utils.logger import simple_logger
 
 # monkey patch print function
 skopt.callbacks.print = simple_logger.info
+
+
+class SearchSpaceGuess:
+    Integer = Integer
+    Real = Real
+    Categorical = Categorical
+
+    def __init__(self, arg):
+        """
+        constructs an instance with attributes from the dictionary of names and default values
+        :param arg: either a dict of {name: default value} or and instance or a class for which to construct a guess
+        """
+        if isinstance(arg, dict):
+            self.set_from_dict(arg)
+        else:
+            self.set_from_class(arg)
+
+    def set_from_dict(self, dictionary):
+        for key, value in dictionary.items():
+            if isinstance(value, int):
+                variable = self.Integer(value, value + 1)
+            elif isinstance(value, float):
+                variable = self.Real(value, value + 1)
+            else:
+                variable = self.Categorical([value])
+            setattr(self, key, variable)
+
+    def __repr__(self):
+        return pprint.pformat(self.__dict__)
+
+    def set_from_class(self, obj):
+        """
+        Guess a class search space from init params and construct an object with
+        params as attributes and skopt variable distributions as values
+        :param other_class: and object or a class
+        :return: a SearchSpace object with params attributes named as the parameters and skopt variables as values
+        """
+
+        if isinstance(obj, type):
+            cls = obj
+        else:
+            cls = type(obj)
+
+        all_init_params = collect_named_init_params(cls)
+
+        search_space = dict([el
+                             for d in all_init_params.values()
+                             for el in list(d.items())])
+
+        self.set_from_dict(search_space)
 
 
 class BayesSearchHoldOut:

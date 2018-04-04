@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 from ml_recsys_tools.utils.parallelism import batch_generator, parallelize_dataframe, N_CPUS
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.pandas_utils import console_settings
 

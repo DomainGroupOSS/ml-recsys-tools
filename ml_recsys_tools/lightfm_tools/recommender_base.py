@@ -7,12 +7,13 @@ import numpy as np
 import pandas as pd
 import pickle
 
+
 from ml_recsys_tools.lightfm_tools.interactions_with_features import ExternalFeaturesDF
 from ml_recsys_tools.utils.logger import simple_logger as logger
-from ml_recsys_tools.utils.automl import BayesSearchHoldOut
+from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
 from ml_recsys_tools.lightfm_tools.evaluation_utils import mean_scores_report_on_ranks
 from ml_recsys_tools.lightfm_tools.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE
-from ml_recsys_tools.utils.debug import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape, collect_named_init_params
 
 
 class BaseDFRecommender(ABC):
@@ -33,11 +34,14 @@ class BaseDFRecommender(ABC):
         self.train_df = None
         self.model = None
 
+    @classmethod
+    def guess_search_space(cls):
+        return SearchSpaceGuess(cls)
+
     @staticmethod
     def _dict_update(d, u):
         d = d.copy()
-        if u:
-            d.update(u)
+        if u: d.update(u)
         return d
 
     @staticmethod
@@ -172,9 +176,9 @@ class BaseDFRecommender(ABC):
 
 class BaseDFSparseRecommender(BaseDFRecommender, ABC):
 
-    def __init__(self, *args, sparse_mat_builder=None, **kwargs):
-        self.sparse_mat_builder = sparse_mat_builder
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.sparse_mat_builder = None
         self.train_mat = None
         self.user_train_counts = None
         self.external_features_mat = None
