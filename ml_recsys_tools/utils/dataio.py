@@ -1,3 +1,5 @@
+import gzip
+import io
 import json
 import pickle
 import boto3
@@ -50,14 +52,16 @@ class S3FileIO:
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
 
-    def write(self, data, remote_path):
+    def write_binary(self, data, remote_path, compress=True):
         try:
             client = boto3.client('s3')
-            resp = client.put_object(
-                Body=data,
-                Bucket=self.bucket_name,
-                Key=remote_path)
-            return resp['ResponseMetadata']['HTTPStatusCode']==200
+            if compress:
+                data = gzip.compress(data, 1)
+            with io.BytesIO(data) as f:
+                client.upload_fileobj(
+                    Fileobj=f,
+                    Bucket=self.bucket_name,
+                    Key=remote_path)
         except Exception as e:
             logger.error('Failed writing to S3: %s' % str(e))
             logger.exception(e)
@@ -65,29 +69,36 @@ class S3FileIO:
     def read(self, remote_path):
         try:
             client = boto3.client('s3')
-            resp = client.get_object(
-                Bucket=self.bucket_name,
-                Key=remote_path)
-            return resp['Body'].read()
+            with io.BytesIO() as f:
+                client.download_fileobj(
+                    Bucket=self.bucket_name,
+                    Key=remote_path,
+                    Fileobj=f)
+                data = f.read()
+            try:
+                data = gzip.decompress(data)
+            except OSError:
+                pass
+            return data
         except Exception as e:
             logger.error('Failed reading from S3: %s' % str(e))
             logger.exception(e)
 
     def pickle(self, obj, remote_path):
         logger.info('S3: pickling to %s' % remote_path)
-        return self.write(pickle.dumps(obj), remote_path)
+        return self.write_binary(pickle.dumps(obj).encode(), remote_path)
 
     def unpickle(self, remote_path):
         logger.info('S3: unpickling from %s' % remote_path)
         return pickle.loads(self.read(remote_path))
 
+    def local_to_remote(self, local_path, remote_path):
+        logger.info('S3: copying from %s to %s' % (local_path, remote_path))
+        with open(local_path, 'rb') as local:
+            self.write_binary(local.read(), remote_path)
+
     def remote_to_local(self, remote_path, local_path):
         logger.info('S3: copying from %s to %s' % (remote_path, local_path))
         with open(local_path, 'wb') as local:
             local.write(self.read(remote_path))
-
-    def local_to_remote(self, local_path, remote_path):
-        logger.info('S3: copying from %s to %s' % (local_path, remote_path))
-        with open(local_path, 'rb') as local:
-            self.write(local.read(), remote_path)
 
