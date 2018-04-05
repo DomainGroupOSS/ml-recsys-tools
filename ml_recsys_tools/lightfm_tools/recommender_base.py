@@ -164,10 +164,11 @@ class BaseDFRecommender(ABC):
         with open(filepath, 'wb') as f:
             pickle.dump(self, f)
 
-    def hyper_param_search(self, train_obs, hp_space, n_iters=100, random_search=0.9, **kwargs):
+    def hyper_param_search(self, train_obs, hp_space, n_iters=100, valid_ratio=0.04, random_search=0.9, **kwargs):
 
+        sqrt_ratio = valid_ratio ** 0.5
         train_obs_bo, valid_obs_bo = train_obs.split_train_test(
-            users_ratio=0.2, ratio=0.2, random_state=RANDOM_STATE)
+            users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
 
         return self.hyper_param_search_on_split_data(
             train_data=train_obs_bo, validation_data=valid_obs_bo.df_obs,
@@ -257,10 +258,9 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         user_counts = self.user_train_counts[self.user_train_counts.index.isin(user_ids)]
 
         heavy_user_counts = user_counts[user_counts >= threshold]
-        heavy_users = heavy_user_counts.index
         heavy_users_max = heavy_user_counts.max()
-
-        normal_users = user_counts[user_counts < threshold].index
+        heavy_users = heavy_user_counts.index.tolist()
+        normal_users = user_counts[user_counts < threshold].index.tolist()
 
         return heavy_users, normal_users, heavy_users_max
 
@@ -275,15 +275,17 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             results_format='lists'):
 
         # treat heavy users differently
-        heavy_users, normal_users, heavy_users_max = self._separate_heavy_users(user_ids=user_ids, threshold=50)
+        heavy_users, normal_users, heavy_users_max = \
+            self._separate_heavy_users(user_ids=user_ids, threshold=50)
         reco_dfs = []
         for user_group, n_unfilt in zip([heavy_users, normal_users],
                                         [n_rec_unfilt + heavy_users_max, n_rec_unfilt]):
             if len(user_group):
-                reco_dfs.append(self._get_recommendations_flat_unfilt(
-                    user_ids=user_group,
-                    n_rec_unfilt=n_unfilt,
-                    pbar=pbar))
+                reco_dfs.append(
+                    self._get_recommendations_flat_unfilt(
+                        user_ids=user_group,
+                        n_rec_unfilt=n_unfilt,
+                        pbar=pbar))
 
         recos_flat = pd.concat(reco_dfs, axis=0)
 

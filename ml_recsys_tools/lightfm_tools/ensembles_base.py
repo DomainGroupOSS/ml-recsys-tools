@@ -90,11 +90,11 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt=100, **kwargs):
 
         def _calc_recos_sub_model(i_model):
-            model = self.sub_models[i_model]
-            relevance_mask = np.isin(user_ids, model.all_training_users())
-            if np.sum(relevance_mask) >= 1.0:
-                return model._get_recommendations_flat_unfilt(
-                    user_ids=np.array(user_ids)[relevance_mask], n_rec_unfilt=n_rec_unfilt, **kwargs)
+            all_users = np.array(self.sub_models[i_model].all_training_users())
+            users = all_users[np.isin(all_users, user_ids)]
+            if len(users):
+                return self.sub_models[i_model]._get_recommendations_flat_unfilt(
+                    user_ids=users, n_rec_unfilt=n_rec_unfilt, **kwargs)
             else:
                 return pd.DataFrame()
 
@@ -112,10 +112,11 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                           simil_mode='cosine', results_format='lists', **kwargs):
 
         def _calc_simils_sub_model(i_model):
-            relevance_mask = np.isin(itemids, self.sub_models[i_model].all_training_items())
-            if np.sum(relevance_mask) >= 1.0:
+            all_items = np.array(self.sub_models[i_model].all_training_items())
+            items = all_items[np.isin(all_items, itemids)]
+            if len(items):
                 return self.sub_models[i_model].get_similar_items(
-                    itemids=np.array(itemids)[relevance_mask], N=N, remove_self=remove_self,
+                    itemids=items, N=N, remove_self=remove_self,
                     embeddings_mode=embeddings_mode, simil_mode=simil_mode,
                     results_format='flat', pbar=None)
             else:
