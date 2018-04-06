@@ -28,6 +28,15 @@ class LightFMRecommender(BaseDFSparseRecommender):
         'verbose': True,
     }
 
+    default_model_params = {
+        'loss': 'warp',
+        'learning_schedule': 'adadelta',
+        'no_components': 30,
+        'max_sampled': 10,
+        'item_alpha': 0,
+        'user_alpha': 0,
+    }
+
     def __init__(self, use_sample_weight=False, external_features_params=None, **kwargs):
         self.use_sample_weight = use_sample_weight
         self.sample_weight = None
@@ -80,6 +89,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         train_obs_internal, valid_obs = train_obs.split_train_test(
             users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
 
+        self.model = None
         self.model_checkpoint = None
 
         def check_point_func():
@@ -87,11 +97,10 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 self.model_checkpoint = deepcopy(self.model)
 
         def score_func():
-            self.fit_partial(train_obs_internal,
-                             epochs=epochs_step)
+            self.fit_partial(train_obs_internal,  epochs=epochs_step)
             lfm_report = self.eval_on_test_by_ranking(
-                valid_obs.df_obs, include_train=False)
-            cur_score = lfm_report.loc['lfm test', metric]
+                valid_obs.df_obs, include_train=False, prefix='earlystop ')
+            cur_score = lfm_report.loc['earlystop test', metric]
             return cur_score
 
         max_epoch = early_stopping_runner(

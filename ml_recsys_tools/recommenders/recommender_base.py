@@ -2,6 +2,7 @@ import os
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from time import sleep
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,8 @@ from ml_recsys_tools.data_handlers.interactions_with_features import ExternalFea
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
 from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
-from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE
+from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE, \
+    ObservationsDF
 from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 
 
@@ -93,8 +95,8 @@ class BaseDFRecommender(ABC):
         return recos_df_flat
 
     @staticmethod
-    def _flat_df_to_lists(df, sort_col, group_col, n_cutoff):
-        return df. \
+    def _flat_df_to_lists(df, sort_col, group_col, n_cutoff, target_columns):
+        return df[list(set([sort_col, group_col] + target_columns))]. \
             sort_values(sort_col, ascending=False). \
             groupby(group_col). \
             aggregate(lambda x: list(x)[:n_cutoff]). \
@@ -103,12 +105,18 @@ class BaseDFRecommender(ABC):
     @log_time_and_shape
     def _recos_flat_to_lists(self, df, n_cutoff=None):
         return self._flat_df_to_lists(
-            df, n_cutoff=n_cutoff, sort_col=self._prediction_col, group_col=self._user_col)
+            df, n_cutoff=n_cutoff,
+            sort_col=self._prediction_col,
+            group_col=self._user_col,
+            target_columns=[self._item_col, self._prediction_col])
 
     @log_time_and_shape
     def _simil_flat_to_lists(self, df, n_cutoff=None):
         return self._flat_df_to_lists(
-            df, n_cutoff=n_cutoff, sort_col=self._prediction_col, group_col=self._item_col_simil)
+            df, n_cutoff=n_cutoff,
+            sort_col=self._prediction_col,
+            group_col=self._item_col_simil,
+            target_columns=[self._item_col, self._prediction_col])
 
     def _format_results_df(self, source_vec, target_ids_mat, scores_mat, results_format):
         if 'recommendations' in results_format:
@@ -154,11 +162,12 @@ class BaseDFRecommender(ABC):
 
         bo_report = bo.best_results_summary(res_bo, percentile=0)
 
-        return {'optimizer': bo,
-                'report': bo_report,
-                'result': res_bo,
-                'best_params': best_params,
-                'best_model': best_model}
+        return SimpleNamespace(**{
+            'optimizer': bo,
+            'report': bo_report,
+            'result': res_bo,
+            'best_params': best_params,
+            'best_model': best_model})
 
     def pickle_to_file(self, filepath):
         with open(filepath, 'wb') as f:
@@ -206,7 +215,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             how='left')
         # keep only data that was present in left (recommendations) but no in right (training)
         flat_df = flat_df[flat_df[self._rating_col].isnull()]. \
-            drop([self._rating_col, self.sparse_mat_builder.iid_source_col], axis=1)
+            drop([self._rating_col], axis=1)
         return flat_df
 
     @staticmethod
@@ -318,6 +327,8 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
 
         if isinstance(test_dfs, pd.DataFrame):
             test_dfs = [test_dfs]
+        elif isinstance(test_dfs, ObservationsDF):
+            test_dfs = [test_dfs.df_obs]
 
         mat_builder = self.sparse_mat_builder
         pred_mat_builder = self.get_prediction_mat_builder_adapter(mat_builder)

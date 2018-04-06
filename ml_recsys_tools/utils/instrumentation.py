@@ -11,6 +11,9 @@ from ml_recsys_tools.utils.logger import simple_logger
 # set this to logging.DEBUG to silence the printouts
 WRAPPERS_LOGGING_LEVEL = logging.INFO
 
+# set this to longer time to reduce printouts of short calls
+MIN_TIME_TO_LOG = 1
+
 
 def variable_info(result):
     if hasattr(result, 'shape'):
@@ -35,7 +38,8 @@ def log_time_and_shape(fn):
 
         result = fn(*args, **kwargs)
 
-        duration_str = '%.2f' % (time.time() - start)
+        elapsed = time.time() - start
+        duration_str = '%.2f' % elapsed
 
         cur_mem, peak_mem = mem_monitor.stop()
 
@@ -51,7 +55,8 @@ def log_time_and_shape(fn):
               '%s, elapsed: %s, returned: %s, sys mem: %s' % \
               (fn_str, duration_str, ret_str, mem_str)
 
-        simple_logger.log(WRAPPERS_LOGGING_LEVEL, msg)
+        if elapsed >= MIN_TIME_TO_LOG:
+            simple_logger.log(WRAPPERS_LOGGING_LEVEL, msg)
 
         return result
 
