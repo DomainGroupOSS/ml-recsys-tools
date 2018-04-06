@@ -56,7 +56,11 @@ class S3FileIO:
         try:
             client = boto3.client('s3')
             if compress:
-                data = gzip.compress(data, 1)
+                try:
+                    # https://stackoverflow.com/questions/33562394/gzip-raised-overflowerror-size-does-not-fit-in-an-unsigned-int
+                    data = gzip.compress(data, 1)
+                except OverflowError:
+                    pass
             with io.BytesIO(data) as f:
                 client.upload_fileobj(
                     Fileobj=f,
