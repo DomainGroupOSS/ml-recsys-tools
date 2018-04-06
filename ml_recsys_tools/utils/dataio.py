@@ -86,7 +86,7 @@ class S3FileIO:
 
     def pickle(self, obj, remote_path):
         logger.info('S3: pickling to %s' % remote_path)
-        return self.write_binary(pickle.dumps(obj).encode(), remote_path)
+        return self.write_binary(pickle.dumps(obj), remote_path)
 
     def unpickle(self, remote_path):
         logger.info('S3: unpickling from %s' % remote_path)
