@@ -14,7 +14,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def __init__(self,
                  n_models=1,
-                 max_concurrent=2,
+                 max_concurrent=4,
                  concurrency_backend='threads', **kwargs):
         self.n_models = n_models
         self.max_concurrent = max_concurrent
