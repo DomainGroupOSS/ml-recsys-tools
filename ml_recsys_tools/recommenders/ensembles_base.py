@@ -5,7 +5,7 @@ from multiprocessing.pool import ThreadPool, Pool
 import numpy as np
 import pandas as pd
 
-from ml_recsys_tools.lightfm_tools.recommender_base import BaseDFSparseRecommender
+from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
 from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import N_CPUS
 

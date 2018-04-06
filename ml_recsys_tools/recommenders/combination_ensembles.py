@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-from ml_recsys_tools.lightfm_tools.similarity_recommenders import SimilarityDFRecommender
+from ml_recsys_tools.recommenders.similarity_recommenders import SimilarityDFRecommender
 from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import batch_generator
-from ml_recsys_tools.lightfm_tools.ensembles_base import CombinationEnsembleBase
+from ml_recsys_tools.recommenders.ensembles_base import CombinationEnsembleBase
 
 
 class CombinedRankEnsemble(CombinationEnsembleBase):

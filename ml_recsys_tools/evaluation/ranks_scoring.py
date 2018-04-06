@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from lightfm.evaluation import precision_at_k, recall_at_k, auc_score, reciprocal_rank
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import N_CPUS
 
 
@@ -21,13 +20,11 @@ def chance_ranks(test_mat):
     return rand_ranks
 
 
-@log_time_and_shape
 def mean_scores_report(model, datasets, dataset_names):
     ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
     return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names)
 
 
-@log_time_and_shape
 def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names):
     data = []
     for ranks, dataset in zip(ranks_list, datasets):
@@ -53,20 +50,21 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
     #                    'test_interactions': test_data,
     #                    'train_interactions': train_data,
     #                    }
-    metrics = {'recall (k=%d)' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k),
-               'n-recall': recall_at_k_on_ranks(**ranks_kwargs, k=k) /
+    metrics = {'recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k),
+               'n-recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k) /
                            recall_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'recall MAX poss': recall_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'recall chance': recall_at_k_on_ranks(**chance_ranks_kwargs, k=k),
-               'precision (k=%d)' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k),
-               'n-precision': precision_at_k_on_ranks(**ranks_kwargs, k=k) /
+               'precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k),
+               'n-precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k) /
                               precision_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'precision MAX poss': precision_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'precision chance': precision_at_k_on_ranks(**chance_ranks_kwargs, k=k),
                'AUC': auc_score_on_ranks(**ranks_kwargs),
                'reciprocal': reciprocal_rank_on_ranks(**ranks_kwargs),
                'n-MRR': mrr_norm_on_ranks(**ranks_kwargs),
-               'n-DCG': dcg_binary_at_k(**ranks_kwargs, k=k) /
+               'n-MRR@%d' % k: mrr_norm_on_ranks(**ranks_kwargs, k=k),
+               'n-DCG@%d' % k: dcg_binary_at_k(**ranks_kwargs, k=k) /
                         dcg_binary_at_k(**best_possible_kwargs, k=k)
                }
 
@@ -130,7 +128,8 @@ def reciprocal_rank_on_ranks(
 
 
 def mrr_norm_on_ranks(
-        ranks, test_interactions, train_interactions=None, preserve_rows=False):
+        ranks, test_interactions, train_interactions=None, preserve_rows=False, k=None):
+
     def harmonic_number(n):
         # https://stackoverflow.com/questions/404346/python-program-to-calculate-harmonic-series
         """Returns an approximate value of n-th harmonic number.
@@ -140,19 +139,22 @@ def mrr_norm_on_ranks(
         gamma = 0.57721566490153286060651209008240243104215933593992
         return gamma + np.log(n) + 0.5 / n - 1. / (12 * n ** 2) + 1. / (120 * n ** 4)
 
-    ranks = ranks.copy()
-
-    ranks.data = 1.0 / (ranks.data + 1.0)
-
     # number of test items in each row + epsilon for subsequent reciprocals / devisions
-    test_counts = np.diff(test_interactions.tocsr().indptr) + 0.001
+    total_positives = np.diff(test_interactions.tocsr().indptr)
+
+    reciprocals = ranks.copy()
+    reciprocals.data = 1.0 / (ranks.data + 1)
+
+    if k:
+        reciprocals.data[ranks.data > (k - 1)] = 0
+        total_positives[total_positives > k] = k
 
     # sum the reciprocals and devide by count of test interactions in each row
-    mrr = np.squeeze(np.array(ranks.sum(axis=1))) / test_counts
+    mrr = np.squeeze(np.array(reciprocals.sum(axis=1)))
 
     # the max mrr is the partial sum of the harmonic series divided by number of items:
     #  1/n * (1/1 + 1/2 + 1/3 ... 1/n) for n = number of items
-    max_mrr = harmonic_number(test_counts) / test_counts
+    max_mrr = harmonic_number(total_positives + 0.001)
 
     mrr_norm = mrr / max_mrr
 

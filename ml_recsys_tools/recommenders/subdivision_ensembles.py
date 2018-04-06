@@ -1,8 +1,8 @@
-from ml_recsys_tools.lightfm_tools.interactions_with_features import ObsWithGeoFeatures
-from ml_recsys_tools.lightfm_tools.interaction_handlers_base import RANDOM_STATE
-from ml_recsys_tools.lightfm_tools.similarity_recommenders import ItemCoocRecommender
-from ml_recsys_tools.lightfm_tools.lightfm_recommender import LightFMRecommender
-from ml_recsys_tools.lightfm_tools.ensembles_base import SubdivisionEnsembleBase
+from ml_recsys_tools.data_handlers.interactions_with_features import ObsWithGeoFeatures
+from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
+from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
+from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+from ml_recsys_tools.recommenders.ensembles_base import SubdivisionEnsembleBase
 
 
 class GeoGridEnsembleBase(SubdivisionEnsembleBase):

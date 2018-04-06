@@ -8,12 +8,12 @@ import pandas as pd
 import pickle
 
 
-from ml_recsys_tools.lightfm_tools.interactions_with_features import ExternalFeaturesDF
+from ml_recsys_tools.data_handlers.interactions_with_features import ExternalFeaturesDF
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
-from ml_recsys_tools.lightfm_tools.evaluation_utils import mean_scores_report_on_ranks
-from ml_recsys_tools.lightfm_tools.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape, collect_named_init_params
+from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
+from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 
 
 class BaseDFRecommender(ABC):

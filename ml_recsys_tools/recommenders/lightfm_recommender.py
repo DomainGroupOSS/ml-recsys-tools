@@ -7,13 +7,13 @@ from functools import partial
 from lightfm import LightFM
 import lightfm.lightfm
 
-from ml_recsys_tools.lightfm_tools.interaction_handlers_base import RANDOM_STATE
+from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.utils.automl import early_stopping_runner
 from ml_recsys_tools.utils.instrumentation import log_time_and_shape, simple_logger
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS
 from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted, top_N_sorted_on_sparse
-from ml_recsys_tools.lightfm_tools.recommender_base import BaseDFSparseRecommender
-from ml_recsys_tools.lightfm_tools.similarity_recommenders import interactions_mat_to_cooccurrence_mat
+from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
+from ml_recsys_tools.recommenders.similarity_recommenders import interactions_mat_to_cooccurrence_mat
 
 # monkey patch print function
 lightfm.lightfm.print = simple_logger.info

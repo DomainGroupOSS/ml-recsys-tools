@@ -4,7 +4,7 @@ from functools import partial
 import numpy as np
 from sklearn.preprocessing import normalize
 
-from ml_recsys_tools.lightfm_tools.recommender_base import BaseDFSparseRecommender
+from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
 from ml_recsys_tools.utils.similarity import top_N_sorted_on_sparse, custom_row_func_on_sparse
 from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 
