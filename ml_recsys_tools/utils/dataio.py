@@ -12,18 +12,32 @@ class RedisTable(redis.StrictRedis):
     def __init__(self, host_url, table_name, timeout=10, **kwargs):
         self.table_name = table_name
         super().__init__(
-            host=host_url, port=6379, decode_responses=True,
+            host=host_url, port=6379, decode_responses=False,
             socket_timeout=timeout, socket_connect_timeout=timeout,
             **kwargs)
 
-    def set_json(self, key_name, key_value, data, **kwargs):
-        return super().set(self.table_index_key(key_name, key_value),
-                           json.dumps(data), **kwargs)
+    @staticmethod
+    def _encode_data(data, compress):
+        if data:
+            if compress:
+                compress = compress if isinstance(compress, int) and 1<=compress<=9 else 1
+                data = gzip.compress(json.dumps(data).encode(), compress)
+            else:
+                data = json.dumps(data)
+        return data
+
+    def set_json(self, key_name, key_value, data, compress=False, **kwargs):
+        return super().set(
+            self.table_index_key(key_name, key_value),
+            self._encode_data(data, compress),
+            **kwargs)
 
     def set_json_to_pipeline(
-            self, pipeline, key, name, data, **kwargs):
-        return pipeline.set(self.table_index_key(key, name),
-                            json.dumps(data), **kwargs)
+            self, pipeline, key_name, key_value, data, compress=False, **kwargs):
+        return pipeline.set(
+            self.table_index_key(key_name, key_value),
+            self._encode_data(data, compress),
+            **kwargs)
 
     def table_index_key(self, key, value):
         return self.table_name + ':' + key + ':' + value
@@ -37,15 +51,19 @@ class RedisTable(redis.StrictRedis):
         :returns response JSON as dict, None if not found, or response string if JSON conversion fails
         """
         key = self.table_index_key(index_key, index_value)
-        response = self.get(key)
-        if response:
+        data = self.get(key)
+        if data:
             try:
-                response = json.loads(response)
+                data = gzip.decompress(data)
+            except (OSError, TypeError):
+                pass  # not gzip compressed
+            try:
+                data = json.loads(data)
             except Exception as e:
                 logger.exception(e)
-                logger.error('Failed redis query. key: %s, response: %s' %
-                             (key, response))
-        return response
+                logger.error('Failed unpacking redis query. key: %s, response: %s' %
+                             (key, data))
+        return data
 
 
 class S3FileIO:
