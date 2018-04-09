@@ -1,3 +1,4 @@
+import warnings
 from abc import abstractmethod, ABC
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
@@ -162,4 +163,4 @@ class CombinationEnsembleBase(BaseDFSparseRecommender):
         self.train_df = self.recommenders[0].train_df
 
     def fit(self, *args, **kwargs):
-        raise NotImplementedError('fit is not supported, recommenders should already be fitted')
+        warnings.warn('Fit is not supported, recommenders should already be fitted.')

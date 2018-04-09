@@ -31,7 +31,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
     default_model_params = {
         'loss': 'warp',
         'learning_schedule': 'adadelta',
-        'no_components': 30,
+        'no_components': 100,
         'max_sampled': 10,
         'item_alpha': 0,
         'user_alpha': 0,
@@ -91,16 +91,23 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         self.model = None
         self.model_checkpoint = None
+        all_metrics = pd.DataFrame()
+
+        def update_full_metrics_df(cur_epoch, report_df):
+            nonlocal all_metrics
+            all_metrics = all_metrics.append(
+                report_df.rename(index={'test': cur_epoch}))
 
         def check_point_func():
             if not refit_on_all:
                 self.model_checkpoint = deepcopy(self.model)
 
-        def score_func():
-            self.fit_partial(train_obs_internal,  epochs=epochs_step)
+        def score_func(cur_epoch):
+            self.fit_partial(train_obs_internal, epochs=epochs_step)
             lfm_report = self.eval_on_test_by_ranking(
-                valid_obs.df_obs, include_train=False, prefix='earlystop ')
-            cur_score = lfm_report.loc['earlystop test', metric]
+                valid_obs.df_obs, include_train=False, prefix='')
+            cur_score = lfm_report.loc['test', metric]
+            update_full_metrics_df(cur_epoch, lfm_report)
             return cur_score
 
         max_epoch = early_stopping_runner(
@@ -110,8 +117,13 @@ class LightFMRecommender(BaseDFSparseRecommender):
             epochs_step=epochs_step,
             stop_patience=stop_patience,
             decline_threshold=decline_threshold,
-            plot_convergence=plot_convergence
+            plot_graph=plot_convergence
         )
+
+        simple_logger.info('Early stop, all_metrics:\n' + str(all_metrics))
+        if plot_convergence:
+            all_metrics = all_metrics.divide(all_metrics.max())
+            all_metrics.plot()
 
         if not refit_on_all:
             simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)

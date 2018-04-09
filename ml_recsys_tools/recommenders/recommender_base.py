@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pickle
 
+import time
 
 from ml_recsys_tools.data_handlers.interactions_with_features import ExternalFeaturesDF
 from ml_recsys_tools.utils.logger import simple_logger as logger
@@ -404,6 +405,7 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
         self.metric = metric
         self.interrupt_message_file = interrupt_message_file
         super().__init__(*args, **kwargs)
+        self.all_metrics = pd.DataFrame()
 
     def _check_interrupt(self):
         if self.interrupt_message_file is not None \
@@ -434,10 +436,12 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
         try:
             self._check_interrupt()
             pipeline = self.init_pipeline(params)
+            # start = time.time()
             pipeline.fit(self.data_dict['training'])
             report_df = pipeline.eval_on_test_by_ranking(
-                self.data_dict['validation'], include_train=False, prefix='bayopt ')
-            return 1 - report_df.loc['bayopt test', self.metric]
+                self.data_dict['validation'], include_train=False, prefix='')
+            # self.all_metrics = self.all_metrics.append(report_df.rename(index={'test':str(params)}))
+            return 1 - report_df.loc['test', self.metric]
         except Exception as e:
             logger.exception(e)
             logger.error(params)

@@ -220,6 +220,7 @@ class UserCoocRecommender(ItemCoocRecommender):
     @log_time_and_shape
     def _get_recommendations_flat_unfilt(
             self, user_ids, n_rec_unfilt=100, pbar=None, **kwargs):
+
         def row_func(user_inds, row_data):
             sub_mat = self.train_mat[user_inds, :]
             sub_mat.sort_indices()
@@ -228,8 +229,10 @@ class UserCoocRecommender(ItemCoocRecommender):
 
             sum_weight_occurs = np.array(np.sum(sub_mat.tocsr(), axis=0)).ravel()
 
-            i_part = np.argpartition(sum_weight_occurs, -n_rec_unfilt)[-n_rec_unfilt:]
-            i_sort = i_part[np.argsort(-sum_weight_occurs[i_part])[:n_rec_unfilt]]
+            n_rec = min(n_rec_unfilt, len(sum_weight_occurs))
+
+            i_part = np.argpartition(sum_weight_occurs, -n_rec)[-n_rec:]
+            i_sort = i_part[np.argsort(-sum_weight_occurs[i_part])[:n_rec]]
 
             return i_sort, sum_weight_occurs[i_sort]
 

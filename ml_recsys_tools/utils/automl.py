@@ -109,7 +109,7 @@ class BayesSearchHoldOut:
         return self.loss(self.data_dict['y_valid'], y_pred)
 
     @log_time_and_shape
-    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb'):
+    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb', plot_graph=True):
         """
         example code:
 
@@ -166,8 +166,11 @@ class BayesSearchHoldOut:
         best_values = res_bo.x
         best_params = point_asdict(self.search_space, best_values)
         best_model = self.init_pipeline(best_values)
-        plot_convergence(res_bo)
-        pyplot.plot(res_bo.func_vals)
+
+        if plot_graph:
+            pyplot.figure()
+            plot_convergence(res_bo)
+            pyplot.plot(res_bo.func_vals)
 
         return res_bo, best_params, best_model
 
@@ -189,7 +192,7 @@ class BayesSearchHoldOut:
 def early_stopping_runner(
         score_func, check_point_func,
         epochs_max=200, epochs_step=10, stop_patience=10, decline_threshold=0.05,
-        plot_convergence=True):
+        plot_graph=True):
     res_list = []
     max_score = 0
     decline_counter = 0
@@ -201,11 +204,11 @@ def early_stopping_runner(
         simple_logger.info('Training epochs %d - %d.' %
                            (cur_epoch, cur_epoch + epochs_step))
 
-        cur_score = score_func()
-
-        res_list.append(cur_score)
         cur_epoch += epochs_step
         epochs_list.append(cur_epoch)
+
+        cur_score = score_func(cur_epoch)
+        res_list.append(cur_score)
 
         # early stopping logic
         if max_score * (1 - decline_threshold) > cur_score:
@@ -228,7 +231,7 @@ def early_stopping_runner(
                        'epochs (max validation score: %f (@%d), all scores: %s)'
                        % (cur_epoch, max_score, max_epoch, scores_str))
 
-    if plot_convergence:
+    if plot_graph:
         pyplot.figure()
         pyplot.plot(epochs_list, res_list)
 
