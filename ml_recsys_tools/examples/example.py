@@ -36,7 +36,9 @@ hp_results = lfm_rec.hyper_param_search(
     n_iters=20,
     )
 print(hp_results.report)
-print(hp_results.best_model.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm early stop'))
+
+hp_results.best_model.fit(train_obs)
+print(hp_results.best_model.eval_on_test_by_ranking(test_obs, prefix='lfm early stop'))
 
 
 from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
