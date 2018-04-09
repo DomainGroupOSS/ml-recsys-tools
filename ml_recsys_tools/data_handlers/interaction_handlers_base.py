@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -175,6 +177,13 @@ class InteractionMatrixBuilder:
 
         self.uid_encoder = LabelEncoder().fit(all_uids)
         self.iid_encoder = LabelEncoder().fit(all_iids)
+
+        # this filter is due to this issue, can be removed with next version of sklearn (should be fixed)
+        # https://stackoverflow.com/questions/49545947/sklearn-deprecationwarning-truth-value-of-an-array
+        warnings.filterwarnings(message="The truth value of an empty array is ambiguous. "
+                                        "Returning False, but in future this will result in an error. "
+                                        "Use `array.size > 0` to check that an array is not empty.",
+                                action='ignore', category=DeprecationWarning)
 
     def _add_encoded_cols(self, df):
         df = df.assign(
