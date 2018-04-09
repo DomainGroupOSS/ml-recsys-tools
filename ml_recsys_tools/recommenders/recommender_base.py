@@ -194,10 +194,35 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         self.external_features_mat = None
 
     def all_training_users(self):
-        return self.train_df[self.sparse_mat_builder.uid_source_col].unique().tolist()
+        return self.train_df[self.sparse_mat_builder.uid_source_col].unique()
 
     def all_training_items(self):
-        return self.train_df[self.sparse_mat_builder.iid_source_col].unique().tolist()
+        return self.train_df[self.sparse_mat_builder.iid_source_col].unique()
+
+    def remove_unseen_users(self, user_ids, message_prefix=''):
+        return self._filter_array(
+            user_ids,
+            filter_array=self.all_training_users(),
+            message_prefix=message_prefix,
+            message_suffix='useres that were not in training set.')
+
+    def remove_unseen_items(self, item_ids, message_prefix=''):
+        return self._filter_array(
+            item_ids,
+            filter_array=self.all_training_items(),
+            message_prefix=message_prefix,
+            message_suffix='items that were not in training set.')
+
+    @staticmethod
+    def _filter_array(array, filter_array, message_prefix='', message_suffix=''):
+        array = np.array(array)
+        relevance_mask = np.isin(array, filter_array)
+        n_discard = np.sum(~relevance_mask)
+        if n_discard > 0:
+            logger.info(
+                '%s Discarding %d (out of %d) %s' %
+                (message_prefix, int(n_discard), len(array), message_suffix))
+        return array[relevance_mask]
 
     def add_external_features(
             self, external_features: ExternalFeaturesDF, **external_features_params):
@@ -283,6 +308,8 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             exclude_training=True, pbar=None,
             results_format='lists'):
 
+        user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
+
         # treat heavy users differently
         heavy_users, normal_users, heavy_users_max = \
             self._separate_heavy_users(user_ids=user_ids, threshold=50)
@@ -317,13 +344,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             all_test_users = []
             [all_test_users.extend(df[self._user_col].unique().tolist()) for df in test_dfs]
             all_test_users = np.array(all_test_users)
-            relevance_mask = np.isin(all_test_users, self.all_training_users())
-            n_unseen_users = np.sum(~relevance_mask)
-            if n_unseen_users > 0:
-                logger.info(
-                    'Discarding %d (out of %d) users in test sets that were '
-                    'not in train set' % (int(n_unseen_users), len(all_test_users)))
-            return all_test_users[relevance_mask]
+            return all_test_users
 
         if isinstance(test_dfs, pd.DataFrame):
             test_dfs = [test_dfs]

@@ -194,6 +194,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
         :return: a matrix of most similar IDs [n_ids, N], a matrix of score of those similarities [n_ids, N]
         """
 
+        itemids = self.remove_unseen_items(itemids)
+
         if simil_mode in ['cosine', 'dot', 'euclidean']:
             biases, representations = self._get_item_representations(mode=embeddings_mode)
 
@@ -234,6 +236,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         """
         same as get_similar_items but for users
         """
+        userids = self.remove_unseen_users(userids)
         user_biases, user_representations = self.model.get_user_representations()
         best_ids, best_scores = most_similar(
             ids=userids,

@@ -150,6 +150,8 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
     @log_time_and_shape
     def get_similar_items(self, itemids, N=10, results_format='lists', pbar=None, **kwargs):
 
+        itemids = self.remove_unseen_items(itemids)
+
         self._check_no_negatives()
 
         best_ids, best_scores = top_N_sorted_on_sparse(

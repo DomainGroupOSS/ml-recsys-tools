@@ -77,8 +77,10 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
 
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
 
-        calc_funcs = [partial(rec._get_recommendations_flat_unfilt,
-                              user_ids=user_ids, n_rec_unfilt=n_rec_unfilt, **kwargs)
+        calc_funcs = [partial(rec.get_recommendations,
+                              user_ids=user_ids, n_rec=n_rec_unfilt,
+                              n_rec_unfilt=n_rec_unfilt, exclude_training=False,
+                              results_format='flat', **kwargs)
                       for rec in self.recommenders]
         return self.calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
@@ -185,6 +187,8 @@ class CascadeEnsemble(CombinationEnsembleBase):
         assert self.n_recommenders == 2, 'only 2 recommenders supported'
 
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
-        recos_df = self.recommenders[0]._get_recommendations_flat_unfilt(
-            user_ids=user_ids, n_rec_unfilt=n_rec_unfilt, pbar=None, **kwargs)
+        recos_df = self.recommenders[0].get_recommendations(
+            user_ids=user_ids, n_rec=n_rec_unfilt,
+            n_rec_unfilt=n_rec_unfilt, exclude_training=False,
+            results_format='flat', **kwargs)
         return self.recommenders[1].predict_on_df(recos_df)
