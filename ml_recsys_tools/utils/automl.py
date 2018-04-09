@@ -80,6 +80,9 @@ class BayesSearchHoldOut:
         self.data_dict = None
         self.random_ratio = random_ratio
 
+    def values_to_dict(self, values):
+        return point_asdict(self.search_space, values)
+
     class PrintIfBestCB:
         def __init__(self, search_inst):
             # self.prev_result = np.inf
@@ -93,17 +96,17 @@ class BayesSearchHoldOut:
                 simple_logger.info('best params, iteration %d' % len(result.func_vals))
             simple_logger.info('params for loss=%f:' % cur_result)
             values = result.x_iters[-1]
-            params = point_asdict(self.search_inst.search_space, values)
+            params = self.search_inst.values_to_dict(values)
             simple_logger.info(params)
 
-    def init_pipeline(self, params):
-        params_dict = point_asdict(self.search_space, params)
+    def init_pipeline(self, values):
+        params_dict = self.values_to_dict(values)
         pipeline = copy.copy(self.pipeline)
         pipeline.set_params(**params_dict)
         return pipeline
 
-    def objective_func(self, params):
-        pipeline = self.init_pipeline(params)
+    def objective_func(self, values):
+        pipeline = self.init_pipeline(values)
         pipeline.fit(self.data_dict['x_train'], self.data_dict['y_train'])
         y_pred = pipeline.predict(self.data_dict['x_valid'])
         return self.loss(self.data_dict['y_valid'], y_pred)
@@ -164,7 +167,7 @@ class BayesSearchHoldOut:
         )
 
         best_values = res_bo.x
-        best_params = point_asdict(self.search_space, best_values)
+        best_params = self.values_to_dict(best_values)
         best_model = self.init_pipeline(best_values)
 
         if plot_graph:

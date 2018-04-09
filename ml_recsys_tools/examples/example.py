@@ -33,7 +33,7 @@ hp_results = lfm_rec.hyper_param_search(
         epochs=space.Integer(5, 50),
         item_alpha=space.Real(1e-8, 1e-5, prior='log-uniform')
     ),
-    n_iters=10,
+    n_iters=20,
     )
 print(hp_results.report)
 print(hp_results.best_model.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm early stop'))
@@ -44,14 +44,9 @@ item_cooc_rec = ItemCoocRecommender()
 item_cooc_rec.fit(train_obs)
 print(item_cooc_rec.eval_on_test_by_ranking(test_obs, prefix='item cooccurrence '))
 
-from ml_recsys_tools.recommenders.similarity_recommenders import UserCoocRecommender
-users_cooc_rec = UserCoocRecommender()
-users_cooc_rec.fit(train_obs)
-print(users_cooc_rec.eval_on_test_by_ranking(test_obs, prefix='user cooccurrence '))
-
 
 from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
-comb_ranks_rec = CombinedRankEnsemble(recommenders=[lfm_rec, item_cooc_rec, users_cooc_rec])
+comb_ranks_rec = CombinedRankEnsemble(recommenders=[lfm_rec, item_cooc_rec])
 print(comb_ranks_rec.eval_on_test_by_ranking(test_obs, prefix='combined ranks '))
 
 

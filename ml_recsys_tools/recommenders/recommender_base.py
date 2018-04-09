@@ -431,19 +431,37 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
                             % self.interrupt_message_file)
                 raise NotImplementedError('not yet implemented')
 
+    def _record_all_metrics(self, report_df, values, time_taken, target_loss):
+        # records the time and the other metrics
+        params_dict = self.values_to_dict(values)
+        report_df['target_loss'] = target_loss
+        report_df['time_taken'] = time_taken
+        report_df = report_df.assign(**params_dict)
+        self.all_metrics = self.all_metrics.append(report_df)
+
+    def best_results_summary(self, res_bo, percentile=95):
+        return self.all_metrics.\
+            reset_index().\
+            drop('index', axis=1).\
+            sort_values('target_loss')
+
     @log_time_and_shape
-    def objective_func(self, params):
+    def objective_func(self, values):
         try:
             self._check_interrupt()
-            pipeline = self.init_pipeline(params)
-            # start = time.time()
+            pipeline = self.init_pipeline(values)
+            start = time.time()
             pipeline.fit(self.data_dict['training'])
             report_df = pipeline.eval_on_test_by_ranking(
                 self.data_dict['validation'], include_train=False, prefix='')
-            # self.all_metrics = self.all_metrics.append(report_df.rename(index={'test':str(params)}))
-            return 1 - report_df.loc['test', self.metric]
+            loss = 1 - report_df.loc['test', self.metric]
+            self._record_all_metrics(
+                report_df=report_df, values=values,
+                time_taken=time.time() - start, target_loss=loss)
+            return loss
+
         except Exception as e:
             logger.exception(e)
-            logger.error(params)
+            logger.error(values)
             # raise e
             return 1.0
