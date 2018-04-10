@@ -81,7 +81,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
     @log_time_and_shape
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
-                            epochs_max=200, epochs_step=10, stop_patience=10,
+                            epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
                             plot_convergence=True, decline_threshold=0.05):
 
         # split validation data
@@ -102,8 +102,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
             if not refit_on_all:
                 self.model_checkpoint = deepcopy(self.model)
 
-        def score_func(cur_epoch):
-            self.fit_partial(train_obs_internal, epochs=epochs_step)
+        def score_func(cur_epoch, step):
+            self.fit_partial(train_obs_internal, epochs=step)
             lfm_report = self.eval_on_test_by_ranking(
                 valid_obs.df_obs, include_train=False, prefix='')
             cur_score = lfm_report.loc['test', metric]
@@ -113,6 +113,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         max_epoch = early_stopping_runner(
             score_func=score_func,
             check_point_func=check_point_func,
+            epochs_start=epochs_start,
             epochs_max=epochs_max,
             epochs_step=epochs_step,
             stop_patience=stop_patience,

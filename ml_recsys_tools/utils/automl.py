@@ -194,7 +194,8 @@ class BayesSearchHoldOut:
 
 def early_stopping_runner(
         score_func, check_point_func,
-        epochs_max=200, epochs_step=10, stop_patience=10, decline_threshold=0.05,
+        epochs_start=0, epochs_max=200, epochs_step=10,
+        stop_patience=10, decline_threshold=0.05,
         plot_graph=True):
     res_list = []
     max_score = 0
@@ -204,18 +205,21 @@ def early_stopping_runner(
     max_epoch = 0
     # find optimal number of epochs on validation data
     while cur_epoch <= epochs_max:
-        simple_logger.info('Training epochs %d - %d.' %
-                           (cur_epoch, cur_epoch + epochs_step))
 
-        cur_epoch += epochs_step
+        cur_step = epochs_start if cur_epoch==0 else epochs_step
+
+        simple_logger.info('Training epochs %d - %d.' %
+                           (cur_epoch, cur_epoch + cur_step))
+
+        cur_epoch += cur_step
         epochs_list.append(cur_epoch)
 
-        cur_score = score_func(cur_epoch)
+        cur_score = score_func(cur_epoch, cur_step)
         res_list.append(cur_score)
 
         # early stopping logic
         if max_score * (1 - decline_threshold) > cur_score:
-            decline_counter += epochs_step
+            decline_counter += cur_step
             if decline_counter >= stop_patience:
                 break
         else:
