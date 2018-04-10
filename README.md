@@ -52,10 +52,18 @@ Utilities:
     - pandas utils
     - data helpers: redis, s3
 
+Examples:
+    - a basic example on movielens 1M demonstrating:
+        - basic data ingestion without any item/user features
+        - LightFM recommender:
+            fit, evaluation, early stopping,
+            hyper-param search, recommendations, similarities
+        - Cooccurrence recommender
+        - Two combination ensembles (Ranks and Simils)
 
 Still to add:
-- examples
-- comments and docstrings
+- more examples
+- much more comments and docstrings
 - tests
 
  ```

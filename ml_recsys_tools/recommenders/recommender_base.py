@@ -97,7 +97,8 @@ class BaseDFRecommender(ABC):
 
     @staticmethod
     def _flat_df_to_lists(df, sort_col, group_col, n_cutoff, target_columns):
-        return df[list(set([sort_col, group_col] + target_columns))]. \
+        order = [group_col] + target_columns
+        return df[order]. \
             sort_values(sort_col, ascending=False). \
             groupby(group_col). \
             aggregate(lambda x: list(x)[:n_cutoff]). \
@@ -106,7 +107,8 @@ class BaseDFRecommender(ABC):
     @log_time_and_shape
     def _recos_flat_to_lists(self, df, n_cutoff=None):
         return self._flat_df_to_lists(
-            df, n_cutoff=n_cutoff,
+            df,
+            n_cutoff=n_cutoff,
             sort_col=self._prediction_col,
             group_col=self._user_col,
             target_columns=[self._item_col, self._prediction_col])
@@ -114,7 +116,8 @@ class BaseDFRecommender(ABC):
     @log_time_and_shape
     def _simil_flat_to_lists(self, df, n_cutoff=None):
         return self._flat_df_to_lists(
-            df, n_cutoff=n_cutoff,
+            df,
+            n_cutoff=n_cutoff,
             sort_col=self._prediction_col,
             group_col=self._item_col_simil,
             target_columns=[self._item_col, self._prediction_col])
@@ -131,19 +134,21 @@ class BaseDFRecommender(ABC):
         else:
             raise NotImplementedError('results_format: ' + results_format)
 
+        order = [source_col, target_col, scores_col]
+
         if 'lists' in results_format:
             return pd.DataFrame({
                 source_col: source_vec,
                 target_col: list(target_ids_mat),
                 scores_col: list(scores_mat)
-            })
+            })[order]
         elif 'flat' in results_format:
             n_rec = target_ids_mat.shape[1]
             return pd.DataFrame({
                 source_col: np.array(source_vec).repeat(n_rec),
                 target_col: np.concatenate(list(target_ids_mat)),
                 scores_col: np.concatenate(list(scores_mat)),
-            })
+            })[order]
 
         else:
             raise NotImplementedError('results_format: ' + results_format)
@@ -194,23 +199,23 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         self.user_train_counts = None
         self.external_features_mat = None
 
-    def all_training_users(self):
+    def all_users(self):
         return self.train_df[self.sparse_mat_builder.uid_source_col].unique()
 
-    def all_training_items(self):
+    def all_items(self):
         return self.train_df[self.sparse_mat_builder.iid_source_col].unique()
 
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
             user_ids,
-            filter_array=self.all_training_users(),
+            filter_array=self.all_users(),
             message_prefix=message_prefix,
             message_suffix='useres that were not in training set.')
 
     def remove_unseen_items(self, item_ids, message_prefix=''):
         return self._filter_array(
             item_ids,
-            filter_array=self.all_training_items(),
+            filter_array=self.all_items(),
             message_prefix=message_prefix,
             message_suffix='items that were not in training set.')
 
@@ -240,8 +245,8 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             right_on=[self._user_col, self.sparse_mat_builder.iid_source_col],
             how='left')
         # keep only data that was present in left (recommendations) but no in right (training)
-        flat_df = flat_df[flat_df[self._rating_col].isnull()]. \
-            drop([self._rating_col], axis=1)
+        flat_df = flat_df[flat_df[self._rating_col].isnull()] \
+            [[self._user_col, self._item_col, self._prediction_col]]
         return flat_df
 
     @staticmethod

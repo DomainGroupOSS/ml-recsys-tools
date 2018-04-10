@@ -31,7 +31,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
     default_model_params = {
         'loss': 'warp',
         'learning_schedule': 'adadelta',
-        'no_components': 100,
+        'no_components': 10,
         'max_sampled': 10,
         'item_alpha': 0,
         'user_alpha': 0,
@@ -180,13 +180,13 @@ class LightFMRecommender(BaseDFSparseRecommender):
         return biases, representations
 
     @log_time_and_shape
-    def get_similar_items(self, itemids, N=10, remove_self=True, embeddings_mode=None,
+    def get_similar_items(self, itemids, n_simil=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', pbar=None):
         """
         uses learned embeddings to get N most similar items
 
         :param itemids: vector of item IDs
-        :param N: number of most similar items to retrieve
+        :param n_simil: number of most similar items to retrieve
         :param remove_self: whether to remove the the query items from the lists (similarity to self should be maximal)
         :param embeddings_mode: the item representations to use for calculation:
              None (default) - means full representations
@@ -216,7 +216,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 source_encoder=self.sparse_mat_builder.iid_encoder,
                 source_mat=representations,
                 source_biases=biases,
-                n=N,
+                n=n_simil,
                 remove_self=remove_self,
                 simil_mode=simil_mode,
                 pbar=pbar
@@ -231,7 +231,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 ids=itemids,
                 encoder=self.sparse_mat_builder.iid_encoder,
                 sparse_mat=self.cooc_mat,
-                n_top=N
+                n_top=n_simil
             )
 
         else:
@@ -244,7 +244,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         return simil_df
 
     @log_time_and_shape
-    def get_similar_users(self, userids, N=10, remove_self=True, simil_mode='cosine', pbar=None):
+    def get_similar_users(self, userids, n_simil=10, remove_self=True, simil_mode='cosine', pbar=None):
         """
         same as get_similar_items but for users
         """
@@ -255,7 +255,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
             source_encoder=self.sparse_mat_builder.uid_encoder,
             source_mat=user_representations,
             source_biases=user_biases,
-            n=N,
+            n=n_simil,
             remove_self=remove_self,
             simil_mode=simil_mode,
             pbar=pbar
@@ -309,7 +309,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         return df
 
     @log_time_and_shape
-    def eval_on_test_by_ranking_exact_and_slow(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True):
+    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True):
 
         @log_time_and_shape
         def _get_training_ranks():
@@ -337,11 +337,11 @@ class LightFMRecommender(BaseDFSparseRecommender):
             include_train=include_train)
 
     @log_time_and_shape
-    def get_recommendations_exact_and_slow(
+    def get_recommendations_exact(
             self, user_ids, n_rec=10, exclude_training=True, chunksize=200, results_format='lists'):
 
         calc_func = partial(
-            self._get_recommendations_exact_and_slow,
+            self._get_recommendations_exact,
             n_rec=n_rec,
             exclude_training=exclude_training,
             results_format=results_format)
@@ -381,8 +381,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return full_pred_mat
 
-    def _get_recommendations_exact_and_slow(self, user_ids, n_rec=10, exclude_training=True,
-                                            results_format='lists'):
+    def _get_recommendations_exact(self, user_ids, n_rec=10, exclude_training=True,
+                                   results_format='lists'):
 
         full_pred_mat = self._predict_for_users_dense(user_ids, exclude_training=exclude_training)
 

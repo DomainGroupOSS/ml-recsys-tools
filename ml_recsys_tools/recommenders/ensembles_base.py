@@ -91,7 +91,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt=100, **kwargs):
 
         def _calc_recos_sub_model(i_model):
-            all_users = np.array(self.sub_models[i_model].all_training_users())
+            all_users = np.array(self.sub_models[i_model].all_users())
             users = all_users[np.isin(all_users, user_ids)]
             if len(users):
                 return self.sub_models[i_model]._get_recommendations_flat_unfilt(
@@ -109,15 +109,15 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         return recos_flat
 
     @log_time_and_shape
-    def get_similar_items(self, itemids, N=10, remove_self=True, embeddings_mode=None,
+    def get_similar_items(self, itemids, n_simil=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', **kwargs):
 
         def _calc_simils_sub_model(i_model):
-            all_items = np.array(self.sub_models[i_model].all_training_items())
+            all_items = np.array(self.sub_models[i_model].all_items())
             items = all_items[np.isin(all_items, itemids)]
             if len(items):
                 return self.sub_models[i_model].get_similar_items(
-                    itemids=items, N=N, remove_self=remove_self,
+                    itemids=items, n_simil=n_simil, remove_self=remove_self,
                     embeddings_mode=embeddings_mode, simil_mode=simil_mode,
                     results_format='flat', pbar=None)
             else:
@@ -131,7 +131,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             drop_duplicates(subset=[self._item_col_simil, self._item_col], keep='first')
 
         return simil_all if results_format == 'flat' \
-            else self._simil_flat_to_lists(simil_all, n_cutoff=N)
+            else self._simil_flat_to_lists(simil_all, n_cutoff=n_simil)
 
     def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
         stats = []

@@ -148,7 +148,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             results_format='recommendations_flat')
 
     @log_time_and_shape
-    def get_similar_items(self, itemids, N=10, results_format='lists', pbar=None, **kwargs):
+    def get_similar_items(self, itemids, n_simil=10, results_format='lists', pbar=None, **kwargs):
 
         itemids = self.remove_unseen_items(itemids)
 
@@ -158,7 +158,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             ids=itemids,
             encoder=self.sparse_mat_builder.iid_encoder,
             sparse_mat=self.similarity_mat,
-            n_top=N,
+            n_top=n_simil,
             pbar=pbar
         )
 
@@ -249,7 +249,7 @@ class UserCoocRecommender(ItemCoocRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    def get_similar_items(self, itemids, N=10, results_format='lists', pbar=None, **kwargs):
+    def get_similar_items(self, itemids, n_simil=10, results_format='lists', pbar=None, **kwargs):
         raise NotImplementedError
 
 

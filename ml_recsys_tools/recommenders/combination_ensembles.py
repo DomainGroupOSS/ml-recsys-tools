@@ -90,10 +90,10 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
             item_col=self._item_col,
             scores_col=self._prediction_col)
 
-    def get_similar_items(self, itemids, N=10, n_unfilt=100, results_format='lists', **kwargs):
+    def get_similar_items(self, itemids, n_simil=10, n_unfilt=100, results_format='lists', **kwargs):
 
         calc_funcs = [partial(rec.get_similar_items,
-                              itemids=itemids, N=n_unfilt, results_format='flat', **kwargs)
+                              itemids=itemids, n_simil=n_unfilt, results_format='flat', **kwargs)
                       for rec in self.recommenders]
 
         combined_simil_df = self.calc_dfs_and_combine_scores(
@@ -105,7 +105,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
             scores_col=self._prediction_col)
 
         return combined_simil_df if results_format == 'flat' \
-            else self._simil_flat_to_lists(combined_simil_df, n_cutoff=N)
+            else self._simil_flat_to_lists(combined_simil_df, n_cutoff=n_simil)
 
 
 class CombinedSimilRecoEns(SimilarityDFRecommender):
@@ -145,13 +145,13 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
     def fit(self, train_obs, batch_size=10000,
             similarity_queue=None, similarity_queue_cutoff=10, **fit_params):
 
-        itemids = self.recommenders[0].all_training_items()
+        itemids = self.recommenders[0].all_items()
 
         for i, items in enumerate(batch_generator(itemids, batch_size)):
 
             calc_funcs = [
                 partial(rec.get_similar_items,
-                        itemids=items, N=self.n_unfilt, results_format='flat', **params)
+                        itemids=items, n_simil=self.n_unfilt, results_format='flat', **params)
                 for rec, params in zip(self.recommenders, self._get_similarity_func_params())]
 
             simil_df = CombinedRankEnsemble.calc_dfs_and_combine_scores(
