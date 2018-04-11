@@ -108,6 +108,13 @@ class ObservationsDF:
 
         return other
 
+    def filter_by_df(self, other_df_obs):
+        other = copy.deepcopy(self)
+        other.df_obs = self.df_obs[
+            (self.df_obs[self.iid_col].isin(other_df_obs[self.iid_col].unique())) &
+            (self.df_obs[self.uid_col].isin(other_df_obs[self.uid_col].unique()))]
+        return other
+
     def user_filtered_df(self, user):
         return self.df_obs[self.df_obs[self.uid_col] == user]
 
@@ -116,7 +123,8 @@ class ObservationsDF:
 
     def get_sparse_matrix_helper(self):
         mat_builder = InteractionMatrixBuilder(
-            self.df_obs, users_col=self.uid_col, items_col=self.iid_col, rating_col=self.rating_col)
+            self.df_obs, users_col=self.uid_col,
+            items_col=self.iid_col, rating_col=self.rating_col)
         return mat_builder
 
     def split_train_test_to_dfs(self, ratio=0.2, users_ratio=1.0, random_state=None):

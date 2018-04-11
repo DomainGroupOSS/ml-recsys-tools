@@ -217,6 +217,11 @@ class ObsWithFeatures(ObservationsDF):
         other._filter_relevant_obs_and_items()
         return other
 
+    def filter_by_df(self, other_df_obs):
+        other = super().filter_by_df(other_df_obs)
+        other._filter_relevant_obs_and_items()
+        return other
+
     def items_filtered_by_ids(self, item_ids):
         return self.df_items[self.df_items[self.item_id_col].isin(item_ids)]
 
