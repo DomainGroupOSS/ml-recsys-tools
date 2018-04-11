@@ -120,7 +120,8 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         return i_sort, sum_simils[i_sort]
 
     def recommend_for_interaction_history(self, interactions_ids, n_rec):
-        interactions_inds = self.sparse_mat_builder.iid_encoder.transform(interactions_ids)
+        interactions_inds = self.sparse_mat_builder.iid_encoder.transform(
+            np.array(interactions_ids, dtype=str))
         rec_ids, rec_scores = self._recommend_for_item_inds(interactions_inds, n_rec_unfilt=n_rec)
         return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
 
