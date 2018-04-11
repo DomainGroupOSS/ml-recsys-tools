@@ -4,19 +4,21 @@ using multiple test sets
 
 # dataset: download and prepare dataframes
 from examples.prep_movielense_data import get_and_prep_data
-rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 
+rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 
 # read the interactions dataframe and create a data handler object and  split to train and test
 import pandas as pd
+
 ratings_df = pd.read_csv(rating_csv_path)
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
+
 obs = ObservationsDF(ratings_df)
 train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=0.2)
 
-
 # train and test LightFM recommender
 from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+
 lfm_rec = LightFMRecommender()
 lfm_rec.fit(train_obs, epochs=10)
 

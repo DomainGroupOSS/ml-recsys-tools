@@ -445,9 +445,9 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
         self.all_metrics = self.all_metrics.append(report_df)
 
     def best_results_summary(self, res_bo, percentile=95):
-        return self.all_metrics.\
-            reset_index().\
-            drop('index', axis=1).\
+        return self.all_metrics. \
+            reset_index(). \
+            drop('index', axis=1). \
             sort_values('target_loss')
 
     @log_time_and_shape

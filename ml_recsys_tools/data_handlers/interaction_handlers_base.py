@@ -313,7 +313,7 @@ class InteractionMatrixBuilder:
         filter_mat.sort_indices()
         filt_ranks = filter_mat.copy()
         filt_ranks.data *= 0  # remove actual data
-        filt_ranks.data += int(filt_ranks.shape[1]/2)  # add number of columns / 2 - meaning chance rank
+        filt_ranks.data += int(filt_ranks.shape[1] / 2)  # add number of columns / 2 - meaning chance rank
         for i in inds:
             f_s = filt_ranks.indptr[i]
             f_e = filt_ranks.indptr[i + 1]
@@ -384,4 +384,3 @@ class InteractionMatrixBuilder:
         filt_ranks = filt_ranks.astype(np.float32).tocsr()
 
         return filt_ranks
-

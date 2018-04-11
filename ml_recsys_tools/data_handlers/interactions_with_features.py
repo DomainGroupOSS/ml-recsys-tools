@@ -424,12 +424,12 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
     def map_cluster_labels(self, df_items=None, sample_n=1000):
 
         if df_items is None:
-            df_items= self.df_items
+            df_items = self.df_items
 
         unique_labels = df_items[self.cluster_label_col].unique()
 
         items_dfs = [df_items[df_items[self.cluster_label_col] == label].sample(sample_n)
-                        for label in unique_labels]
+                     for label in unique_labels]
 
         all_data = pd.concat(items_dfs)
 

@@ -1,6 +1,9 @@
 import os
-import requests, zipfile, io
+
+import io
 import pandas as pd
+import requests
+import zipfile
 
 MOVIE_LENS_1M_URL = 'http://files.grouplens.org/datasets/movielens/ml-1m.zip'
 ratings_csv_name = 'readable_ratings.csv'
@@ -45,16 +48,15 @@ def download_raw_data(dir_path):
 
 
 def prep_readable_csvs(out_dir):
-
     # read the movies data
     movies_df = pd.read_csv(os.path.join(out_dir, 'movies.dat'),
                             delimiter='::', header=None,
-                            names=['item_ind', 'title', 'genres']).\
+                            names=['item_ind', 'title', 'genres']). \
         rename({'title': 'itemid'}, axis=1)
 
     # read the users data
     users_df = pd.read_csv(os.path.join(out_dir, 'users.dat'),
-                            delimiter='::', header=None,
+                           delimiter='::', header=None,
                            names=['user_ind', 'gender', 'age', 'occupation', 'zipcode'])
 
     # change occupations index to occupation names
@@ -63,7 +65,7 @@ def prep_readable_csvs(out_dir):
 
     # make a userid string out of all the user features: gender-age-occupation_name-zipcode
     users_df['userid'] = users_df[
-        ['gender', 'age', 'occupation_name', 'zipcode']].\
+        ['gender', 'age', 'occupation_name', 'zipcode']]. \
         apply(lambda x: '-'.join([str(el) for el in x]), axis=1)
 
     # read the ratings data
@@ -112,6 +114,6 @@ def get_occupation_names_df():
         """
     occupations_df = pd.read_csv(io.BytesIO(occupations.encode()),
                                  delim_whitespace=True, header=None,
-                                 names=['star', 'ind', 'occupation_name']).\
+                                 names=['star', 'ind', 'occupation_name']). \
         drop(['star', 'ind'], axis=1).reset_index()
     return occupations_df

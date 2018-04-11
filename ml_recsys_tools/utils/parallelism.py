@@ -9,7 +9,6 @@ N_CPUS = multiprocessing.cpu_count()
 
 
 def batch_generator(iterable, n=1):
-
     if hasattr(iterable, '__len__'):
         # https://stackoverflow.com/questions/8290397/how-to-split-an-iterable-in-constant-size-chunks
         l = len(iterable)
@@ -31,11 +30,9 @@ def map_batches_multiproc(func, iterable, chunksize,
                           pbar=None, multiproc_mode='threads',
                           n_threads=None, threads_per_cpu=1.0):
     if n_threads is None:
-        n_threads = int(threads_per_cpu*N_CPUS)
+        n_threads = int(threads_per_cpu * N_CPUS)
 
-    pool_type = ThreadPool if multiproc_mode == 'threads' else Pool
-
-    with pool_type(n_threads) as pool:
+    with pool_type(multiproc_mode)(n_threads) as pool:
         batches = batch_generator(iterable, n=chunksize)
 
         if pbar is None:

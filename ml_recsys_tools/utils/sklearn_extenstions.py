@@ -4,9 +4,9 @@ import sklearn.preprocessing
 
 
 class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
-    '''
+    """
     class for label-encoding a continuous variable by binning
-    '''
+    """
     def __init__(self, n_bins=50):
         super().__init__()
         self.n_bins = n_bins
@@ -33,9 +33,9 @@ class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
 
 
 class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
-    '''
+    """
     class for one-hot encoding a continuous variable by binning
-    '''
+    """
     def __init__(self, n_bins=50, **kwargs):
         super().__init__(**kwargs)
         self._binner = FloatBinningEncoder(n_bins=n_bins)

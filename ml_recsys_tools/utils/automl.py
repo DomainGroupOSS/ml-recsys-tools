@@ -53,7 +53,7 @@ class SearchSpaceGuess:
         """
         Guess a class search space from init params and construct an object with
         params as attributes and skopt variable distributions as values
-        :param other_class: and object or a class
+        :param obj: the object from which to set the init search space
         :return: a SearchSpace object with params attributes named as the parameters and skopt variables as values
         """
 
@@ -206,7 +206,7 @@ def early_stopping_runner(
     # find optimal number of epochs on validation data
     while cur_epoch <= epochs_max:
 
-        cur_step = epochs_start + epochs_step if cur_epoch==0 else epochs_step
+        cur_step = epochs_start + epochs_step if cur_epoch == 0 else epochs_step
 
         simple_logger.info('Training epochs %d - %d.' %
                            (cur_epoch, cur_epoch + cur_step))
