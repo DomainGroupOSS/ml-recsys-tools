@@ -318,7 +318,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             exclude_training=True, pbar=None,
             results_format='lists'):
 
-        user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
+        # user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
 
         # treat heavy users differently
         heavy_users, normal_users, heavy_users_max = \
