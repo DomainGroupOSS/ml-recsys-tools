@@ -151,7 +151,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
     @log_time_and_shape
     def get_similar_items(self, itemids, n_simil=10, results_format='lists', pbar=None, **kwargs):
 
-        # itemids = self.remove_unseen_items(itemids)
+        itemids = self.remove_unseen_items(itemids)
 
         self._check_no_negatives()
 

@@ -200,10 +200,12 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         self.external_features_mat = None
 
     def all_users(self):
-        return self.train_df[self.sparse_mat_builder.uid_source_col].unique()
+        return self.train_df[self.sparse_mat_builder.uid_source_col].\
+            unique().astype(str)
 
     def all_items(self):
-        return self.train_df[self.sparse_mat_builder.iid_source_col].unique()
+        return self.train_df[self.sparse_mat_builder.iid_source_col].\
+            unique().astype(str)
 
     @log_time_and_shape
     def remove_unseen_users(self, user_ids, message_prefix=''):
@@ -224,8 +226,8 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
     @staticmethod
     @log_time_and_shape
     def _filter_array(array, filter_array, message_prefix='', message_suffix=''):
-        array = np.array(array)
-        relevance_mask = np.isin(array, filter_array)
+        array = np.array(array).astype(str)
+        relevance_mask = np.isin(array, np.array(filter_array).astype(str))
         n_discard = np.sum(~relevance_mask)
         if n_discard > 0:
             logger.info(
@@ -318,7 +320,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             exclude_training=True, pbar=None,
             results_format='lists'):
 
-        # user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
+        user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
 
         # treat heavy users differently
         heavy_users, normal_users, heavy_users_max = \
