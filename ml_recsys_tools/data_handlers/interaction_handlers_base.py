@@ -277,11 +277,11 @@ class InteractionMatrixBuilder:
         new_i = ~df[self.iid_source_col].isin(self.iid_encoder.classes_)
         percent_new_u = np.mean(new_u)
         percent_new_i = np.mean(new_i)
-        if percent_new_u > 0.1 or percent_new_i > 0.1:
+        if percent_new_u > 0.0 or percent_new_i > 0.0:
             logger.info(
                 'Discarding %.1f%% samples with unseen '
-                'users(%.1f%%) / unseen items (%.1f%%) from DF(len: %s).' % \
-                (100 * np.mean(new_u | new_i), 100 * percent_new_u, 100 * percent_new_i, len(df)))
+                'users(%d) / unseen items(%d) from DF(len: %s).' % \
+                (100 * np.mean(new_u | new_i), np.sum(new_u), np.sum(new_i), len(df)))
             return df[~new_u & ~new_i].copy()
         else:
             return df
