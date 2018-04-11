@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import numpy as np
 import pandas as pd
 from lightfm.evaluation import precision_at_k, recall_at_k, auc_score, reciprocal_rank
@@ -46,29 +48,22 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
          'train_interactions': train_data,
          }
 
-    # chance_ranks_kwargs = {'ranks': chance_ranks(test_data),
-    #                    'test_interactions': test_data,
-    #                    'train_interactions': train_data,
-    #                    }
-    metrics = {'AUC': auc_score_on_ranks(**ranks_kwargs),
-               'reciprocal': reciprocal_rank_on_ranks(**ranks_kwargs),
-               'n-MRR@%d' % k: mrr_norm_on_ranks(**ranks_kwargs, k=k),
-               'n-MRR': mrr_norm_on_ranks(**ranks_kwargs),
-               'n-DCG@%d' % k: dcg_binary_at_k(**ranks_kwargs, k=k) /
-                               dcg_binary_at_k(**best_possible_kwargs, k=k),
-               'n-precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k) /
-                                     precision_at_k_on_ranks(**best_possible_kwargs, k=k),
-               'precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k),
-               # 'precision MAX poss': precision_at_k_on_ranks(**best_possible_kwargs, k=k),
-               # 'precision chance': precision_at_k_on_ranks(**chance_ranks_kwargs, k=k),
-               'recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k),
-               'n-recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k) /
-                           recall_at_k_on_ranks(**best_possible_kwargs, k=k),
-               # 'recall MAX poss': recall_at_k_on_ranks(**best_possible_kwargs, k=k),
-               # 'recall chance': recall_at_k_on_ranks(**chance_ranks_kwargs, k=k),
-               'gini@%d' % k: gini_coefficient_at_k(**ranks_kwargs, k=k),
-               'diversity@%d' % k: diversity_at_k(**ranks_kwargs, k=k),
-               }
+    metrics = OrderedDict([
+        ('AUC', auc_score_on_ranks(**ranks_kwargs)),
+        ('reciprocal', reciprocal_rank_on_ranks(**ranks_kwargs)),
+        ('n-MRR@%d' % k, mrr_norm_on_ranks(**ranks_kwargs, k=k)),
+        ('n-MRR', mrr_norm_on_ranks(**ranks_kwargs)),
+        ('n-DCG@%d' % k, dcg_binary_at_k(**ranks_kwargs, k=k) /
+         dcg_binary_at_k(**best_possible_kwargs, k=k)),
+        ('n-precision@%d' % k, precision_at_k_on_ranks(**ranks_kwargs, k=k) /
+         precision_at_k_on_ranks(**best_possible_kwargs, k=k)),
+        ('precision@%d' % k, precision_at_k_on_ranks(**ranks_kwargs, k=k)),
+        ('recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k)),
+        ('n-recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k) /
+         recall_at_k_on_ranks(**best_possible_kwargs, k=k)),
+        ('gini@%d' % k, gini_coefficient_at_k(**ranks_kwargs, k=k)),
+        ('diversity@%d' % k, diversity_at_k(**ranks_kwargs, k=k)),
+        ])
 
     return pd.DataFrame(metrics)[list(metrics.keys())]
 
