@@ -50,25 +50,27 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
     #                    'test_interactions': test_data,
     #                    'train_interactions': train_data,
     #                    }
-    metrics = {'recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k),
+    metrics = {'AUC': auc_score_on_ranks(**ranks_kwargs),
+               'reciprocal': reciprocal_rank_on_ranks(**ranks_kwargs),
+               'n-MRR@%d' % k: mrr_norm_on_ranks(**ranks_kwargs, k=k),
+               'n-MRR': mrr_norm_on_ranks(**ranks_kwargs),
+               'n-DCG@%d' % k: dcg_binary_at_k(**ranks_kwargs, k=k) /
+                               dcg_binary_at_k(**best_possible_kwargs, k=k),
+               'n-precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k) /
+                                     precision_at_k_on_ranks(**best_possible_kwargs, k=k),
+               'precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k),
+               # 'precision MAX poss': precision_at_k_on_ranks(**best_possible_kwargs, k=k),
+               # 'precision chance': precision_at_k_on_ranks(**chance_ranks_kwargs, k=k),
+               'recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k),
                'n-recall@%d' % k: recall_at_k_on_ranks(**ranks_kwargs, k=k) /
                            recall_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'recall MAX poss': recall_at_k_on_ranks(**best_possible_kwargs, k=k),
                # 'recall chance': recall_at_k_on_ranks(**chance_ranks_kwargs, k=k),
-               'precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k),
-               'n-precision@%d' % k: precision_at_k_on_ranks(**ranks_kwargs, k=k) /
-                              precision_at_k_on_ranks(**best_possible_kwargs, k=k),
-               # 'precision MAX poss': precision_at_k_on_ranks(**best_possible_kwargs, k=k),
-               # 'precision chance': precision_at_k_on_ranks(**chance_ranks_kwargs, k=k),
-               'AUC': auc_score_on_ranks(**ranks_kwargs),
-               'reciprocal': reciprocal_rank_on_ranks(**ranks_kwargs),
-               'n-MRR': mrr_norm_on_ranks(**ranks_kwargs),
-               'n-MRR@%d' % k: mrr_norm_on_ranks(**ranks_kwargs, k=k),
-               'n-DCG@%d' % k: dcg_binary_at_k(**ranks_kwargs, k=k) /
-                        dcg_binary_at_k(**best_possible_kwargs, k=k)
+               'gini@%d' % k: gini_coefficient_at_k(**ranks_kwargs, k=k),
+               'diversity@%d' % k: diversity_at_k(**ranks_kwargs, k=k),
                }
 
-    return pd.DataFrame(metrics)
+    return pd.DataFrame(metrics)[list(metrics.keys())]
 
 
 class ModelMockRanksCacher:
@@ -180,3 +182,62 @@ def dcg_binary_at_k(
         dcg = dcg[test_interactions.getnnz(axis=1) > 0]
 
     return dcg
+
+
+def diversity_at_k(ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
+    """
+    Diversity metric:
+        calculates the percentage of items that
+        were recommended @ k for any user out of all possible items
+    """
+    ranks = ranks.copy().tocsr()
+    ranks.data += 1
+    ranks.data[ranks.data > k] *= 0
+    ranks.eliminate_zeros()
+
+    cols, counts = np.unique(ranks.indices, return_counts=True)
+    n_cols = ranks.shape[1]
+    percentage = len(counts) / n_cols
+
+    n_rows = np.sum(test_interactions.getnnz(axis=1) > 0) if not preserve_rows else ranks.shape[0]
+
+    return np.repeat(percentage, n_rows)
+
+
+def gini_coefficient_at_k(ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
+    """
+    Diversity metric:
+        calculates the gini coefficient for the
+        counts of recommended items @ k for all users
+    """
+    def gini(x, w=None):
+        # from https://stackoverflow.com/questions/39512260/calculating-gini-coefficient-in-python-numpy
+        # Array indexing requires reset indexes.
+        x = pd.Series(x).reset_index(drop=True)
+        if w is None:
+            w = np.ones_like(x)
+        w = pd.Series(w).reset_index(drop=True)
+        n = x.size
+        wxsum = sum(w * x)
+        wsum = sum(w)
+        sxw = np.argsort(x)
+        sx = x[sxw] * w[sxw]
+        sw = w[sxw]
+        pxi = np.cumsum(sx) / wxsum
+        pci = np.cumsum(sw) / wsum
+        g = 0.0
+        for i in np.arange(1, n):
+            g = g + pxi.iloc[i] * pci.iloc[i - 1] - pci.iloc[i] * pxi.iloc[i - 1]
+        return g
+
+    ranks = ranks.copy().tocsr()
+    ranks.data += 1
+    ranks.data[ranks.data > k] *= 0
+    ranks.eliminate_zeros()
+
+    cols, counts = np.unique(ranks.indices, return_counts=True)
+    counts = np.concatenate([counts, np.zeros(ranks.shape[1] - len(counts))])
+
+    n_rows = np.sum(test_interactions.getnnz(axis=1) > 0) if not preserve_rows else ranks.shape[0]
+
+    return np.repeat(gini(counts), n_rows)
