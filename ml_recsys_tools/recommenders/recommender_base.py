@@ -205,6 +205,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
     def all_items(self):
         return self.train_df[self.sparse_mat_builder.iid_source_col].unique()
 
+    @log_time_and_shape
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
             user_ids,
@@ -212,6 +213,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             message_prefix=message_prefix,
             message_suffix='useres that were not in training set.')
 
+    @log_time_and_shape
     def remove_unseen_items(self, item_ids, message_prefix=''):
         return self._filter_array(
             item_ids,
@@ -220,6 +222,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             message_suffix='items that were not in training set.')
 
     @staticmethod
+    @log_time_and_shape
     def _filter_array(array, filter_array, message_prefix='', message_suffix=''):
         array = np.array(array)
         relevance_mask = np.isin(array, filter_array)
@@ -290,6 +293,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         mat_builder.rating_source_col = self._prediction_col
         return mat_builder
 
+    @log_time_and_shape
     def _separate_heavy_users(self, user_ids, threshold=100):
         # calculate the user training counts if not calculated
         if self.user_train_counts is None:

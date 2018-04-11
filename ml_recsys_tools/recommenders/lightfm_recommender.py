@@ -270,6 +270,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return simil_df
 
+    @log_time_and_shape
     def _get_recommendations_flat_unfilt(
             self, user_ids, n_rec_unfilt, pbar=None, item_features_mode=None, use_biases=True):
 

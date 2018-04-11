@@ -36,6 +36,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
             raise ValueError('Unknown rank_combination_mode: ' + mode)
 
     @staticmethod
+    @log_time_and_shape
     def calc_dfs_and_combine_scores(calc_funcs, combine_func, fill_val,
                                     groupby_col, item_col, scores_col, multithreaded=False):
 
@@ -75,6 +76,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
 
         return merged_df
 
+    @log_time_and_shape
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
 
         calc_funcs = [partial(rec.get_recommendations,
@@ -90,6 +92,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
             item_col=self._item_col,
             scores_col=self._prediction_col)
 
+    @log_time_and_shape
     def get_similar_items(self, itemids, n_simil=10, n_unfilt=100, results_format='lists', **kwargs):
 
         calc_funcs = [partial(rec.get_similar_items,
@@ -186,6 +189,7 @@ class CascadeEnsemble(CombinationEnsembleBase):
         super().__init__(recommenders, **kwargs)
         assert self.n_recommenders == 2, 'only 2 recommenders supported'
 
+    @log_time_and_shape
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
             user_ids=user_ids, n_rec=n_rec_unfilt,
