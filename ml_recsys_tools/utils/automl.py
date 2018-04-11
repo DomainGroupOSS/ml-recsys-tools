@@ -206,7 +206,7 @@ def early_stopping_runner(
     # find optimal number of epochs on validation data
     while cur_epoch <= epochs_max:
 
-        cur_step = epochs_start if cur_epoch==0 else epochs_step
+        cur_step = epochs_start + epochs_step if cur_epoch==0 else epochs_step
 
         simple_logger.info('Training epochs %d - %d.' %
                            (cur_epoch, cur_epoch + cur_step))

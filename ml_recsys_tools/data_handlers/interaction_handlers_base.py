@@ -108,11 +108,31 @@ class ObservationsDF:
 
         return other
 
-    def filter_by_df(self, other_df_obs):
+    def filter_columns_by_df(self, other_df_obs):
+        """
+        removes users or items that are not in the other user dataframe
+        :param other_df_obs: other dataframe, that has the same structure (column names)
+        :return: new observation handler
+        """
         other = copy.deepcopy(self)
         other.df_obs = self.df_obs[
             (self.df_obs[self.iid_col].isin(other_df_obs[self.iid_col].unique())) &
             (self.df_obs[self.uid_col].isin(other_df_obs[self.uid_col].unique()))]
+        return other
+
+    def remove_interactions_by_df(self, other_df_obs):
+        """
+        removes all interactions that are present in the other dataframe.
+        e.g. remove training examples from the full dataframe
+        :param other_df_obs: other dataframe
+        :return: new observation handler
+        """
+        df_filtered = pd.merge(
+            self.df_obs, other_df_obs, on=[self.iid_col, self.uid_col], how='left')
+        df_filtered = df_filtered[df_filtered[self.rating_col + '_y'].isnull()]. \
+            rename({self.rating_col + '_x': self.rating_col}, axis=1)
+        other = copy.deepcopy(self)
+        other.df_obs = df_filtered
         return other
 
     def user_filtered_df(self, user):
@@ -257,7 +277,7 @@ class InteractionMatrixBuilder:
         new_i = ~df[self.iid_source_col].isin(self.iid_encoder.classes_)
         percent_new_u = np.mean(new_u)
         percent_new_i = np.mean(new_i)
-        if percent_new_u > 0.0 or percent_new_i > 0.0:
+        if percent_new_u > 0.1 or percent_new_i > 0.1:
             logger.info(
                 'Discarding %.1f%% samples with unseen '
                 'users(%.1f%%) / unseen items (%.1f%%) from DF(len: %s).' % \

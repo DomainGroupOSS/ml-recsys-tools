@@ -217,8 +217,18 @@ class ObsWithFeatures(ObservationsDF):
         other._filter_relevant_obs_and_items()
         return other
 
-    def filter_by_df(self, other_df_obs):
-        other = super().filter_by_df(other_df_obs)
+    def filter_columns_by_df(self, other_df_obs):
+        """
+        removes users or items that are not in the other user dataframe
+        :param other_df_obs: other dataframe, that has the same structure (column names)
+        :return: new observation handler
+        """
+        other = super().filter_columns_by_df(other_df_obs)
+        other._filter_relevant_obs_and_items()
+        return other
+
+    def remove_interactions_by_df(self, other_df_obs):
+        other = super().remove_interactions_by_df(other_df_obs)
         other._filter_relevant_obs_and_items()
         return other
 
