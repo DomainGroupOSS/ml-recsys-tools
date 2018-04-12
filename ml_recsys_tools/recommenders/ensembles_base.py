@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import N_CPUS
 
 
@@ -87,7 +86,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                               repeat(fit_params, self.n_models))))
         return self
 
-    @log_time_and_shape
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt=100, **kwargs):
 
         def _calc_recos_sub_model(i_model):
@@ -108,7 +106,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
         return recos_flat
 
-    @log_time_and_shape
     def get_similar_items(self, itemids, n_simil=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', **kwargs):
 

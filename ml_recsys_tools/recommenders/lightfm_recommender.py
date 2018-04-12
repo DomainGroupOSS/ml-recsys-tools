@@ -9,7 +9,7 @@ import lightfm.lightfm
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.utils.automl import early_stopping_runner
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape, simple_logger
+from ml_recsys_tools.utils.instrumentation import simple_logger
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS
 from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted, top_N_sorted_on_sparse
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
@@ -63,13 +63,11 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.model = LightFM(**self.model_params)
         self._set_fit_params(fit_params)
 
-    @log_time_and_shape
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.model.fit(self.train_mat, sample_weight=self.sample_weight, **self.fit_params)
         return self
 
-    @log_time_and_shape
     def fit_partial(self, train_obs, epochs=1):
         fit_params = self._dict_update(self.fit_params, {'epochs': epochs})
         if self.model is None:
@@ -79,7 +77,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 self.train_mat, sample_weight=self.sample_weight, **fit_params)
         return self
 
-    @log_time_and_shape
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
                             epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
                             plot_convergence=True, decline_threshold=0.05):
@@ -180,7 +177,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return biases, representations
 
-    @log_time_and_shape
     def get_similar_items(self, itemids, n_simil=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', pbar=None):
         """
@@ -244,7 +240,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return simil_df
 
-    @log_time_and_shape
     def get_similar_users(self, userids, n_simil=10, remove_self=True, simil_mode='cosine', pbar=None):
         """
         same as get_similar_items but for users
@@ -270,7 +265,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return simil_df
 
-    @log_time_and_shape
     def _get_recommendations_flat_unfilt(
             self, user_ids, n_rec_unfilt, pbar=None, item_features_mode=None, use_biases=True):
 
@@ -298,7 +292,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    @log_time_and_shape
     def predict_on_df(self, df):
         mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
         df = mat_builder.add_encoded_cols(df)
@@ -310,10 +303,9 @@ class LightFMRecommender(BaseDFSparseRecommender):
         df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
         return df
 
-    @log_time_and_shape
     def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True):
 
-        @log_time_and_shape
+        @self.logging_decorator
         def _get_training_ranks():
             ranks_mat = self.model.predict_rank(
                 self.train_mat,
@@ -321,7 +313,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 num_threads=self.fit_params['num_threads'])
             return ranks_mat, self.train_mat
 
-        @log_time_and_shape
+        @self.logging_decorator
         def _get_test_ranks(test_df):
             test_sparse = self.sparse_mat_builder.build_sparse_interaction_matrix(test_df)
             ranks_mat = self.model.predict_rank(
@@ -338,7 +330,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
             prefix=prefix,
             include_train=include_train)
 
-    @log_time_and_shape
     def get_recommendations_exact(
             self, user_ids, n_rec=10, exclude_training=True, chunksize=200, results_format='lists'):
 

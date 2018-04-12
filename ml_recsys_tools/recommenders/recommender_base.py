@@ -16,15 +16,17 @@ from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
 from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
 from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE, \
     ObservationsDF
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 
 
-class BaseDFRecommender(ABC):
+class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
     default_model_params = {}
     default_fit_params = {}
 
-    def __init__(self, user_col='userid', item_col='itemid', rating_col='rating', prediction_col='prediction',
-                 model_params=None, fit_params=None):
+    def __init__(self, user_col='userid', item_col='itemid',
+                 rating_col='rating', prediction_col='prediction',
+                 model_params=None, fit_params=None, verbose=True):
+        super().__init__(verbose)
         self._user_col = user_col
         self._item_col = item_col
         self._item_col_simil = item_col + '_source'
@@ -81,7 +83,6 @@ class BaseDFRecommender(ABC):
     def eval_on_test_by_ranking(self, *args, **kwargs):
         pass
 
-    @log_time_and_shape
     def _recos_lists_to_flat(self, recos_lists_df):
 
         # n_users = len(recos_lists_df)
@@ -104,7 +105,6 @@ class BaseDFRecommender(ABC):
             aggregate(lambda x: list(x)[:n_cutoff]). \
             reset_index()
 
-    @log_time_and_shape
     def _recos_flat_to_lists(self, df, n_cutoff=None):
         return self._flat_df_to_lists(
             df,
@@ -113,7 +113,6 @@ class BaseDFRecommender(ABC):
             group_col=self._user_col,
             target_columns=[self._item_col, self._prediction_col])
 
-    @log_time_and_shape
     def _simil_flat_to_lists(self, df, n_cutoff=None):
         return self._flat_df_to_lists(
             df,
@@ -207,7 +206,6 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         return self.train_df[self.sparse_mat_builder.iid_source_col].\
             unique().astype(str)
 
-    @log_time_and_shape
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
             user_ids,
@@ -215,7 +213,6 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             message_prefix=message_prefix,
             message_suffix='useres that were not in training set.')
 
-    @log_time_and_shape
     def remove_unseen_items(self, item_ids, message_prefix=''):
         return self._filter_array(
             item_ids,
@@ -224,7 +221,6 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             message_suffix='items that were not in training set.')
 
     @staticmethod
-    @log_time_and_shape
     def _filter_array(array, filter_array, message_prefix='', message_suffix=''):
         array = np.array(array).astype(str)
         relevance_mask = np.isin(array, np.array(filter_array).astype(str))
@@ -242,7 +238,6 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         logger.info('External item features matrix: %s' %
                     str(self.external_features_mat.shape))
 
-    @log_time_and_shape
     def _remove_training_from_df(self, flat_df):
         flat_df = pd.merge(
             flat_df, self.train_df,
@@ -295,7 +290,6 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         mat_builder.rating_source_col = self._prediction_col
         return mat_builder
 
-    @log_time_and_shape
     def _separate_heavy_users(self, user_ids, threshold=100):
         # calculate the user training counts if not calculated
         if self.user_train_counts is None:
@@ -314,7 +308,6 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
         pass
 
-    @log_time_and_shape
     def get_recommendations(
             self, user_ids, n_rec=10, n_rec_unfilt=100,
             exclude_training=True, pbar=None,
@@ -347,10 +340,9 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         else:
             return self._recos_flat_to_lists(recos_flat, n_cutoff=n_rec)
 
-    @log_time_and_shape
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True,
                                 n_rec=10, n_rec_unfilt=200, results_format='flat'):
-        @log_time_and_shape
+        @self.logging_decorator
         def relevant_users():
             # get only those users that are present in the evaluation / training dataframes
             all_test_users = []
@@ -381,7 +373,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
             ranks_all_no_train = pred_mat_builder.predictions_df_to_sparse_ranks(
                 recos_flat_unfilt)
 
-        @log_time_and_shape
+        @self.logging_decorator
         def _get_training_ranks():
             train_df = self.train_df[self.train_df[self._user_col].isin(users)].copy()
             sp_train = self.sparse_mat_builder. \
@@ -391,7 +383,7 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
                 sp_train, pred_mat_builder.predictions_df_to_sparse_ranks(recos_flat_unfilt))
             return sp_train_ranks, sp_train
 
-        @log_time_and_shape
+        @self.logging_decorator
         def _get_test_ranks(test_df):
             sp_test = self.sparse_mat_builder. \
                 build_sparse_interaction_matrix(test_df).tocsr()
@@ -410,12 +402,12 @@ class BaseDFSparseRecommender(BaseDFRecommender, ABC):
         return report_df
 
 
-class RecoBayesSearchHoldOut(BayesSearchHoldOut):
+class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
 
-    def __init__(self, *args, metric='AUC', interrupt_message_file=None, **kwargs):
+    def __init__(self, metric='AUC', interrupt_message_file=None, verbose=True, **kwargs):
         self.metric = metric
         self.interrupt_message_file = interrupt_message_file
-        super().__init__(*args, **kwargs)
+        super().__init__(verbose=verbose, **kwargs)
         self.all_metrics = pd.DataFrame()
 
     def _check_interrupt(self):
@@ -456,7 +448,6 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut):
             drop('index', axis=1). \
             sort_values('target_loss')
 
-    @log_time_and_shape
     def objective_func(self, values):
         try:
             self._check_interrupt()

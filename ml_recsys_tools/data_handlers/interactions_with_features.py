@@ -10,17 +10,18 @@ from sklearn_pandas import DataFrameMapper
 from ml_recsys_tools.utils.sklearn_extenstions import FloatBinningBinarizer
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF, RANDOM_STATE
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 from ml_recsys_tools.utils.geo import ItemsGeoMapper
 from ml_recsys_tools.utils.logger import simple_logger as logger
 
 
-class ExternalFeaturesDF:
+class ExternalFeaturesDF(LogCallsTimeAndOutput):
     """
     handles external items features and feature engineering
     """
 
-    def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None):
+    def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None, verbose=True):
+        super().__init__(verbose)
         self.feat_df = feat_df
         self.id_col = id_col
         self.num_cols = num_cols
@@ -63,7 +64,6 @@ class ExternalFeaturesDF:
 
         return self
 
-    @log_time_and_shape
     def create_items_features_matrix(self,
                                      items_encoder,
                                      normalize_output=False,
@@ -179,7 +179,6 @@ class ObsWithFeatures(ObservationsDF):
         df_items.drop_duplicates(self.item_id_col, inplace=True)
         return df_items
 
-    @log_time_and_shape
     def _filter_relevant_obs_and_items(self):
         items_ids = self.df_items[self.item_id_col].unique()
         obs_ids = self.df_obs[self.iid_col].unique()
@@ -287,7 +286,6 @@ class ObsWithGeoFeatures(ObsWithFeatures):
 
         return df_no_nans
 
-    @log_time_and_shape
     def filter_by_location_range(self, min_lat, max_lat, min_long, max_long):
         """ e.g.
         min_lat = -33.851674299999999
@@ -327,7 +325,6 @@ class ObsWithGeoFeatures(ObsWithFeatures):
 
         self.df_items[self.cluster_label_col] = cls.labels_
 
-    @log_time_and_shape
     def calcluate_equidense_geo_grid(self, n_lat, n_long, overlap_margin, geo_box):
 
         df_items = self.filter_by_location_range(**geo_box).df_items

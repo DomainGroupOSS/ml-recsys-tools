@@ -12,7 +12,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 from ml_recsys_tools.utils.parallelism import batch_generator, parallelize_dataframe, N_CPUS
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape
+from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.pandas_utils import console_settings
 
@@ -21,9 +21,11 @@ console_settings()
 RANDOM_STATE = 42
 
 
-class ObservationsDF:
+class ObservationsDF(LogCallsTimeAndOutput):
 
-    def __init__(self, df_obs=None, uid_col='userid', iid_col='itemid', rating_col='rating', **kwargs):
+    def __init__(self, df_obs=None, uid_col='userid', iid_col='itemid',
+                 rating_col='rating', verbose=True, **kwargs):
+        super().__init__(verbose, **kwargs)
         self.df_obs = df_obs
         self.uid_col = uid_col
         self.iid_col = iid_col
@@ -52,7 +54,6 @@ class ObservationsDF:
             plt.xlabel('with that many')
             plt.legend()
 
-    @log_time_and_shape
     def sample_observations(self,
                             n_users=None,
                             n_items=None,
@@ -223,7 +224,6 @@ class InteractionMatrixBuilder:
     def add_encoded_cols(self, df):
         return parallelize_dataframe(df, self._add_encoded_cols)
 
-    @log_time_and_shape
     def build_sparse_interaction_matrix(self, df, job_size=150000):
         """
         note:
@@ -272,7 +272,6 @@ class InteractionMatrixBuilder:
 
         return mat.tocsr()
 
-    @log_time_and_shape
     def remove_unseen_labels(self, df):
         new_u = ~df[self.uid_source_col].isin(self.uid_encoder.classes_)
         new_i = ~df[self.iid_source_col].isin(self.iid_encoder.classes_)
@@ -287,13 +286,11 @@ class InteractionMatrixBuilder:
         else:
             return df
 
-    @log_time_and_shape
     def predictions_df_to_sparse_ranks(self, preds_df):
         preds_all = self.build_sparse_interaction_matrix(preds_df)
         return self.predictions_to_ranks(preds_all)
 
     @staticmethod
-    @log_time_and_shape
     def predictions_to_ranks(sp_preds):
         # convert prediction matrix to ranks matrix
         ranks_mat = sp_preds.tocsr().copy()
@@ -336,7 +333,6 @@ class InteractionMatrixBuilder:
         return filt_ranks
 
     @classmethod
-    @log_time_and_shape
     def filter_all_ranks_by_sparse_selection(cls, sparse_filter_mat, all_recos_ranks_mat):
         """
         generates rankings for a an evaluation of a dataset (test set), relative to all valid predictions

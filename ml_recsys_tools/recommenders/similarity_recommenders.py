@@ -125,7 +125,6 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         rec_ids, rec_scores = self._recommend_for_item_inds(interactions_inds, n_rec_unfilt=n_rec)
         return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
 
-    @log_time_and_shape
     def _get_recommendations_flat_unfilt(
             self, user_ids, n_rec_unfilt=100, pbar=None, **kwargs):
 
@@ -148,7 +147,6 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    @log_time_and_shape
     def get_similar_items(self, itemids, n_simil=10, results_format='lists', pbar=None, **kwargs):
 
         itemids = self.remove_unseen_items(itemids)
@@ -186,7 +184,6 @@ class ItemCoocRecommender(BaseSimilarityRecommeder):
             ),
             **kwargs)
 
-    @log_time_and_shape
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.similarity_mat = interactions_mat_to_cooccurrence_mat(
@@ -209,7 +206,6 @@ class ItemCoocRecommender(BaseSimilarityRecommeder):
 
 class UserCoocRecommender(ItemCoocRecommender):
 
-    @log_time_and_shape
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.similarity_mat = interactions_mat_to_cooccurrence_mat(
@@ -218,7 +214,6 @@ class UserCoocRecommender(ItemCoocRecommender):
     def recommend_for_interaction_history(self, interactions_ids, n_rec):
         raise NotImplementedError
 
-    @log_time_and_shape
     def _get_recommendations_flat_unfilt(
             self, user_ids, n_rec_unfilt=100, pbar=None, **kwargs):
 
@@ -271,7 +266,6 @@ class SimilarityDFRecommender(BaseSimilarityRecommeder):
         super()._prep_for_fit(train_obs, **fit_params)
         self.similarity_mat_builder = self.get_similarity_builder()
 
-    @log_time_and_shape
     def fit(self, train_obs, simil_df_flat, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.similarity_mat = self.similarity_mat_builder. \

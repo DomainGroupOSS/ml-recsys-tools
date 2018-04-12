@@ -2,17 +2,29 @@ import logging
 import functools
 import time
 import inspect
-from abc import ABC
+from types import FunctionType
+from abc import ABC, ABCMeta
 from threading import Thread
 from psutil import virtual_memory
 
 from ml_recsys_tools.utils.logger import simple_logger
 
-# set this to logging.DEBUG to silence the printouts
-WRAPPERS_LOGGING_LEVEL = logging.INFO
 
-# set this to longer time to reduce printouts of short calls
-MIN_TIME_TO_LOG = 1
+class LoggingVerbosity:
+    def __init__(self, verbose=True, min_time=1):
+        """
+        :param verbose: true or false - whether to print to logging.INFO
+        :param min_time: minimum time for which to print, if function call is shorter - nothing is printed
+        """
+        self.verbose = verbose
+        self.min_time = min_time
+
+    @property
+    def level(self):
+        return logging.INFO if self.verbose else logging.DEBUG
+
+
+LOGGING_VERBOSITY = LoggingVerbosity()
 
 
 def variable_info(result):
@@ -55,8 +67,8 @@ def log_time_and_shape(fn):
               '%s, elapsed: %s, returned: %s, sys mem: %s' % \
               (fn_str, duration_str, ret_str, mem_str)
 
-        if elapsed >= MIN_TIME_TO_LOG:
-            simple_logger.log(WRAPPERS_LOGGING_LEVEL, msg)
+        if elapsed >= LOGGING_VERBOSITY.min_time:
+            simple_logger.log(LOGGING_VERBOSITY.level, msg)
 
         return result
 
@@ -71,7 +83,7 @@ def timer_deco(fn):
         start = time.time()
         result = fn(*args, **kwargs)
         duration = time.time() - start
-        simple_logger.log(WRAPPERS_LOGGING_LEVEL, log_format,
+        simple_logger.log(LOGGING_VERBOSITY.level, log_format,
                           fn.__name__, duration)
         return result
 
@@ -169,3 +181,56 @@ def collect_named_init_params(cls, skip_empty=True, ignore_classes=(object, ABC)
                 if p.default is not p.empty else ''
                 for p in named_params}
     return params
+
+
+# https://stackoverflow.com/questions/10067262/automatically-decorating-every-instance-method-in-a-class
+# decorate all instance methods (unless excluded) with the same decorator
+def decorate_all_metaclass(decorator):
+    # check if an object should be decorated
+    def do_decorate(attr, value):
+        return ('__' not in attr and
+                isinstance(value, (FunctionType, classmethod)) and
+                getattr(value, 'decorate', True))
+
+    class DecorateAll(ABCMeta):
+        def __new__(cls, name, bases, dct):
+            if dct.get('decorate', True):
+                for attr, value in dct.items():
+                    if do_decorate(attr, value):
+                        dct[attr] = decorator(value)
+            return super(DecorateAll, cls).__new__(cls, name, bases, dct)
+
+        def __setattr__(self, attr, value):
+            if do_decorate(attr, value):
+                value = decorator(value)
+            super(DecorateAll, self).__setattr__(attr, value)
+
+    return DecorateAll
+
+
+class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)):
+
+    def __init__(self, verbose, **kwargs):
+        self.verbose = verbose
+
+    @property
+    def verbose(self):
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, verbose):
+        self._verbose = verbose
+        if not self.verbose:
+            self.decorate = False
+
+    @property
+    def logging_decorator(self):
+        """
+        this is for decorating inner scope functions
+        :return: the logging decorator if verbose is True, empty decorator otherwise
+        """
+        if self.verbose:
+            return log_time_and_shape
+        else:
+            return lambda f: f
+
