@@ -59,17 +59,22 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
         ('reciprocal', reciprocal_rank_on_ranks(**ranks_kwargs)),
         ('n-MRR@%d' % k, mrr_norm_on_ranks(**ranks_kwargs, k=k)),
         ('n-MRR', mrr_norm_on_ranks(**ranks_kwargs)),
-        ('n-DCG@%d' % k, dcg_binary_at_k(**ranks_kwargs, k=k) /
+        ('n-DCG@%d' % k,
+         dcg_binary_at_k(**ranks_kwargs, k=k) /
          dcg_binary_at_k(**best_possible_kwargs, k=k)),
-        ('n-precision@%d' % k, precision_at_k_on_ranks(**ranks_kwargs, k=k) /
+        ('n-precision@%d' % k,
+         precision_at_k_on_ranks(**ranks_kwargs, k=k) /
          precision_at_k_on_ranks(**best_possible_kwargs, k=k)),
         ('precision@%d' % k, precision_at_k_on_ranks(**ranks_kwargs, k=k)),
         ('recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k)),
-        ('n-recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k) /
+        ('n-recall@%d' % k,
+         recall_at_k_on_ranks(**ranks_kwargs, k=k) /
          recall_at_k_on_ranks(**best_possible_kwargs, k=k)),
-        ('n-r-gini@%d' % k, gini_coefficient_at_k(**best_possible_kwargs, k=k) /
-         gini_coefficient_at_k(**ranks_kwargs, k=k)),
-        ('n-diversity@%d' % k, diversity_at_k(**ranks_kwargs, k=k) /
+        ('n-i-gini@%d' % k,
+         (1 - gini_coefficient_at_k(**ranks_kwargs, k=k)) /
+         (1 - gini_coefficient_at_k(**best_possible_kwargs, k=k))),
+        ('n-diversity@%d' % k,
+         diversity_at_k(**ranks_kwargs, k=k) /
          diversity_at_k(**best_possible_kwargs, k=k)),
         ])
 
