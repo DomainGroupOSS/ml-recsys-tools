@@ -294,6 +294,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
     def predict_on_df(self, df):
         mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
+        df = mat_builder.remove_unseen_labels(df)
         df = mat_builder.add_encoded_cols(df)
         df[self._prediction_col] = self.model.predict(
             df[mat_builder.uid_col].values,
