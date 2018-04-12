@@ -8,17 +8,23 @@ from ml_recsys_tools.utils.parallelism import N_CPUS
 
 def best_possible_ranks(test_mat):
     best_ranks = test_mat.tocsr().copy()
+    n_users, n_items = test_mat.shape
+    item_inds = np.arange(n_items)
     nnz_counts = best_ranks.getnnz(axis=1)
-    best_ranks.data = np.concatenate([np.arange(n) for n in nnz_counts]).astype(np.float32)
+    best_ranks.data = np.concatenate(
+        [np.random.choice(item_inds[:n], n, replace=False) if n else []
+        for n in nnz_counts]).astype(np.float32)
     return best_ranks
 
 
 def chance_ranks(test_mat):
+    rand_ranks = test_mat.tocsr().copy()
     n_users, n_items = test_mat.shape
     item_inds = np.arange(n_items)
-    rand_ranks = test_mat.tocsr().copy()
     nnz_counts = rand_ranks.getnnz(axis=1)
-    rand_ranks.data = np.concatenate([np.random.choice(item_inds, n) for n in nnz_counts]).astype(np.float32)
+    rand_ranks.data = np.concatenate(
+        [np.random.choice(item_inds, n, replace=False)
+        for n in nnz_counts]).astype(np.float32)
     return rand_ranks
 
 
@@ -61,8 +67,10 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
         ('recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k)),
         ('n-recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k) /
          recall_at_k_on_ranks(**best_possible_kwargs, k=k)),
-        ('gini@%d' % k, gini_coefficient_at_k(**ranks_kwargs, k=k)),
-        ('diversity@%d' % k, diversity_at_k(**ranks_kwargs, k=k)),
+        ('n-r-gini@%d' % k, gini_coefficient_at_k(**best_possible_kwargs, k=k) /
+         gini_coefficient_at_k(**ranks_kwargs, k=k)),
+        ('n-diversity@%d' % k, diversity_at_k(**ranks_kwargs, k=k) /
+         diversity_at_k(**best_possible_kwargs, k=k)),
         ])
 
     return pd.DataFrame(metrics)[list(metrics.keys())]
