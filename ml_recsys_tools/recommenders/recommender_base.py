@@ -189,7 +189,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             hp_space=hp_space, n_iters=n_iters, random_search=random_search, **kwargs)
 
 
-class BaseDFSparseRecommender(BaseDFRecommender, ABC):
+class BaseDFSparseRecommender(BaseDFRecommender):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

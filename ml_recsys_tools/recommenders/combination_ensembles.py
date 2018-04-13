@@ -182,7 +182,10 @@ class CascadeEnsemble(CombinationEnsembleBase):
 
     def __init__(self, recommenders, **kwargs):
         super().__init__(recommenders, **kwargs)
-        assert self.n_recommenders == 2, 'only 2 recommenders supported'
+        assert self.n_recommenders == 2, \
+            'only 2 recommenders supported'
+        assert hasattr(self.recommenders[1], 'predict_on_df'), \
+            'no "predict_on_df" for second recommender'
 
     def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
