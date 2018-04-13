@@ -1,0 +1,16 @@
+gmaps==0.7.0
+scipy==1.0.0
+lightfm==1.14
+requests==2.9.1
+matplotlib==2.1.2
+boto3==1.5.23
+pytest==3.5.0
+numpy==1.14.0
+redis==2.10.6
+sklearn_pandas==1.6.0
+tqdm==4.19.5
+psutil==3.4.2
+scikit_optimize==0.5
+pandas==0.22.0
+ipywidgets==7.1.1
+scikit_learn==0.19.1
