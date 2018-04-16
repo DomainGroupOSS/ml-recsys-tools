@@ -37,21 +37,27 @@ class LightFMRecommender(BaseDFSparseRecommender):
         'user_alpha': 0,
     }
 
-    def __init__(self, use_sample_weight=False, external_features_params=None, **kwargs):
+    def __init__(self, use_sample_weight=False,  **kwargs):
         self.use_sample_weight = use_sample_weight
         self.sample_weight = None
         self.cooc_mat = None
         super().__init__(**kwargs)
-        if external_features_params is not None:
-            self.add_external_features(**external_features_params)
 
-    def _prep_for_fit(self, train_obs, **fit_params):
+    def _prep_for_fit(self, train_obs, external_features_params=None, **fit_params):
         # assign all observation data
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
         self.train_df = train_obs.df_obs
         self.user_train_counts = None
         self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(self.train_df)
         self.sample_weight = self.train_mat.tocoo() if self.use_sample_weight else None
+
+        if external_features_params is not None:
+            self.external_features_mat = external_features_params['external_features'].\
+                create_items_features_matrix(
+                    items_encoder=self.sparse_mat_builder.iid_encoder,
+                    **external_features_params)
+            simple_logger.info('External item features matrix: %s' %
+                            str(self.external_features_mat.shape))
 
         # add external features if specified
         self.fit_params['item_features'] = self.external_features_mat
@@ -63,8 +69,9 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.model = LightFM(**self.model_params)
         self._set_fit_params(fit_params)
 
-    def fit(self, train_obs, **fit_params):
-        self._prep_for_fit(train_obs, **fit_params)
+    def fit(self, train_obs, external_features_params=None, **fit_params):
+        self._prep_for_fit(
+            train_obs, external_features_params=external_features_params, **fit_params)
         self.model.fit(self.train_mat, sample_weight=self.sample_weight, **self.fit_params)
         return self
 
