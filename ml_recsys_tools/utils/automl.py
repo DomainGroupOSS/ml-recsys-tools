@@ -73,7 +73,7 @@ class SearchSpaceGuess:
 
 class BayesSearchHoldOut:
 
-    def __init__(self, search_space, pipeline, loss, random_ratio=0.5):
+    def __init__(self, search_space, pipeline, loss, random_ratio=0.5, **kwargs):
         self.search_space = search_space
         self.loss = loss
         self.pipeline = pipeline
