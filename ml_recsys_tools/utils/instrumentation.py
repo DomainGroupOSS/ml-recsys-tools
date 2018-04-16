@@ -98,7 +98,9 @@ class MaxMemoryMonitor:
         self._run_condition = False
 
     def __del__(self):
-        self._run_condition = False
+        if self._run_condition:
+            self._run_condition = False
+            self.thread.join(self.interval + 0.1)
 
     @staticmethod
     def _current():
