@@ -104,7 +104,11 @@ class MaxMemoryMonitor:
 
     @staticmethod
     def _current():
-        return virtual_memory().percent
+        try:
+            return virtual_memory().percent
+        except KeyError:
+            # for some reason there's a KeyError: ('psutil',) in psutil
+            return 0
 
     def _measure_peak(self):
         self.peak_memory = max(self.peak_memory, self._current())
