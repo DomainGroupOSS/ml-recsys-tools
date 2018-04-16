@@ -43,7 +43,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.cooc_mat = None
         super().__init__(**kwargs)
 
-    def _prep_for_fit(self, train_obs, external_features_params=None, **fit_params):
+    def _prep_for_fit(self, train_obs, external_features=None,
+                      external_features_params=None, **fit_params):
         # assign all observation data
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
         self.train_df = train_obs.df_obs
@@ -51,8 +52,17 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(self.train_df)
         self.sample_weight = self.train_mat.tocoo() if self.use_sample_weight else None
 
-        if external_features_params is not None:
-            self.external_features_mat = external_features_params['external_features'].\
+        self._set_fit_params(fit_params)
+        self.add_external_features(external_features, external_features_params)
+
+        # init model and set params
+        self.model = LightFM(**self.model_params)
+
+    def add_external_features(self, external_features, external_features_params):
+        if external_features is not None:
+            if external_features_params is None:
+                external_features_params = {}
+            self.external_features_mat = external_features.\
                 create_items_features_matrix(
                     items_encoder=self.sparse_mat_builder.iid_encoder,
                     **external_features_params)
@@ -63,15 +73,11 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.fit_params['item_features'] = self.external_features_mat
         if self.external_features_mat is not None:
             simple_logger.info('Fitting using external features mat: %s'
-                               % self.external_features_mat.shape)
+                               % str(self.external_features_mat.shape))
 
-        # init model and set params
-        self.model = LightFM(**self.model_params)
-        self._set_fit_params(fit_params)
-
-    def fit(self, train_obs, external_features_params=None, **fit_params):
+    def fit(self, train_obs, **fit_params):
         self._prep_for_fit(
-            train_obs, external_features_params=external_features_params, **fit_params)
+            train_obs, **fit_params)
         self.model.fit(self.train_mat, sample_weight=self.sample_weight, **self.fit_params)
         return self
 

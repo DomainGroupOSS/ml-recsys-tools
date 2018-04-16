@@ -231,13 +231,6 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 (message_prefix, int(n_discard), len(array), message_suffix))
         return array[relevance_mask]
 
-    def add_external_features(
-            self, external_features: ExternalFeaturesDF, **external_features_params):
-        self.external_features_mat = external_features.create_items_features_matrix(
-            self.sparse_mat_builder.iid_encoder, **external_features_params)
-        logger.info('External item features matrix: %s' %
-                    str(self.external_features_mat.shape))
-
     def _remove_training_from_df(self, flat_df):
         flat_df = pd.merge(
             flat_df, self.train_df,

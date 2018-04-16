@@ -112,7 +112,9 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
 
         if len(full_feat_df):
             feat_mat, df_transformer = self.ohe_hot_encode_features_df(
-                full_feat_df, self.num_cols, self.num_cols,
+                full_feat_df,
+                categorical_feat_cols=self.cat_cols,
+                numeric_feat_cols=self.num_cols,
                 numeric_n_bins=numeric_n_bins)
 
             # normalize each row
@@ -172,6 +174,7 @@ class ObsWithFeatures(ObservationsDF):
         self.item_id_col = items_iid_col
         self.cluster_label_col = 'cluster_label'
         self.df_items = self._preprocess_items_df(df_items)
+        self._filter_relevant_obs_and_items()
 
     def _preprocess_items_df(self, df_items):
         # make sure the ID col is of object type
