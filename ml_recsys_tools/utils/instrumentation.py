@@ -203,7 +203,10 @@ def decorate_all_metaclass(decorator):
             if dct.get('decorate', True):
                 for attr, value in dct.items():
                     if do_decorate(attr, value):
-                        dct[attr] = decorator(value)
+                        if isinstance(value, classmethod):
+                            dct[attr] = classmethod(decorator(value.__func__))
+                        else:
+                            dct[attr] = decorator(value)
             return super(DecorateAll, cls).__new__(cls, name, bases, dct)
 
         def __setattr__(self, attr, value):
