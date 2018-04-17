@@ -354,8 +354,9 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             target_item_ids = self.remove_unseen_items(target_item_ids)
         return item_ids, target_item_ids
 
-    def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True,
-                                n_rec=10, n_rec_unfilt=200, results_format='flat'):
+    def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='rec ',
+                                include_train=True, items_filter=None,
+                                n_rec=10, n_rec_unfilt=200):
         @self.logging_decorator
         def relevant_users():
             # get only those users that are present in the evaluation / training dataframes
@@ -375,7 +376,8 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         users = relevant_users()
 
         recos_flat_unfilt = self.get_recommendations(
-            users,
+            user_ids=users,
+            item_ids=items_filter,
             n_rec_unfilt=min(n_rec_unfilt, mat_builder.n_cols),
             exclude_training=(not include_train),
             results_format='flat')
