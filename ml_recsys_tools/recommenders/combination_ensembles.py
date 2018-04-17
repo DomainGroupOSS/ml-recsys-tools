@@ -36,7 +36,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
 
     @staticmethod
     def calc_dfs_and_combine_scores(calc_funcs, combine_func, fill_val,
-                                    groupby_col, item_col, scores_col, multithreaded=False):
+                                    groupby_col, item_col, scores_col, multithreaded=True):
 
         dfs = []
         if multithreaded:
@@ -160,7 +160,6 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
                 groupby_col=self._item_col_simil,
                 item_col=self._item_col,
                 scores_col=self._prediction_col,
-                multithreaded=True
             )
 
             if similarity_queue:
