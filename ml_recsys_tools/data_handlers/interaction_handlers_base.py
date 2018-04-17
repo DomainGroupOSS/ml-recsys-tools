@@ -189,9 +189,10 @@ def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid'
     return df_train, df_test
 
 
-class InteractionMatrixBuilder:
+class InteractionMatrixBuilder(LogCallsTimeAndOutput):
 
-    def __init__(self, source_df, users_col='userid', items_col='adid', rating_col='rating'):
+    def __init__(self, source_df, users_col='userid', items_col='adid', rating_col='rating', verbose=True):
+        super().__init__(verbose=verbose)
 
         self.uid_source_col = users_col
         self.iid_source_col = items_col
