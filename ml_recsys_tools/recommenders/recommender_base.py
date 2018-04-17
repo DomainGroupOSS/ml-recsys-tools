@@ -309,12 +309,12 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             exclude_training=True, pbar=None,
             results_format='lists'):
 
-        if user_ids:
+        if user_ids is not None:
             user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
         else:
             user_ids = self.all_users()
 
-        if item_ids:
+        if item_ids is not None:
             item_ids = self.remove_unseen_items(item_ids, message_prefix='get_recommendations: ')
         else:
             item_ids = self.all_items()
@@ -346,11 +346,11 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             return self._recos_flat_to_lists(recos_flat, n_cutoff=n_rec)
 
     def _check_item_ids_args(self, item_ids, target_item_ids):
-        if not item_ids:
+        if item_ids is None:
             item_ids = self.all_items()
         else:
             item_ids = self.remove_unseen_items(item_ids)
-        if target_item_ids:
+        if target_item_ids is not None:
             target_item_ids = self.remove_unseen_items(target_item_ids)
         return item_ids, target_item_ids
 

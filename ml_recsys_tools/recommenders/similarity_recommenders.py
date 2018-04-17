@@ -114,7 +114,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         sum_simils = np.array(np.sum(sub_mat, axis=0)).ravel()
 
         if remove_self:
-            if target_item_inds:
+            if target_item_inds is not None:
                 sum_simils[target_item_inds[item_inds]] *= 0
             else:
                 sum_simils[item_inds] *= 0
@@ -125,7 +125,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         i_sort = i_part[np.argsort(-sum_simils[i_part])[:n_rec]]
 
         scores = sum_simils[i_sort]
-        inds = target_item_inds[i_sort] if target_item_inds else i_sort
+        inds = target_item_inds[i_sort] if target_item_inds is not None else i_sort
 
         return inds, scores
 
