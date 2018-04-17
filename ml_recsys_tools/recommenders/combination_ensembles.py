@@ -92,7 +92,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10, n_unfilt=100, results_format='lists', **kwargs):
 
         calc_funcs = [partial(rec.get_similar_items,
-                              itemids=item_ids, target_item_ids=target_item_ids,
+                              item_ids=item_ids, target_item_ids=target_item_ids,
                               n_simil=n_unfilt, results_format='flat', **kwargs)
                       for rec in self.recommenders]
 
@@ -150,7 +150,7 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
 
             calc_funcs = [
                 partial(rec.get_similar_items,
-                        itemids=items, n_simil=self.n_unfilt, results_format='flat', **params)
+                        item_ids=items, n_simil=self.n_unfilt, results_format='flat', **params)
                 for rec, params in zip(self.recommenders, self._get_similarity_func_params())]
 
             simil_df = CombinedRankEnsemble.calc_dfs_and_combine_scores(
