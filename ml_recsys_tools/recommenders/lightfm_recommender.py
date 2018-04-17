@@ -37,14 +37,18 @@ class LightFMRecommender(BaseDFSparseRecommender):
         'user_alpha': 0,
     }
 
-    def __init__(self, use_sample_weight=False,  **kwargs):
+    def __init__(self,
+                 use_sample_weight=False,
+                 external_features=None,
+                 external_features_params=None, **kwargs):
         self.use_sample_weight = use_sample_weight
+        self.external_features = external_features
+        self.external_features_params = external_features_params or {}
         self.sample_weight = None
         self.cooc_mat = None
         super().__init__(**kwargs)
 
-    def _prep_for_fit(self, train_obs, external_features=None,
-                      external_features_params=None, **fit_params):
+    def _prep_for_fit(self, train_obs, **fit_params):
         # assign all observation data
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
         self.train_df = train_obs.df_obs
@@ -53,19 +57,17 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.sample_weight = self.train_mat.tocoo() if self.use_sample_weight else None
 
         self._set_fit_params(fit_params)
-        self.add_external_features(external_features, external_features_params)
+        self._add_external_features()
 
         # init model and set params
         self.model = LightFM(**self.model_params)
 
-    def add_external_features(self, external_features, external_features_params):
-        if external_features is not None:
-            if external_features_params is None:
-                external_features_params = {}
-            self.external_features_mat = external_features.\
+    def _add_external_features(self):
+        if self.external_features is not None:
+            self.external_features_mat = self.external_features.\
                 create_items_features_matrix(
                     items_encoder=self.sparse_mat_builder.iid_encoder,
-                    **external_features_params)
+                    **self.external_features_params)
             simple_logger.info('External item features matrix: %s' %
                             str(self.external_features_mat.shape))
 
@@ -154,8 +156,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
         """
         if 'epochs' in params:
             self._set_fit_params({'epochs': params.pop('epochs')})
-        if 'use_sample_weight' in params:
-            self.use_sample_weight = params.pop('use_sample_weight')
+        params = self._pop_set_params(
+            params, ['use_sample_weight', 'external_features', 'external_features_params'])
         super().set_params(**params)
 
     def _get_item_representations(self, mode=None):
