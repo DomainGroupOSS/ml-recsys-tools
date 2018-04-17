@@ -156,7 +156,7 @@ def get_class_that_defined_method(meth):
         meth = meth.__func__  # fallback to __qualname__ parsing
     if inspect.isfunction(meth):
         cls = getattr(inspect.getmodule(meth),
-                      meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
+                      meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0], None)
         if isinstance(cls, type):
             return cls
     return getattr(meth, '__objclass__', None)  # handle special descriptor objects
