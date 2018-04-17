@@ -242,6 +242,9 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             [[self._user_col, self._item_col, self._prediction_col]]
         return flat_df
 
+    def _remove_self_similarities(self, flat_df, col1, col2):
+        return flat_df[flat_df[col1].values != flat_df[col2].values].copy()
+
     @staticmethod
     def _eval_on_test_by_ranking_LFM(train_ranks_func, test_tanks_func,
                                      test_dfs, test_names=('',), prefix='', include_train=True):
@@ -298,15 +301,23 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         return heavy_users, normal_users, heavy_users_max
 
     @abstractmethod
-    def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt, pbar=None, **kwargs):
+    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt, pbar=None, **kwargs):
         pass
 
     def get_recommendations(
-            self, user_ids, n_rec=10, n_rec_unfilt=100,
+            self, user_ids=None, item_ids=None, n_rec=10, n_rec_unfilt=100,
             exclude_training=True, pbar=None,
             results_format='lists'):
 
-        user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
+        if user_ids:
+            user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
+        else:
+            user_ids = self.all_users()
+
+        if item_ids:
+            item_ids = self.remove_unseen_items(item_ids, message_prefix='get_recommendations: ')
+        else:
+            item_ids = self.all_items()
 
         # treat heavy users differently
         heavy_users, normal_users, heavy_users_max = \
@@ -318,6 +329,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 reco_dfs.append(
                     self._get_recommendations_flat_unfilt(
                         user_ids=user_group,
+                        item_ids=item_ids,
                         n_rec_unfilt=n_unfilt,
                         pbar=pbar))
 
@@ -332,6 +344,15 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             return recos_flat
         else:
             return self._recos_flat_to_lists(recos_flat, n_cutoff=n_rec)
+
+    def _check_item_ids_args(self, item_ids, target_item_ids):
+        if not item_ids:
+            item_ids = self.all_items()
+        else:
+            item_ids = self.remove_unseen_items(item_ids)
+        if target_item_ids:
+            target_item_ids = self.remove_unseen_items(target_item_ids)
+        return item_ids, target_item_ids
 
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True,
                                 n_rec=10, n_rec_unfilt=200, results_format='flat'):

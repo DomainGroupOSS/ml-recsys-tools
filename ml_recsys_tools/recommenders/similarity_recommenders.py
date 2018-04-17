@@ -103,39 +103,55 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         if len(self.similarity_mat.data) and np.min(self.similarity_mat.data) < 0.01:
             self.similarity_mat.data += np.abs(np.min(self.similarity_mat.data) - 0.01)
 
-    def _recommend_for_item_inds(self, item_inds, *args, n_rec_unfilt=100, remove_self=True, **kwargs):
+    def _recommend_for_item_inds(self, item_inds, ignored_arg, target_item_inds=None,
+                                 n_rec_unfilt=100, remove_self=True, **kwargs):
 
-        sub_mat = self.similarity_mat[item_inds, :]
+        if target_item_inds is None:
+            sub_mat = self.similarity_mat[item_inds, :]
+        else:
+            sub_mat = self.similarity_mat[item_inds, :][:, target_item_inds]
 
         sum_simils = np.array(np.sum(sub_mat, axis=0)).ravel()
 
         if remove_self:
-            sum_simils[item_inds] *= 0
+            if target_item_inds:
+                sum_simils[target_item_inds[item_inds]] *= 0
+            else:
+                sum_simils[item_inds] *= 0
 
         n_rec = min(n_rec_unfilt, len(sum_simils))
 
         i_part = np.argpartition(sum_simils, -n_rec)[-n_rec:]
         i_sort = i_part[np.argsort(-sum_simils[i_part])[:n_rec]]
 
-        return i_sort, sum_simils[i_sort]
+        scores = sum_simils[i_sort]
+        inds = target_item_inds[i_sort] if target_item_inds else i_sort
 
-    def recommend_for_interaction_history(self, interactions_ids, n_rec):
-        interactions_inds = self.sparse_mat_builder.iid_encoder.transform(
-            np.array(interactions_ids, dtype=str))
-        rec_ids, rec_scores = self._recommend_for_item_inds(interactions_inds, n_rec_unfilt=n_rec)
-        return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
+        return inds, scores
+
+    # def recommend_for_interaction_history(self, interactions_ids, n_rec):
+    #     interactions_inds = self.sparse_mat_builder.iid_encoder.transform(
+    #         np.array(interactions_ids, dtype=str))
+    #     rec_ids, rec_scores = self._recommend_for_item_inds(interactions_inds, n_rec_unfilt=n_rec)
+    #     return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
 
     def _get_recommendations_flat_unfilt(
-            self, user_ids, n_rec_unfilt=100, pbar=None, **kwargs):
+            self, user_ids, item_ids,  n_rec_unfilt=100, pbar=None, **kwargs):
 
         self._check_no_negatives()
 
-        top_simil_for_users = partial(self._recommend_for_item_inds,
-                                      n_rec_unfilt=n_rec_unfilt, remove_self=False)
+        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+        item_inds.sort()
+
+        top_simil_for_users = partial(
+            self._recommend_for_item_inds,
+            target_item_inds=item_inds,
+            n_rec_unfilt=n_rec_unfilt,
+            remove_self=False)
 
         best_ids, best_scores = custom_row_func_on_sparse(
             row_func=top_simil_for_users,
-            ids=user_ids,
+            source_ids=user_ids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
             target_encoder=self.sparse_mat_builder.iid_encoder,
             sparse_mat=self.train_mat,
@@ -147,14 +163,17 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    def get_similar_items(self, itemids, n_simil=10, results_format='lists', pbar=None, **kwargs):
+    def get_similar_items(self, item_ids=None, target_item_ids=None,
+                          n_simil=10, results_format='lists', pbar=None, **kwargs):
 
-        itemids = self.remove_unseen_items(itemids)
+        item_ids, target_item_ids = \
+            self._check_item_ids_args(item_ids, target_item_ids)
 
         self._check_no_negatives()
 
         best_ids, best_scores = top_N_sorted_on_sparse(
-            ids=itemids,
+            source_ids=item_ids,
+            target_ids=target_item_ids,
             encoder=self.sparse_mat_builder.iid_encoder,
             sparse_mat=self.similarity_mat,
             n_top=n_simil,
@@ -162,7 +181,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         )
 
         simil_df = self._format_results_df(
-            itemids, target_ids_mat=best_ids,
+            item_ids, target_ids_mat=best_ids,
             scores_mat=best_scores, results_format='similarities_' + results_format)
         return simil_df
 
@@ -215,7 +234,10 @@ class UserCoocRecommender(ItemCoocRecommender):
         raise NotImplementedError
 
     def _get_recommendations_flat_unfilt(
-            self, user_ids, n_rec_unfilt=100, pbar=None, **kwargs):
+            self, user_ids, item_ids, n_rec_unfilt=100, pbar=None, **kwargs):
+
+        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+        item_inds.sort()
 
         def row_func(user_inds, row_data):
             sub_mat = self.train_mat[user_inds, :]
@@ -224,17 +246,18 @@ class UserCoocRecommender(ItemCoocRecommender):
                 sub_mat.data[sub_mat.indptr[i]:sub_mat.indptr[i + 1]] *= r
 
             sum_weight_occurs = np.array(np.sum(sub_mat.tocsr(), axis=0)).ravel()
+            sum_weight_occurs = sum_weight_occurs[item_inds]
 
             n_rec = min(n_rec_unfilt, len(sum_weight_occurs))
 
             i_part = np.argpartition(sum_weight_occurs, -n_rec)[-n_rec:]
             i_sort = i_part[np.argsort(-sum_weight_occurs[i_part])[:n_rec]]
 
-            return i_sort, sum_weight_occurs[i_sort]
+            return item_inds[i_sort], sum_weight_occurs[i_sort]
 
         best_ids, best_scores = custom_row_func_on_sparse(
             row_func=row_func,
-            ids=user_ids,
+            source_ids=user_ids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
             target_encoder=self.sparse_mat_builder.iid_encoder,
             sparse_mat=self.similarity_mat,
@@ -245,7 +268,8 @@ class UserCoocRecommender(ItemCoocRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    def get_similar_items(self, itemids, n_simil=10, results_format='lists', pbar=None, **kwargs):
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
+                          results_format='lists', pbar=None, **kwargs):
         raise NotImplementedError
 
 

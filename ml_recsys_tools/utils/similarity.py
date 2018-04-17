@@ -40,16 +40,14 @@ def top_N_sorted(mat, n):
     return top_values[sort_inds], top_inds[sort_inds]
 
 
-def _top_N_similar(inds, source_mat, target_mat, n, remove_self,
+def _top_N_similar(source_inds, source_mat, target_mat, n,
                    source_biases=None, target_biases=None, simil_mode='cosine'):
     """
     for each row in specified inds in source_mat calculates top N similar items in target_mat
-    :param inds: indices into source mat
+    :param source_inds: indices into source mat
     :param source_mat: matrix of features for similarity calculation (left side)
     :param target_mat: matrix of features for similarity calculation (right side)
     :param n: number of top elements to retreive
-    :param remove_self: whether to remove first element - for cases when
-        source elements are present in target_mat (self similarity)
     :param source_biases: bias terms for source_mat
     :param target_biases: bias terms for target_mat
     :param simil_mode: type of similarity calculation:
@@ -59,16 +57,16 @@ def _top_N_similar(inds, source_mat, target_mat, n, remove_self,
     """
 
     if simil_mode == 'cosine':
-        scores = cosine_similarity(source_mat[inds, :], target_mat)
+        scores = cosine_similarity(source_mat[source_inds, :], target_mat)
 
     elif simil_mode == 'euclidean':
-        scores = 1 / (euclidean_distances(source_mat[inds, :], target_mat) + 0.001)
+        scores = 1 / (euclidean_distances(source_mat[source_inds, :], target_mat) + 0.001)
 
     elif simil_mode == 'dot':
-        scores = np.dot(source_mat[inds, :], target_mat.T)
+        scores = np.dot(source_mat[source_inds, :], target_mat.T)
 
         if source_biases is not None:
-            scores = (scores.T + source_biases[inds]).T
+            scores = (scores.T + source_biases[source_inds]).T
 
         if target_biases is not None:
             scores += target_biases
@@ -78,38 +76,39 @@ def _top_N_similar(inds, source_mat, target_mat, n, remove_self,
     else:
         raise NotImplementedError('unknown similarity mode')
 
-    # get best N
-    if remove_self:
-        n = n + 1
+    # # get best N
+    # if remove_self:
+    #     n = n + 1
 
     best_scores, best_inds = top_N_unsorted(scores, n)
 
     sort_inds = _argsort_mask_descending(best_scores)
 
     # checks that top similar items are themselves
-    if remove_self:
-        if not (best_inds[list(inds[:, 0] for inds in sort_inds)] == np.array(inds)).all():
-            warnings.warn("LightFM: _most_similar_by_cosine: Most similar "
-                          "element is not itself, something's wrong!")
-        sort_inds = list(inds[:, 1:] for inds in sort_inds)
+    # if remove_self:
+    #     if not (best_inds[list(inds[:, 0] for inds in sort_inds)] == np.array(source_inds)).all():
+    #         warnings.warn("LightFM: _most_similar_by_cosine: Most similar "
+    #                       "element is not itself, something's wrong!")
+    #     sort_inds = list(inds[:, 1:] for inds in sort_inds)
 
     return best_inds[sort_inds], best_scores[sort_inds]
 
 
-def most_similar(ids, n, remove_self, source_encoder, source_mat, source_biases=None,
-                 target_encoder=None, target_mat=None, target_biases=None,
+def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
+                 target_ids=None, target_encoder=None, target_mat=None, target_biases=None,
                  chunksize=1000, simil_mode='cosine', pbar=None):
     """
     multithreaded batched version of _top_N_similar() that works with IDs instead of indices
     for each row in specified IDS in source_mat calculates top N similar items in target_mat
 
-    :param ids: IDS of query items in source mat
+    :param source_ids: IDS of query items in source mat
     :param n: number of top items to find for each query item
     :param remove_self: whether to remove first element - for cases when
         source elements are present in target_mat (self similarity)
     :param source_encoder: encoder for transforming IDS to indeces in source_mat
     :param source_mat: features matrix for query items
     :param source_biases: biases for query items
+    :param target_ids: subset of target ids to be considered
     :param target_encoder: encoder for transforming IDS to indeces in target_mat
     :param target_mat: features matrix for target items
     :param target_biases: biases for target items
@@ -130,34 +129,54 @@ def most_similar(ids, n, remove_self, source_encoder, source_mat, source_biases=
         target_biases = source_biases
 
     # to index
-    inds = source_encoder.transform(np.array(ids, dtype=str))
+    source_inds = source_encoder.transform(np.array(source_ids, dtype=str))
+
+    if target_ids is None:
+        target_ids = target_encoder.classes_
+
+    target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
+
+    # only the relevant submatrix
+    sub_target_mat = target_mat[target_inds, :]
 
     chunksize = int(35000 * chunksize / max(source_mat.shape))
 
     calc_func = partial(
-        _top_N_similar, source_mat=source_mat, target_mat=target_mat, n=n,
-        remove_self=remove_self, source_biases=source_biases, target_biases=target_biases,
+        _top_N_similar,
+        source_mat=source_mat, target_mat=sub_target_mat, n=n,
+        source_biases=source_biases, target_biases=target_biases,
         simil_mode=simil_mode)
 
-    ret = map_batches_multiproc(calc_func, inds,
+    ret = map_batches_multiproc(calc_func, source_inds,
                                 chunksize=chunksize,
                                 pbar=pbar,
                                 threads_per_cpu=2)
-    best_inds = np.concatenate([r[0] for r in ret], axis=0)
+    sub_mat_best_inds = np.concatenate([r[0] for r in ret], axis=0)
     best_scores = np.concatenate([r[1] for r in ret], axis=0)
 
     # back to ids
+    best_inds = target_inds[sub_mat_best_inds.astype(int)]
     best_ids = target_encoder.inverse_transform(best_inds.astype(int))
 
     return best_ids, best_scores
 
 
 @log_time_and_shape
-def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
-                              sparse_mat, row_func, chunksize=10000, pbar=None):
-    source_inds = source_encoder.transform(np.array(ids, dtype=str))
+def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
+                              sparse_mat, row_func,
+                              target_ids=None, chunksize=10000, pbar=None):
 
-    sub_mat_ll = sparse_mat.tocsr()[source_inds, :].tolil()
+    source_inds = source_encoder.transform(np.array(source_ids, dtype=str))
+
+    if target_ids is None:
+        target_ids = target_encoder.classes_
+
+    target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
+
+    sub_mat_ll = sparse_mat.\
+                     tocsr()[source_inds, :].\
+                     tocsc()[:, target_inds].\
+                     tolil()
 
     def top_n_inds_batch(inds_batch):
         inds_list = []
@@ -172,17 +191,20 @@ def custom_row_func_on_sparse(ids, source_encoder, target_encoder,
     batch_res = map_batches_multiproc(
         top_n_inds_batch, np.arange(sub_mat_ll.shape[0]), chunksize=chunksize, pbar=pbar)
 
-    best_inds = np.concatenate([r[0] for r in batch_res])
+    sub_mat_best_inds = np.concatenate([r[0] for r in batch_res])
     best_scores = np.concatenate([r[1] for r in batch_res])
 
     # back to ids
+    best_inds = target_inds[sub_mat_best_inds.astype(int)]
     best_ids = target_encoder.inverse_transform(best_inds.astype(int))
 
     return best_ids, best_scores
 
 
 @log_time_and_shape
-def top_N_sorted_on_sparse(ids, encoder, sparse_mat, n_top=10, chunksize=10000, pbar=None):
+def top_N_sorted_on_sparse(source_ids, target_ids, encoder, sparse_mat,
+                           n_top=10, chunksize=10000, pbar=None):
+
     def _pad_k_zeros(vec, k):
         return np.pad(vec, (0, k), 'constant', constant_values=0)
 
@@ -201,7 +223,8 @@ def top_N_sorted_on_sparse(ids, encoder, sparse_mat, n_top=10, chunksize=10000, 
 
     return custom_row_func_on_sparse(
         row_func=top_n_row,
-        ids=ids,
+        source_ids=source_ids,
+        target_ids=target_ids,
         source_encoder=encoder,
         target_encoder=encoder,
         sparse_mat=sparse_mat,

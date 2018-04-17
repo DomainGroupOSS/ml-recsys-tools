@@ -86,14 +86,15 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                               repeat(fit_params, self.n_models))))
         return self
 
-    def _get_recommendations_flat_unfilt(self, user_ids, n_rec_unfilt=100, **kwargs):
+    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt=100, **kwargs):
 
         def _calc_recos_sub_model(i_model):
             all_users = np.array(self.sub_models[i_model].all_users())
             users = all_users[np.isin(all_users, user_ids)]
             if len(users):
-                return self.sub_models[i_model]._get_recommendations_flat_unfilt(
-                    user_ids=users, n_rec_unfilt=n_rec_unfilt, **kwargs)
+                return self.sub_models[i_model].get_recommendations(
+                    user_ids=users, item_ids=item_ids,
+                    n_rec=n_rec_unfilt, results_format='flat', **kwargs)
             else:
                 return pd.DataFrame()
 
@@ -106,15 +107,16 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
         return recos_flat
 
-    def get_similar_items(self, itemids, n_simil=10, remove_self=True, embeddings_mode=None,
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', **kwargs):
 
         def _calc_simils_sub_model(i_model):
             all_items = np.array(self.sub_models[i_model].all_items())
-            items = all_items[np.isin(all_items, itemids)]
+            items = all_items[np.isin(all_items, item_ids)]
             if len(items):
                 return self.sub_models[i_model].get_similar_items(
-                    itemids=items, n_simil=n_simil, remove_self=remove_self,
+                    item_ids=items, target_item_ids=target_item_ids,
+                    n_simil=n_simil, remove_self=remove_self,
                     embeddings_mode=embeddings_mode, simil_mode=simil_mode,
                     results_format='flat', pbar=None)
             else:

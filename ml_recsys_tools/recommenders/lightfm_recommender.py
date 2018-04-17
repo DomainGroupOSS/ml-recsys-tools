@@ -11,9 +11,8 @@ from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.utils.automl import early_stopping_runner
 from ml_recsys_tools.utils.instrumentation import simple_logger
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS
-from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted, top_N_sorted_on_sparse
+from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
-from ml_recsys_tools.recommenders.similarity_recommenders import interactions_mat_to_cooccurrence_mat
 
 # monkey patch print function
 lightfm.lightfm.print = simple_logger.info
@@ -134,6 +133,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         )
 
         simple_logger.info('Early stop, all_metrics:\n' + str(all_metrics))
+
         if plot_convergence:
             all_metrics = all_metrics.divide(all_metrics.max())
             all_metrics.plot()
@@ -192,12 +192,12 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return biases, representations
 
-    def get_similar_items(self, itemids, n_simil=10, remove_self=True, embeddings_mode=None,
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10, remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', pbar=None):
         """
         uses learned embeddings to get N most similar items
 
-        :param itemids: vector of item IDs
+        :param item_ids: vector of item IDs
         :param n_simil: number of most similar items to retrieve
         :param remove_self: whether to remove the the query items from the lists (similarity to self should be maximal)
         :param embeddings_mode: the item representations to use for calculation:
@@ -218,70 +218,67 @@ class LightFMRecommender(BaseDFSparseRecommender):
         :return: a matrix of most similar IDs [n_ids, N], a matrix of score of those similarities [n_ids, N]
         """
 
-        itemids = self.remove_unseen_items(itemids)
+        item_ids, target_item_ids = self._check_item_ids_args(item_ids, target_item_ids)
 
-        if simil_mode in ['cosine', 'dot', 'euclidean']:
-            biases, representations = self._get_item_representations(mode=embeddings_mode)
+        biases, representations = self._get_item_representations(mode=embeddings_mode)
 
-            best_ids, best_scores = most_similar(
-                ids=itemids,
-                source_encoder=self.sparse_mat_builder.iid_encoder,
-                source_mat=representations,
-                source_biases=biases,
-                n=n_simil,
-                remove_self=remove_self,
-                simil_mode=simil_mode,
-                pbar=pbar
-            )
-
-        elif simil_mode == 'cooccurrence':
-            if self.cooc_mat is None or \
-                    self.cooc_mat.shape[1] != self.train_mat.shape[1]:
-                self.cooc_mat = interactions_mat_to_cooccurrence_mat(self.train_mat)
-
-            best_ids, best_scores = top_N_sorted_on_sparse(
-                ids=itemids,
-                encoder=self.sparse_mat_builder.iid_encoder,
-                sparse_mat=self.cooc_mat,
-                n_top=n_simil
-            )
-
-        else:
-            raise ValueError('Unknown similarity mode: %s' % simil_mode)
+        best_ids, best_scores = most_similar(
+            source_ids=item_ids,
+            target_ids=target_item_ids,
+            source_encoder=self.sparse_mat_builder.iid_encoder,
+            source_mat=representations,
+            source_biases=biases,
+            n=n_simil,
+            simil_mode=simil_mode,
+            pbar=pbar
+        )
 
         simil_df = self._format_results_df(
-            itemids, target_ids_mat=best_ids,
-            scores_mat=best_scores, results_format='similarities_' + results_format)
+            item_ids, target_ids_mat=best_ids,
+            scores_mat=best_scores, results_format='similarities_flat')
+
+        if remove_self:
+            simil_df = self._remove_self_similarities(
+                simil_df, col1=self._item_col_simil, col2=self._item_col)
+
+        if 'lists' in results_format:
+            simil_df = self._simil_flat_to_lists(simil_df, n_cutoff=n_simil)
 
         return simil_df
 
-    def get_similar_users(self, userids, n_simil=10, remove_self=True, simil_mode='cosine', pbar=None):
+    def get_similar_users(self, userids, n_simil=10, remove_self=True,
+                          simil_mode='cosine', pbar=None):
         """
         same as get_similar_items but for users
         """
         userids = self.remove_unseen_users(userids)
         user_biases, user_representations = self.model.get_user_representations()
         best_ids, best_scores = most_similar(
-            ids=userids,
+            source_ids=userids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
             source_mat=user_representations,
             source_biases=user_biases,
             n=n_simil,
-            remove_self=remove_self,
             simil_mode=simil_mode,
             pbar=pbar
         )
 
         simil_df = self._format_results_df(
             userids, target_ids_mat=best_ids,
-            scores_mat=best_scores, results_format='similarities_lists'). \
+            scores_mat=best_scores, results_format='similarities_flat'). \
             rename({self._item_col_simil: self._user_col})
-        # this is UGLY, if this function is ever used, fix this please (the renaming shortcut)
+        # this is UGLY, if this function is ever useful, fix this please (the renaming shortcut)
+
+        if remove_self:
+            simil_df = self._remove_self_similarities(
+                simil_df, col1=self._user_col, col2=self._item_col)
+
+        simil_df = self._recos_flat_to_lists(simil_df, n_cutoff=n_simil)
 
         return simil_df
 
     def _get_recommendations_flat_unfilt(
-            self, user_ids, n_rec_unfilt, pbar=None, item_features_mode=None, use_biases=True):
+            self, user_ids, item_ids, n_rec_unfilt, pbar=None, item_features_mode=None, use_biases=True):
 
         user_biases, user_representations = self.model.get_user_representations()
         item_biases, item_representations = self._get_item_representations(mode=item_features_mode)
@@ -290,7 +287,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
             user_biases, item_biases = None, None
 
         best_ids, best_scores = most_similar(
-            ids=user_ids,
+            source_ids=user_ids,
+            target_ids=item_ids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
             target_encoder=self.sparse_mat_builder.iid_encoder,
             source_mat=user_representations,
@@ -298,7 +296,6 @@ class LightFMRecommender(BaseDFSparseRecommender):
             source_biases=user_biases,
             target_biases=item_biases,
             n=n_rec_unfilt,
-            remove_self=False,
             simil_mode='dot',
             pbar=pbar
         )
