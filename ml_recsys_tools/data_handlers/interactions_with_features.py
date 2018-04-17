@@ -169,9 +169,9 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
 
 class ObsWithFeatures(ObservationsDF):
 
-    def __init__(self, df_obs, df_items, items_iid_col='item_id', **kwargs):
+    def __init__(self, df_obs, df_items, items_id_col='item_id', **kwargs):
         super().__init__(df_obs=df_obs, **kwargs)
-        self.item_id_col = items_iid_col
+        self.item_id_col = items_id_col
         self.cluster_label_col = 'cluster_label'
         self.df_items = self._preprocess_items_df(df_items)
         self._filter_relevant_obs_and_items()
