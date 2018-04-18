@@ -132,6 +132,7 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
         target_ids = target_encoder.classes_
 
     target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
+    target_inds.sort()
 
     chunksize = int(35000 * chunksize / max(source_mat.shape))
 
@@ -168,6 +169,7 @@ def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
         target_ids = target_encoder.classes_
 
     target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
+    target_inds.sort()
 
     sub_mat_ll = sparse_mat.\
                      tocsr()[source_inds, :][:, target_inds].tolil()

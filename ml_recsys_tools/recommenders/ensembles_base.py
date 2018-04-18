@@ -86,7 +86,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                               repeat(fit_params, self.n_models))))
         return self
 
-    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt=100, **kwargs):
+    def _get_recommendations_flat(self, user_ids, item_ids, n_rec=100, **kwargs):
 
         def _calc_recos_sub_model(i_model):
             all_users = np.array(self.sub_models[i_model].all_users())
@@ -94,7 +94,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             if len(users):
                 return self.sub_models[i_model].get_recommendations(
                     user_ids=users, item_ids=item_ids,
-                    n_rec=n_rec_unfilt, results_format='flat', **kwargs)
+                    n_rec=n_rec, results_format='flat', **kwargs)
             else:
                 return pd.DataFrame()
 

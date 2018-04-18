@@ -36,6 +36,15 @@ class ObservationsDF(LogCallsTimeAndOutput):
             self.df_obs[self.iid_col] = self.df_obs[self.iid_col].astype(str)
             self.df_obs[self.rating_col] = self.df_obs[self.rating_col].astype(float)
 
+        self._check_duplicated_interactions()
+
+    def _check_duplicated_interactions(self):
+        dups = self.df_obs.duplicated([self.uid_col, self.iid_col])
+        if dups.sum():
+            logger.warn('ObservationsDF: Dropping %s duplicate interactions.'
+                        % str(dups.sum()))
+            self.df_obs = self.df_obs[~dups]
+
     def user_and_item_counts(self, plot=False):
         if len(self.df_obs):
             self.items_per_user = self.df_obs.groupby(self.uid_col).apply(len). \

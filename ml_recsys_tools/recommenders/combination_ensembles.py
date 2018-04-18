@@ -74,18 +74,18 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
 
         return merged_df
 
-    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt,
-                                         exclude_training=True, pbar=None, **kwargs):
+    def _get_recommendations_flat(self, user_ids, item_ids, n_rec,
+                                  exclude_training=True, pbar=None, **kwargs):
 
         calc_funcs = [partial(rec.get_recommendations,
-                              user_ids=user_ids, item_ids=item_ids, n_rec=n_rec_unfilt,
-                              n_rec_unfilt=n_rec_unfilt, exclude_training=exclude_training,
+                              user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
+                              exclude_training=exclude_training,
                               results_format='flat', **kwargs)
                       for rec in self.recommenders]
         return self.calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
             combine_func=self.rank_combination_function(self.rank_combination_mode),
-            fill_val=self.fill_na_val if self.fill_na_val else (n_rec_unfilt + 1),
+            fill_val=self.fill_na_val if self.fill_na_val else (n_rec + 1),
             groupby_col=self._user_col,
             item_col=self._item_col,
             scores_col=self._prediction_col)
@@ -188,10 +188,10 @@ class CascadeEnsemble(CombinationEnsembleBase):
         assert hasattr(self.recommenders[1], 'predict_on_df'), \
             'no "predict_on_df" for second recommender'
 
-    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt,
-                                         exclude_training=True, pbar=None, **kwargs):
+    def _get_recommendations_flat(self, user_ids, item_ids, n_rec,
+                                  exclude_training=True, pbar=None, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
-            user_ids=user_ids, item_ids=item_ids, n_rec=n_rec_unfilt,
-            n_rec_unfilt=n_rec_unfilt, exclude_training=exclude_training,
+            user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
+            exclude_training=exclude_training,
             results_format='flat', **kwargs)
         return self.recommenders[1].predict_on_df(recos_df)

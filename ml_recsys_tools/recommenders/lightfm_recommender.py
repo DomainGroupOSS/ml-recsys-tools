@@ -277,8 +277,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return simil_df
 
-    def _get_recommendations_flat_unfilt(
-            self, user_ids, item_ids, n_rec_unfilt, exclude_training=True,
+    def _get_recommendations_flat(
+            self, user_ids, item_ids, n_rec, exclude_training=True,
             pbar=None, item_features_mode=None, use_biases=True):
 
         user_biases, user_representations = self.model.get_user_representations()
@@ -297,7 +297,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
             source_biases=user_biases,
             target_biases=item_biases,
             exclude_mat_sp=self.train_mat if exclude_training else None,
-            n=n_rec_unfilt,
+            n=n_rec,
             simil_mode='dot',
             pbar=pbar
         )

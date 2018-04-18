@@ -18,7 +18,7 @@ import pandas as pd
 ratings_df = pd.read_csv(rating_csv_path)
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 obs = ObservationsDF(ratings_df)
-train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=0.2)
+train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
 
 
 # train and test LightFM recommender
@@ -31,13 +31,13 @@ lfm_rec.fit(train_obs, epochs=10)
 # data might be too slow (for this data it's much faster though)
 print(lfm_rec.eval_on_test_by_ranking_exact(test_obs.df_obs, prefix='lfm regular exact '))
 
-# in general the evaluation is done by sampling n_rec_unfilt + n_training
-# recommendations (n_rec_unfilt=200 here), choosing higher values for n_rec_unfilt makes
+# this ranking evaluation is done by sampling top n_rec recommendations
+# rather than all ranks for all items (very slow and memory-wise expensive for large data).
+# choosing higher values for n_rec makes
 # the evaluation more accurate (less pessimmistic)
-# removing the training from those, and than evaluating them vs the test set.
 # this way the evaluation is mostly accurate for the top results,
-# and is quite pessimmistic for AUC and any non @k metric
-print(lfm_rec.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm regular '))
+# and is quite pessimmistic (especially for AUC, which scores for all ranks) and any non @k metric
+print(lfm_rec.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm regular ', n_rec=100))
 
 
 # get all recommendations and print a sample (training interactions are filtered out by default)

@@ -104,7 +104,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             self.similarity_mat.data += np.abs(np.min(self.similarity_mat.data) - 0.01)
 
     def _recommend_for_item_inds(self, item_inds, *ignored_args, target_item_inds=None,
-                                 n_rec_unfilt=100, exclude_training=True):
+                                 n_rec=100, exclude_training=True):
 
         if target_item_inds is None:
             sub_mat = self.similarity_mat[item_inds, :]
@@ -119,10 +119,10 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             else:
                 sum_simils[item_inds] *= 0
 
-        n_rec = min(n_rec_unfilt, len(sum_simils))
+        n_rec_min = min(n_rec, len(sum_simils))
 
-        i_part = np.argpartition(sum_simils, -n_rec)[-n_rec:]
-        i_sort = i_part[np.argsort(-sum_simils[i_part])[:n_rec]]
+        i_part = np.argpartition(sum_simils, -n_rec_min)[-n_rec_min:]
+        i_sort = i_part[np.argsort(-sum_simils[i_part])[:n_rec_min]]
 
         scores = sum_simils[i_sort]
         inds = target_item_inds[i_sort] if target_item_inds is not None else i_sort
@@ -135,9 +135,9 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
     #     rec_ids, rec_scores = self._recommend_for_item_inds(interactions_inds, n_rec_unfilt=n_rec)
     #     return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
 
-    def _get_recommendations_flat_unfilt(
+    def _get_recommendations_flat(
             self, user_ids, item_ids, exclude_training=True,
-            n_rec_unfilt=100, pbar=None, **kwargs):
+            n_rec=100, pbar=None, **kwargs):
 
         self._check_no_negatives()
 
@@ -147,7 +147,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         top_simil_for_users = partial(
             self._recommend_for_item_inds,
             target_item_inds=item_inds,
-            n_rec_unfilt=n_rec_unfilt,
+            n_rec=n_rec,
             exclude_training=exclude_training)
 
         best_ids, best_scores = custom_row_func_on_sparse(
@@ -234,8 +234,8 @@ class UserCoocRecommender(ItemCoocRecommender):
     def recommend_for_interaction_history(self, interactions_ids, n_rec):
         raise NotImplementedError
 
-    def _get_recommendations_flat_unfilt(
-            self, user_ids, item_ids, n_rec_unfilt=100,
+    def _get_recommendations_flat(
+            self, user_ids, item_ids, n_rec=100,
             exclude_training=True, pbar=None, **kwargs):
 
         item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
@@ -254,10 +254,10 @@ class UserCoocRecommender(ItemCoocRecommender):
             sum_weight_occurs = np.array(np.sum(sub_mat.tocsr(), axis=0)).ravel()
             sum_weight_occurs = sum_weight_occurs[item_inds]
 
-            n_rec = min(n_rec_unfilt, len(sum_weight_occurs))
+            n_rec_min = min(n_rec, len(sum_weight_occurs))
 
-            i_part = np.argpartition(sum_weight_occurs, -n_rec)[-n_rec:]
-            i_sort = i_part[np.argsort(-sum_weight_occurs[i_part])[:n_rec]]
+            i_part = np.argpartition(sum_weight_occurs, -n_rec_min)[-n_rec_min:]
+            i_sort = i_part[np.argsort(-sum_weight_occurs[i_part])[:n_rec_min]]
 
             return item_inds[i_sort], sum_weight_occurs[i_sort]
 

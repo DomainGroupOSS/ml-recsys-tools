@@ -286,27 +286,13 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         mat_builder.rating_source_col = self._prediction_col
         return mat_builder
 
-    def _separate_heavy_users(self, user_ids, threshold=100):
-        # calculate the user training counts if not calculated
-        if self.user_train_counts is None:
-            self.user_train_counts = self.train_df.userid.value_counts()
-
-        user_counts = self.user_train_counts[self.user_train_counts.index.isin(user_ids)]
-
-        heavy_user_counts = user_counts[user_counts >= threshold]
-        heavy_users_max = heavy_user_counts.max()
-        heavy_users = heavy_user_counts.index.tolist()
-        normal_users = user_counts[user_counts < threshold].index.tolist()
-
-        return heavy_users, normal_users, heavy_users_max
-
     @abstractmethod
-    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt,
-                                         exclude_training=True, pbar=None, **kwargs):
-        pass
+    def _get_recommendations_flat(self, user_ids, item_ids, n_rec,
+                                  exclude_training=True, pbar=None, **kwargs):
+        return pd.DataFrame()
 
     def get_recommendations(
-            self, user_ids=None, item_ids=None, n_rec=10, n_rec_unfilt=100,
+            self, user_ids=None, item_ids=None, n_rec=10,
             exclude_training=True, pbar=None,
             results_format='lists'):
 
@@ -320,26 +306,9 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         else:
             item_ids = self.all_items()
 
-        # treat heavy users differently
-        heavy_users, normal_users, heavy_users_max = \
-            self._separate_heavy_users(user_ids=user_ids, threshold=50)
-        reco_dfs = []
-        for user_group, n_unfilt in zip([heavy_users, normal_users],
-                                        [n_rec_unfilt + heavy_users_max, n_rec_unfilt]):
-            if len(user_group):
-                reco_dfs.append(
-                    self._get_recommendations_flat_unfilt(
-                        user_ids=user_group,
-                        item_ids=item_ids,
-                        n_rec_unfilt=n_unfilt,
-                        pbar=pbar))
-
-        recos_flat = pd.concat(reco_dfs, axis=0)
-
-        del reco_dfs
-
-        if exclude_training:
-            recos_flat = self._remove_training_from_df(recos_flat)
+        recos_flat = self._get_recommendations_flat(
+            user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
+            exclude_training=exclude_training, pbar=pbar)
 
         if results_format == 'flat':
             return recos_flat
@@ -357,7 +326,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='rec ',
                                 include_train=True, items_filter=None,
-                                n_rec=10, n_rec_unfilt=200):
+                                n_rec=100):
         @self.logging_decorator
         def relevant_users():
             # get only those users that are present in the evaluation / training dataframes
@@ -376,19 +345,23 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         users = relevant_users()
 
-        recos_flat_unfilt = self.get_recommendations(
+        if include_train:
+            recos_flat_train = self.get_recommendations(
+                user_ids=users,
+                item_ids=items_filter,
+                n_rec=min(n_rec, mat_builder.n_cols),
+                exclude_training=False,
+                results_format='flat')
+
+        recos_flat_test = self.get_recommendations(
             user_ids=users,
             item_ids=items_filter,
-            n_rec_unfilt=min(n_rec_unfilt, mat_builder.n_cols),
-            exclude_training=(not include_train),
+            n_rec=min(n_rec, mat_builder.n_cols),
+            exclude_training=True,
             results_format='flat')
 
-        if include_train:
-            ranks_all_no_train = pred_mat_builder.predictions_df_to_sparse_ranks(
-                self._remove_training_from_df(recos_flat_unfilt))
-        else:
-            ranks_all_no_train = pred_mat_builder.predictions_df_to_sparse_ranks(
-                recos_flat_unfilt)
+        ranks_all_test = pred_mat_builder.predictions_df_to_sparse_ranks(
+            recos_flat_test)
 
         @self.logging_decorator
         def _get_training_ranks():
@@ -397,7 +370,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 build_sparse_interaction_matrix(train_df).tocsr()
             sp_train_ranks = pred_mat_builder. \
                 filter_all_ranks_by_sparse_selection(
-                sp_train, pred_mat_builder.predictions_df_to_sparse_ranks(recos_flat_unfilt))
+                sp_train, pred_mat_builder.predictions_df_to_sparse_ranks(recos_flat_train))
             return sp_train_ranks, sp_train
 
         @self.logging_decorator
@@ -405,7 +378,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             sp_test = self.sparse_mat_builder. \
                 build_sparse_interaction_matrix(test_df).tocsr()
             sp_test_ranks = pred_mat_builder. \
-                filter_all_ranks_by_sparse_selection(sp_test, ranks_all_no_train)
+                filter_all_ranks_by_sparse_selection(sp_test, ranks_all_test)
             return sp_test_ranks, sp_test
 
         report_df = self._eval_on_test_by_ranking_LFM(

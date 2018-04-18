@@ -98,7 +98,7 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
 
     fit = SubdivisionEnsembleBase.fit
     get_similar_items = SubdivisionEnsembleBase.get_similar_items
-    _get_recommendations_flat_unfilt = SubdivisionEnsembleBase._get_recommendations_flat_unfilt
+    _get_recommendations_flat = SubdivisionEnsembleBase._get_recommendations_flat
 
 
 class LFMGeoGridEnsemble(GeoGridEnsembleBase, LFMEnsembleBase):
