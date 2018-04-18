@@ -41,13 +41,15 @@ def top_N_sorted(mat, n):
 
 
 def _top_N_similar(source_inds, source_mat, target_mat, n,
-                   source_biases=None, target_biases=None, simil_mode='cosine'):
+                   exclude_mat_sp=None, source_biases=None, target_biases=None,
+                   simil_mode='cosine'):
     """
     for each row in specified inds in source_mat calculates top N similar items in target_mat
     :param source_inds: indices into source mat
     :param source_mat: matrix of features for similarity calculation (left side)
     :param target_mat: matrix of features for similarity calculation (right side)
     :param n: number of top elements to retreive
+    :param exclude_mat_sp: a sparse matrix with interactions to exclude
     :param source_biases: bias terms for source_mat
     :param target_biases: bias terms for target_mat
     :param simil_mode: type of similarity calculation:
@@ -76,26 +78,20 @@ def _top_N_similar(source_inds, source_mat, target_mat, n,
     else:
         raise NotImplementedError('unknown similarity mode')
 
-    # # get best N
-    # if remove_self:
-    #     n = n + 1
+    if exclude_mat_sp is not None:
+        exclude_mat_sp = exclude_mat_sp[source_inds, :].tocoo()
+        scores[exclude_mat_sp.row, exclude_mat_sp.col] = -np.inf
 
     best_scores, best_inds = top_N_unsorted(scores, n)
 
     sort_inds = _argsort_mask_descending(best_scores)
-
-    # checks that top similar items are themselves
-    # if remove_self:
-    #     if not (best_inds[list(inds[:, 0] for inds in sort_inds)] == np.array(source_inds)).all():
-    #         warnings.warn("LightFM: _most_similar_by_cosine: Most similar "
-    #                       "element is not itself, something's wrong!")
-    #     sort_inds = list(inds[:, 1:] for inds in sort_inds)
 
     return best_inds[sort_inds], best_scores[sort_inds]
 
 
 def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
                  target_ids=None, target_encoder=None, target_mat=None, target_biases=None,
+                 exclude_mat_sp=None,
                  chunksize=1000, simil_mode='cosine', pbar=None):
     """
     multithreaded batched version of _top_N_similar() that works with IDs instead of indices
@@ -112,6 +108,7 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
     :param target_encoder: encoder for transforming IDS to indeces in target_mat
     :param target_mat: features matrix for target items
     :param target_biases: biases for target items
+    :param exclude_mat_sp: a sparse mat with interactions to exclude (e.g. training mat)
     :param chunksize: chunksize for batching (in term of query items)
     :param simil_mode: mode of similarity calculation:
         'cosine' dot product of normalized matrices (each row sums to 1), without biases
@@ -136,15 +133,14 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
 
     target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
 
-    # only the relevant submatrix
-    sub_target_mat = target_mat[target_inds, :]
-
     chunksize = int(35000 * chunksize / max(source_mat.shape))
 
     calc_func = partial(
         _top_N_similar,
-        source_mat=source_mat, target_mat=sub_target_mat, n=n,
-        source_biases=source_biases, target_biases=target_biases,
+        source_mat=source_mat,
+        target_mat=target_mat[target_inds, :],  # only the relevant submatrix
+        exclude_mat_sp=exclude_mat_sp[:, target_inds] if exclude_mat_sp is not None else None,
+        n=n, source_biases=source_biases, target_biases=target_biases,
         simil_mode=simil_mode)
 
     ret = map_batches_multiproc(calc_func, source_inds,
@@ -163,7 +159,7 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
 
 @log_time_and_shape
 def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
-                              sparse_mat, row_func,
+                              sparse_mat, row_func, exclude_mat_sp=None,
                               target_ids=None, chunksize=10000, pbar=None):
 
     source_inds = source_encoder.transform(np.array(source_ids, dtype=str))
@@ -174,16 +170,21 @@ def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
     target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
 
     sub_mat_ll = sparse_mat.\
-                     tocsr()[source_inds, :].\
-                     tocsc()[:, target_inds].\
-                     tolil()
+                     tocsr()[source_inds, :][:, target_inds].tolil()
+
+    exclude_mat_ll = exclude_mat_sp[source_inds, :][:, target_inds].tolil() \
+                         if exclude_mat_sp is not None else None
 
     def top_n_inds_batch(inds_batch):
+        nonlocal exclude_mat_ll, sub_mat_ll
         inds_list = []
         vals_list = []
         for i in inds_batch:
+            exlclude_inds = np.array(exclude_mat_ll.rows[i]) \
+                if exclude_mat_ll is not None else None
             inds_, vals_ = row_func(np.array(sub_mat_ll.rows[i]),
-                                    np.array(sub_mat_ll.data[i]))
+                                    np.array(sub_mat_ll.data[i]),
+                                    exlclude_inds)
             inds_list.append(inds_)
             vals_list.append(vals_)
         return np.array(np.stack(inds_list)), np.array(np.stack(vals_list))
@@ -208,9 +209,12 @@ def top_N_sorted_on_sparse(source_ids, target_ids, encoder, sparse_mat,
     def _pad_k_zeros(vec, k):
         return np.pad(vec, (0, k), 'constant', constant_values=0)
 
-    def top_n_row(row_indices, row_data):
+    def top_n_row(row_indices, row_data, exclude_inds):
 
         n_min = min(n_top, len(row_data))
+
+        if exclude_inds is not None:
+            row_data[row_indices==exclude_inds] = -np.inf
 
         i_sort = np.argsort(-row_data)[:n_min]
 

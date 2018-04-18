@@ -103,8 +103,8 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         if len(self.similarity_mat.data) and np.min(self.similarity_mat.data) < 0.01:
             self.similarity_mat.data += np.abs(np.min(self.similarity_mat.data) - 0.01)
 
-    def _recommend_for_item_inds(self, item_inds, ignored_arg, target_item_inds=None,
-                                 n_rec_unfilt=100, remove_self=True, **kwargs):
+    def _recommend_for_item_inds(self, item_inds, *ignored_args, target_item_inds=None,
+                                 n_rec_unfilt=100, exclude_training=True):
 
         if target_item_inds is None:
             sub_mat = self.similarity_mat[item_inds, :]
@@ -113,7 +113,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
         sum_simils = np.array(np.sum(sub_mat, axis=0)).ravel()
 
-        if remove_self:
+        if exclude_training:
             if target_item_inds is not None:
                 sum_simils[target_item_inds[item_inds]] *= 0
             else:
@@ -136,7 +136,8 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
     #     return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
 
     def _get_recommendations_flat_unfilt(
-            self, user_ids, item_ids,  n_rec_unfilt=100, pbar=None, **kwargs):
+            self, user_ids, item_ids, exclude_training=True,
+            n_rec_unfilt=100, pbar=None, **kwargs):
 
         self._check_no_negatives()
 
@@ -147,7 +148,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             self._recommend_for_item_inds,
             target_item_inds=item_inds,
             n_rec_unfilt=n_rec_unfilt,
-            remove_self=False)
+            exclude_training=exclude_training)
 
         best_ids, best_scores = custom_row_func_on_sparse(
             row_func=top_simil_for_users,
@@ -234,14 +235,19 @@ class UserCoocRecommender(ItemCoocRecommender):
         raise NotImplementedError
 
     def _get_recommendations_flat_unfilt(
-            self, user_ids, item_ids, n_rec_unfilt=100, pbar=None, **kwargs):
+            self, user_ids, item_ids, n_rec_unfilt=100,
+            exclude_training=True, pbar=None, **kwargs):
 
         item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
         item_inds.sort()
 
-        def row_func(user_inds, row_data):
+        def row_func(user_inds, row_data, exclude_inds):
             sub_mat = self.train_mat[user_inds, :]
             sub_mat.sort_indices()
+
+            if exclude_inds is not None:
+                sub_mat[:, exclude_inds].data *= 0
+
             for i, r in enumerate(row_data):
                 sub_mat.data[sub_mat.indptr[i]:sub_mat.indptr[i + 1]] *= r
 
@@ -261,6 +267,7 @@ class UserCoocRecommender(ItemCoocRecommender):
             source_encoder=self.sparse_mat_builder.uid_encoder,
             target_encoder=self.sparse_mat_builder.iid_encoder,
             sparse_mat=self.similarity_mat,
+            exclude_mat_sp=self.train_mat if exclude_training else None,
             pbar=pbar
         )
 

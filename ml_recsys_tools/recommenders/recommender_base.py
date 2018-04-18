@@ -301,7 +301,8 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         return heavy_users, normal_users, heavy_users_max
 
     @abstractmethod
-    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt, pbar=None, **kwargs):
+    def _get_recommendations_flat_unfilt(self, user_ids, item_ids, n_rec_unfilt,
+                                         exclude_training=True, pbar=None, **kwargs):
         pass
 
     def get_recommendations(
