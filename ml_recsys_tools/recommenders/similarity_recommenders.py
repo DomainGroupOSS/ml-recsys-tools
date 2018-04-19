@@ -104,21 +104,24 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             self.similarity_mat.data += np.abs(np.min(self.similarity_mat.data) - 0.01)
 
     @BaseDFSparseRecommender.do_not_decorate
-    def _recommend_for_item_inds(self, item_inds, *ignored_args, target_item_inds=None,
+    def _recommend_for_item_inds(self, source_item_inds, *ignored_args, target_item_inds=None,
                                  n_rec=100, exclude_training=True):
 
-        if target_item_inds is None:
-            sub_mat = self.similarity_mat[item_inds, :]
-        else:
-            sub_mat = self.similarity_mat[item_inds, :][:, target_item_inds]
+        # if target_item_inds is None:
+        sub_mat = self.similarity_mat[source_item_inds, :]
+        # else:
+        #     sub_mat = self.similarity_mat[item_inds, :][:, target_item_inds]
 
         sum_simils = np.array(np.sum(sub_mat, axis=0)).ravel()
 
         if exclude_training:
-            if target_item_inds is not None:
-                sum_simils[np.isin(target_item_inds, item_inds)] *= 0
-            else:
-                sum_simils[item_inds] *= 0
+            # if target_item_inds is not None:
+            #     sum_simils[np.isin(target_item_inds, item_inds)] *= 0
+            # else:
+            sum_simils[source_item_inds] *= 0
+
+        if target_item_inds is not None:
+            sum_simils = sum_simils[target_item_inds]
 
         n_rec_min = min(n_rec, len(sum_simils))
 
