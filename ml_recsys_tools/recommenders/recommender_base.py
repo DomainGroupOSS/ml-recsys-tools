@@ -348,7 +348,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         if include_train:
             recos_flat_train = self.get_recommendations(
                 user_ids=users,
-                item_ids=items_filter,
+                item_ids=None,
                 n_rec=min(n_rec, mat_builder.n_cols),
                 exclude_training=False,
                 results_format='flat')

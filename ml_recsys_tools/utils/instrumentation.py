@@ -243,3 +243,12 @@ class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)
         else:
             return lambda f: f
 
+    @staticmethod
+    def do_not_decorate(f):
+        """
+        this is for excluding functions from decorating
+        :return: the logging decorator if verbose is True, empty decorator otherwise
+        """
+        setattr(f, 'decorate', False)
+        return f
+

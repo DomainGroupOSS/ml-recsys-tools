@@ -103,6 +103,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         if len(self.similarity_mat.data) and np.min(self.similarity_mat.data) < 0.01:
             self.similarity_mat.data += np.abs(np.min(self.similarity_mat.data) - 0.01)
 
+    @BaseDFSparseRecommender.do_not_decorate
     def _recommend_for_item_inds(self, item_inds, *ignored_args, target_item_inds=None,
                                  n_rec=100, exclude_training=True):
 
