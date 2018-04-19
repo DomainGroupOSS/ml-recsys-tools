@@ -141,7 +141,9 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
         source_mat=source_mat,
         target_mat=target_mat[target_inds, :],  # only the relevant submatrix
         exclude_mat_sp=exclude_mat_sp[:, target_inds] if exclude_mat_sp is not None else None,
-        n=n, source_biases=source_biases, target_biases=target_biases,
+        n=n,
+        source_biases=source_biases,
+        target_biases=target_biases[target_inds] if target_biases is not None else None,
         simil_mode=simil_mode)
 
     ret = map_batches_multiproc(calc_func, source_inds,
