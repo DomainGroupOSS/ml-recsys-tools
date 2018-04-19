@@ -116,7 +116,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
         if exclude_training:
             if target_item_inds is not None:
-                sum_simils[target_item_inds[item_inds]] *= 0
+                sum_simils[item_inds[np.isin(item_inds, target_item_inds)]] *= 0
             else:
                 sum_simils[item_inds] *= 0
 
