@@ -43,21 +43,16 @@ class LightFMRecommender(BaseDFSparseRecommender):
         self.use_sample_weight = use_sample_weight
         self.external_features = external_features
         self.external_features_params = external_features_params or {}
-        self.sample_weight = None
         self.cooc_mat = None
         super().__init__(**kwargs)
 
     def _prep_for_fit(self, train_obs, **fit_params):
         # assign all observation data
-        self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
-        self.train_df = train_obs.df_obs
-        self.user_train_counts = None
-        self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(self.train_df)
-        self.sample_weight = self.train_mat.tocoo() if self.use_sample_weight else None
-
+        self._set_data(train_obs)
+        fit_params['sample_weight'] = self.train_mat.tocoo() \
+            if self.use_sample_weight else None
         self._set_fit_params(fit_params)
         self._add_external_features()
-
         # init model and set params
         self.model = LightFM(**self.model_params)
 
@@ -79,7 +74,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(
             train_obs, **fit_params)
-        self.model.fit(self.train_mat, sample_weight=self.sample_weight, **self.fit_params)
+        self.model.fit(self.train_mat, **self.fit_params)
         return self
 
     def fit_partial(self, train_obs, epochs=1):
@@ -88,7 +83,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
             self.fit(train_obs, **fit_params)
         else:
             self.model.fit_partial(
-                self.train_mat, sample_weight=self.sample_weight, **fit_params)
+                self.train_mat, **fit_params)
         return self
 
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',

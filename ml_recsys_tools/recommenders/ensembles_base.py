@@ -70,26 +70,25 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         pass
 
     def fit(self, train_obs, **fit_params):
+        self._set_data(train_obs)
 
-        self.train_df = train_obs.df_obs
-        self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
         self.sub_models = [self.sub_class_type(**p)
                            for p in self.sub_class_init_params]
 
-        sub_model_train_df_generator = self._generate_sub_model_train_data(train_obs)
+        sub_model_train_data_generator = self._generate_sub_model_train_data(train_obs)
 
         with self.get_workers_pool() as pool:
             self.sub_models = list(
                 pool.imap(self._fit_sub_model,
                           zip(range(self.n_models),
-                              sub_model_train_df_generator,
+                              sub_model_train_data_generator,
                               repeat(fit_params, self.n_models))))
         return self
 
     def _get_recommendations_flat(self, user_ids, item_ids, n_rec=100, **kwargs):
 
         def _calc_recos_sub_model(i_model):
-            all_users = np.array(self.sub_models[i_model].all_users())
+            all_users = np.array(self.sub_models[i_model].all_users)
             users = all_users[np.isin(all_users, user_ids)]
             if len(users):
                 return self.sub_models[i_model].get_recommendations(
@@ -111,7 +110,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                           simil_mode='cosine', results_format='lists', **kwargs):
 
         def _calc_simils_sub_model(i_model):
-            all_items = np.array(self.sub_models[i_model].all_items())
+            all_items = np.array(self.sub_models[i_model].all_items)
             items = all_items[np.isin(all_items, item_ids)]
             if len(items):
                 return self.sub_models[i_model].get_similar_items(
@@ -158,8 +157,7 @@ class CombinationEnsembleBase(BaseDFSparseRecommender):
         self.recommenders = recommenders
         self.n_recommenders = len(self.recommenders)
         super().__init__(**kwargs)
-        self.sparse_mat_builder = self.recommenders[0].sparse_mat_builder
-        self.train_df = self.recommenders[0].train_df
+        self._reuse_data(self.recommenders[0])
 
     def fit(self, *args, **kwargs):
         warnings.warn('Fit is not supported, recommenders should already be fitted.')

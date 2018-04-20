@@ -94,9 +94,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
     def _prep_for_fit(self, train_obs, **fit_params):
         self._set_fit_params(fit_params)
-        self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
-        self.train_df = train_obs.df_obs
-        self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(self.train_df)
+        self._set_data(train_obs)
 
     def _check_no_negatives(self):
         # prevents negative scores from being smaller than sparse zeros (e.g. for euclidean similarity)

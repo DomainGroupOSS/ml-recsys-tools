@@ -234,7 +234,7 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
     def add_encoded_cols(self, df):
         return parallelize_dataframe(df, self._add_encoded_cols)
 
-    def build_sparse_interaction_matrix(self, df, job_size=150000):
+    def build_sparse_interaction_matrix(self, df, job_size=500000):
         """
         note:
             all this complexity if to to prevent spikes of memory usage and still keep the time close to optimal
@@ -250,7 +250,7 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         df = self.remove_unseen_labels(df)
 
         n_jobs = len(df) / job_size
-        n_parallel = int(max(1, min(N_CPUS, n_jobs, 10)))
+        n_parallel = int(max(1, min(N_CPUS, n_jobs)))
         n_chunks = max(1, int(n_jobs / n_parallel))
 
         u_arrays = np.array_split(df[self.uid_source_col].values.astype(str), n_chunks)
@@ -342,6 +342,17 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         filt_ranks = filt_ranks.tocoo()
         return filt_ranks
 
+    @staticmethod
+    def crop_rows(mat, ind_start, ind_end):
+        mat = mat.tocsr().copy()
+        mat.sort_indices()
+        mat.data += 1
+        mat.data[:mat.indptr[ind_start]] *= 0
+        mat.data[(mat.indptr[ind_end + 1] + 1):] *= 0
+        mat.eliminate_zeros()
+        mat.data -= 1
+        return mat
+
     @classmethod
     def filter_all_ranks_by_sparse_selection(cls, sparse_filter_mat, all_recos_ranks_mat):
         """
@@ -351,17 +362,6 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         :param all_recos_ranks_mat: sparse matrix of all ranked predictions
         :return: sparse matrix of ranks of the predictions for GT observations in the full prediction matrix
         """
-
-        def crop_rows(mat, ind_start, ind_end):
-            mat = mat.tocsr().copy()
-            mat.sort_indices()
-            mat.data += 1
-            mat.data[:mat.indptr[ind_start]] *= 0
-            mat.data[(mat.indptr[ind_end + 1] + 1):] *= 0
-            mat.eliminate_zeros()
-            mat.data -= 1
-            return mat
-
         filter_mat = sparse_filter_mat.tocsr()
         ranks_mat = all_recos_ranks_mat.tocsr()
         filter_mat.sort_indices()
@@ -378,8 +378,8 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
                     cls._filt_ranks_mat_by_filt_mat,
                     args=(
                         ind_batch,
-                        crop_rows(ranks_mat, ind_batch[0], ind_batch[-1]),
-                        crop_rows(filter_mat, ind_batch[0], ind_batch[-1]))))
+                        cls.crop_rows(ranks_mat, ind_batch[0], ind_batch[-1]),
+                        cls.crop_rows(filter_mat, ind_batch[0], ind_batch[-1]))))
             ret = [r.get(timeout=3600) for r in res]
 
         data = np.concatenate([r.data for r in ret])

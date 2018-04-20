@@ -36,7 +36,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         self.fit_params = self.default_fit_params.copy()
         self._set_model_params(model_params)
         self._set_fit_params(fit_params)
-        self.train_df = None
+        # self.train_df = None
         self.model = None
 
     @classmethod
@@ -195,28 +195,33 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         super().__init__(**kwargs)
         self.sparse_mat_builder = None
         self.train_mat = None
-        self.user_train_counts = None
         self.external_features_mat = None
 
-    def all_users(self):
-        return self.train_df[self.sparse_mat_builder.uid_source_col].\
-            unique().astype(str)
+    def _set_data(self, train_obs, calc_train_mat=True):
+        train_df = train_obs.df_obs
+        self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
+        self.all_users = train_df[self.sparse_mat_builder.uid_source_col].unique().astype(str)
+        self.all_items = train_df[self.sparse_mat_builder.iid_source_col].unique().astype(str)
+        if calc_train_mat:
+            self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(train_df)
 
-    def all_items(self):
-        return self.train_df[self.sparse_mat_builder.iid_source_col].\
-            unique().astype(str)
+    def _reuse_data(self, other):
+        self.all_users = other.all_users
+        self.all_items = other.all_items
+        self.sparse_mat_builder = other.sparse_mat_builder
+        self.train_mat = other.train_mat
 
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
             user_ids,
-            filter_array=self.all_users(),
+            filter_array=self.all_users,
             message_prefix=message_prefix,
             message_suffix='useres that were not in training set.')
 
     def remove_unseen_items(self, item_ids, message_prefix=''):
         return self._filter_array(
             item_ids,
-            filter_array=self.all_items(),
+            filter_array=self.all_items,
             message_prefix=message_prefix,
             message_suffix='items that were not in training set.')
 
@@ -231,16 +236,16 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 (message_prefix, int(n_discard), len(array), message_suffix))
         return array[relevance_mask]
 
-    def _remove_training_from_df(self, flat_df):
-        flat_df = pd.merge(
-            flat_df, self.train_df,
-            left_on=[self._user_col, self._item_col],
-            right_on=[self._user_col, self.sparse_mat_builder.iid_source_col],
-            how='left')
-        # keep only data that was present in left (recommendations) but no in right (training)
-        flat_df = flat_df[flat_df[self._rating_col].isnull()] \
-            [[self._user_col, self._item_col, self._prediction_col]]
-        return flat_df
+    # def _remove_training_from_df(self, flat_df):
+    #     flat_df = pd.merge(
+    #         flat_df, self.train_df,
+    #         left_on=[self._user_col, self._item_col],
+    #         right_on=[self._user_col, self.sparse_mat_builder.iid_source_col],
+    #         how='left')
+    #     # keep only data that was present in left (recommendations) but no in right (training)
+    #     flat_df = flat_df[flat_df[self._rating_col].isnull()] \
+    #         [[self._user_col, self._item_col, self._prediction_col]]
+    #     return flat_df
 
     def _remove_self_similarities(self, flat_df, col1, col2):
         return flat_df[flat_df[col1].values != flat_df[col2].values].copy()
@@ -299,12 +304,12 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         if user_ids is not None:
             user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
         else:
-            user_ids = self.all_users()
+            user_ids = self.all_users
 
         if item_ids is not None:
             item_ids = self.remove_unseen_items(item_ids, message_prefix='get_recommendations: ')
         else:
-            item_ids = self.all_items()
+            item_ids = self.all_items
 
         recos_flat = self._get_recommendations_flat(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
@@ -317,7 +322,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     def _check_item_ids_args(self, item_ids, target_item_ids):
         if item_ids is None:
-            item_ids = self.all_items()
+            item_ids = self.all_items
         else:
             item_ids = self.remove_unseen_items(item_ids)
         if target_item_ids is not None:
@@ -343,7 +348,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         mat_builder = self.sparse_mat_builder
         pred_mat_builder = self.get_prediction_mat_builder_adapter(mat_builder)
 
-        users = relevant_users()
+        users = self.remove_unseen_users(relevant_users())
 
         if include_train:
             recos_flat_train = self.get_recommendations(
@@ -365,9 +370,13 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         @self.logging_decorator
         def _get_training_ranks():
-            train_df = self.train_df[self.train_df[self._user_col].isin(users)].copy()
-            sp_train = self.sparse_mat_builder. \
-                build_sparse_interaction_matrix(train_df).tocsr()
+            users_inds = mat_builder.uid_encoder.transform(users)
+            users_inds.sort()
+            # train_df = self.train_df[self.train_df[self._user_col].isin(users)].copy()
+            # sp_train = self.sparse_mat_builder. \
+            #     build_sparse_interaction_matrix(train_df).tocsr()
+            sp_train = mat_builder.crop_rows(
+                self.train_mat, ind_start=users_inds[0], ind_end=users_inds[-1])
             sp_train_ranks = pred_mat_builder. \
                 filter_all_ranks_by_sparse_selection(
                 sp_train, pred_mat_builder.predictions_df_to_sparse_ranks(recos_flat_train))

@@ -17,7 +17,7 @@ rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 import pandas as pd
 ratings_df = pd.read_csv(rating_csv_path)
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
-obs = ObservationsDF(ratings_df)
+obs = ObservationsDF(ratings_df, uid_col='userid', iid_col='itemid')
 train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
 
 
@@ -41,11 +41,11 @@ print(lfm_rec.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm regular ', n_
 
 
 # get all recommendations and print a sample (training interactions are filtered out by default)
-recs = lfm_rec.get_recommendations(lfm_rec.all_users(), n_rec=5)
+recs = lfm_rec.get_recommendations(lfm_rec.all_users, n_rec=5)
 print(recs.sample(5))
 
 # get all similarities and print a sample
-simils = lfm_rec.get_similar_items(lfm_rec.all_items(), n_simil=5)
+simils = lfm_rec.get_similar_items(lfm_rec.all_items, n_simil=5)
 print(simils.sample(10))
 
 
@@ -109,10 +109,10 @@ print(comb_ranks_simil_rec.eval_on_test_by_ranking(
 
 # get all recommendations and print a sample
 recs_ens = comb_ranks_simil_rec.get_recommendations(
-    comb_ranks_simil_rec.all_users(), n_rec=5)
+    comb_ranks_simil_rec.all_users, n_rec=5)
 print(recs_ens.sample(5))
 
 # get all similarities and print a sample
 simils_ens = comb_ranks_simil_rec.get_similar_items(
-    comb_ranks_simil_rec.all_items(), n_simil=5)
+    comb_ranks_simil_rec.all_items, n_simil=5)
 print(simils_ens.sample(10))

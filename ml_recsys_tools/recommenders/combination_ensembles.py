@@ -145,7 +145,7 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
     def fit(self, train_obs, batch_size=10000,
             similarity_queue=None, similarity_queue_cutoff=10, **fit_params):
 
-        itemids = self.recommenders[0].all_items()
+        itemids = self.recommenders[0].all_items
 
         for i, items in enumerate(batch_generator(itemids, batch_size)):
 
