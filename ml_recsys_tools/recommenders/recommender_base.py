@@ -375,8 +375,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             # train_df = self.train_df[self.train_df[self._user_col].isin(users)].copy()
             # sp_train = self.sparse_mat_builder. \
             #     build_sparse_interaction_matrix(train_df).tocsr()
-            sp_train = mat_builder.crop_rows(
-                self.train_mat, ind_start=users_inds[0], ind_end=users_inds[-1])
+            sp_train = mat_builder.crop_rows(self.train_mat, inds_stay=users_inds)
             sp_train_ranks = pred_mat_builder. \
                 filter_all_ranks_by_sparse_selection(
                 sp_train, pred_mat_builder.predictions_df_to_sparse_ranks(recos_flat_train))

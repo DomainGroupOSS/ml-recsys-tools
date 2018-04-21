@@ -343,7 +343,17 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         return filt_ranks
 
     @staticmethod
-    def crop_rows(mat, ind_start, ind_end):
+    def crop_rows(mat, inds_stay):
+        mat = mat.tocoo()
+        min_data = np.min(mat.data)
+        mat.data += min_data
+        mat.data[~np.in1d(mat.row, inds_stay)] *= 0
+        mat.eliminate_zeros()
+        mat.data -= min_data
+        return mat.tocsr()
+
+    @staticmethod
+    def crop_rows_continuous(mat, ind_start, ind_end):
         mat = mat.tocsr().copy()
         mat.sort_indices()
         mat.data += 1
@@ -378,8 +388,8 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
                     cls._filt_ranks_mat_by_filt_mat,
                     args=(
                         ind_batch,
-                        cls.crop_rows(ranks_mat, ind_batch[0], ind_batch[-1]),
-                        cls.crop_rows(filter_mat, ind_batch[0], ind_batch[-1]))))
+                        cls.crop_rows_continuous(ranks_mat, ind_batch[0], ind_batch[-1]),
+                        cls.crop_rows_continuous(filter_mat, ind_batch[0], ind_batch[-1]))))
             ret = [r.get(timeout=3600) for r in res]
 
         data = np.concatenate([r.data for r in ret])
