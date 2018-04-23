@@ -241,15 +241,18 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return simil_df
 
-    def get_similar_users(self, userids, n_simil=10, remove_self=True,
+    def get_similar_users(self, user_ids=None, target_user_ids=None, n_simil=10, remove_self=True,
                           simil_mode='cosine', pbar=None):
         """
         same as get_similar_items but for users
         """
-        userids = self.remove_unseen_users(userids)
+        user_ids, target_user_ids = self._check_user_ids_args(user_ids, target_user_ids)
+
         user_biases, user_representations = self.model.get_user_representations()
+
         best_ids, best_scores = most_similar(
-            source_ids=userids,
+            source_ids=user_ids,
+            target_ids=target_user_ids,
             source_encoder=self.sparse_mat_builder.uid_encoder,
             source_mat=user_representations,
             source_biases=user_biases,
@@ -259,7 +262,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         )
 
         simil_df = self._format_results_df(
-            userids, target_ids_mat=best_ids,
+            user_ids, target_ids_mat=best_ids,
             scores_mat=best_scores, results_format='similarities_flat'). \
             rename({self._item_col_simil: self._user_col})
         # this is UGLY, if this function is ever useful, fix this please (the renaming shortcut)

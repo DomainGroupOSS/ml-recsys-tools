@@ -321,13 +321,18 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             return self._recos_flat_to_lists(recos_flat, n_cutoff=n_rec)
 
     def _check_item_ids_args(self, item_ids, target_item_ids):
-        if item_ids is None:
-            item_ids = self.all_items
-        else:
-            item_ids = self.remove_unseen_items(item_ids)
-        if target_item_ids is not None:
-            target_item_ids = self.remove_unseen_items(target_item_ids)
+        item_ids = self.remove_unseen_items(item_ids) \
+            if item_ids is not None else self.all_items
+        target_item_ids = self.remove_unseen_items(target_item_ids) \
+            if target_item_ids is not None else None
         return item_ids, target_item_ids
+
+    def _check_user_ids_args(self, user_ids, target_user_ids):
+        user_ids = self.remove_unseen_users(user_ids) \
+            if user_ids is not None else self.all_users
+        target_user_ids = self.remove_unseen_users(target_user_ids) \
+            if target_user_ids is not None else None
+        return user_ids, target_user_ids
 
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='rec ',
                                 include_train=True, items_filter=None,
