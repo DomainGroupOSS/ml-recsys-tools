@@ -13,7 +13,7 @@ def best_possible_ranks(test_mat):
     nnz_counts = best_ranks.getnnz(axis=1)
     best_ranks.data = np.concatenate(
         [np.random.choice(item_inds[:n], n, replace=False) if n else []
-        for n in nnz_counts]).astype(np.float32)
+         for n in nnz_counts]).astype(np.float32)
     return best_ranks
 
 
@@ -24,19 +24,19 @@ def chance_ranks(test_mat):
     nnz_counts = rand_ranks.getnnz(axis=1)
     rand_ranks.data = np.concatenate(
         [np.random.choice(item_inds, n, replace=False)
-        for n in nnz_counts]).astype(np.float32)
+         for n in nnz_counts]).astype(np.float32)
     return rand_ranks
 
 
-def mean_scores_report(model, datasets, dataset_names):
+def mean_scores_report(model, datasets, dataset_names, k=10):
     ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
-    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names)
+    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k)
 
 
-def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names):
+def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
     data = []
     for ranks, dataset in zip(ranks_list, datasets):
-        res = all_scores_on_ranks(ranks, dataset).describe().loc['mean']
+        res = all_scores_on_ranks(ranks, dataset, k=k).describe().loc['mean']
         data.append(res)
     return pd.DataFrame(data=data, index=dataset_names)
 
@@ -76,7 +76,7 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
         ('n-diversity@%d' % k,
          diversity_at_k(**ranks_kwargs, k=k) /
          diversity_at_k(**best_possible_kwargs, k=k)),
-        ])
+    ])
 
     return pd.DataFrame(metrics)[list(metrics.keys())]
 
@@ -139,7 +139,6 @@ def reciprocal_rank_on_ranks(
 
 def mrr_norm_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False, k=None):
-
     def harmonic_number(n):
         # https://stackoverflow.com/questions/404346/python-program-to-calculate-harmonic-series
         """Returns an approximate value of n-th harmonic number.
@@ -218,6 +217,7 @@ def gini_coefficient_at_k(ranks, test_interactions, k=10, train_interactions=Non
         calculates the gini coefficient for the
         counts of recommended items @ k for all users
     """
+
     def gini(x, w=None):
         # from https://stackoverflow.com/questions/39512260/calculating-gini-coefficient-in-python-numpy
         # Array indexing requires reset indexes.

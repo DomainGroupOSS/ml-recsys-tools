@@ -90,7 +90,8 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
             item_col=self._item_col,
             scores_col=self._prediction_col)
 
-    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10, n_unfilt=100, results_format='lists', **kwargs):
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
+                          n_unfilt=100, results_format='lists', **kwargs):
 
         calc_funcs = [partial(rec.get_similar_items,
                               item_ids=item_ids, target_item_ids=target_item_ids,

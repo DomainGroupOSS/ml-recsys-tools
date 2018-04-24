@@ -106,7 +106,8 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
         return recos_flat
 
-    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10, remove_self=True, embeddings_mode=None,
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
+                          remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', **kwargs):
 
         def _calc_simils_sub_model(i_model):

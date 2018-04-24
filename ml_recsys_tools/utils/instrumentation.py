@@ -251,4 +251,3 @@ class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)
         """
         setattr(f, 'decorate', False)
         return f
-
