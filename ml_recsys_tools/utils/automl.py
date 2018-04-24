@@ -73,12 +73,14 @@ class SearchSpaceGuess:
 
 class BayesSearchHoldOut:
 
-    def __init__(self, search_space, pipeline, loss, random_ratio=0.5, **kwargs):
+    def __init__(self, search_space, pipeline, loss, random_ratio=0.5,
+                 plot_graph=True, **kwargs):
         self.search_space = search_space
         self.loss = loss
         self.pipeline = pipeline
         self.data_dict = None
         self.random_ratio = random_ratio
+        self.plot_graph = plot_graph
 
     def values_to_dict(self, values):
         return point_asdict(self.search_space, values)
@@ -112,7 +114,7 @@ class BayesSearchHoldOut:
         return self.loss(self.data_dict['y_valid'], y_pred)
 
     @log_time_and_shape
-    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb', plot_graph=True):
+    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb'):
         """
         example code:
 
@@ -170,7 +172,7 @@ class BayesSearchHoldOut:
         best_params = self.values_to_dict(best_values)
         best_model = self.init_pipeline(best_values)
 
-        if plot_graph:
+        if self.plot_graph:
             pyplot.figure()
             plot_convergence(res_bo)
             pyplot.plot(res_bo.func_vals)

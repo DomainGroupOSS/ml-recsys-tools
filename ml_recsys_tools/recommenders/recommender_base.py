@@ -153,7 +153,8 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             raise NotImplementedError('results_format: ' + results_format)
 
     def hyper_param_search_on_split_data(
-            self, train_data, validation_data, hp_space, n_iters=100, random_search=0.9, **kwargs):
+            self, train_data, validation_data, hp_space,
+            n_iters=100, random_search=0.9, **kwargs):
 
         bo = RecoBayesSearchHoldOut(search_space=hp_space,
                                     pipeline=self,
@@ -178,7 +179,8 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         with open(filepath, 'wb') as f:
             pickle.dump(self, f)
 
-    def hyper_param_search(self, train_obs, hp_space, n_iters=100, valid_ratio=0.04, random_search=0.9, **kwargs):
+    def hyper_param_search(self, train_obs, hp_space, n_iters=100,
+                           valid_ratio=0.04, random_search=0.9, **kwargs):
 
         sqrt_ratio = valid_ratio ** 0.5
         train_obs_bo, valid_obs_bo = train_obs.split_train_test(
@@ -252,7 +254,8 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     @staticmethod
     def _eval_on_test_by_ranking_LFM(train_ranks_func, test_tanks_func,
-                                     test_dfs, test_names=('',), prefix='', include_train=True):
+                                     test_dfs, test_names=('',), prefix='',
+                                     include_train=True, k=10):
         """
         this is just to avoid the same flow twice (or more)
         :param train_ranks_func: function that return the ranks and sparse mat of training set
@@ -274,12 +277,14 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         if include_train:
             ranks_mat, sp_mat = train_ranks_func()
             report_dfs.append(mean_scores_report_on_ranks(
-                ranks_list=[ranks_mat], datasets=[sp_mat], dataset_names=[prefix + 'train']))
+                ranks_list=[ranks_mat], datasets=[sp_mat],
+                dataset_names=[prefix + 'train'], k=k))
 
         for test_df, test_name in zip(test_dfs, test_names):
             ranks_mat, sp_mat = test_tanks_func(test_df)
             report_dfs.append(mean_scores_report_on_ranks(
-                ranks_list=[ranks_mat], datasets=[sp_mat], dataset_names=[prefix + test_name + 'test']))
+                ranks_list=[ranks_mat], datasets=[sp_mat],
+                dataset_names=[prefix + test_name + 'test'], k=k))
 
         report_df = pd.concat(report_dfs)
         return report_df
@@ -336,7 +341,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='rec ',
                                 include_train=True, items_filter=None,
-                                n_rec=100):
+                                n_rec=100, k=10):
         @self.logging_decorator
         def relevant_users():
             # get only those users that are present in the evaluation / training dataframes
@@ -400,15 +405,17 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             test_dfs=test_dfs,
             test_names=test_names,
             prefix=prefix,
-            include_train=include_train)
+            include_train=include_train,
+            k=k)
 
         return report_df
 
 
 class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
 
-    def __init__(self, metric='AUC', interrupt_message_file=None, verbose=True, **kwargs):
+    def __init__(self, metric='AUC', k=10, interrupt_message_file=None, verbose=True, **kwargs):
         self.metric = metric
+        self.k = k
         self.interrupt_message_file = interrupt_message_file
         super().__init__(verbose=verbose, **kwargs)
         self.all_metrics = pd.DataFrame()
@@ -458,7 +465,7 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
             start = time.time()
             pipeline.fit(self.data_dict['training'])
             report_df = pipeline.eval_on_test_by_ranking(
-                self.data_dict['validation'], include_train=False, prefix='')
+                self.data_dict['validation'], include_train=False, prefix='', k=self.k)
             loss = 1 - report_df.loc['test', self.metric]
             self._record_all_metrics(
                 report_df=report_df, values=values,

@@ -1,99 +1,182 @@
 import pandas as pd
-
+import numpy as np
+from copy import deepcopy
 from examples.prep_movielense_data import get_and_prep_data
-from ml_recsys_tools.utils.testiing import TestCaseWithState
+from ml_recsys_tools.utils.testing import TestCaseWithState
+from tests.test_movielens_data import movielens_dir
 
-rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
+rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
 
 
 class TestRecommendersBasic(TestCaseWithState):
 
-    def test_1_obs_handler(self):
+    @classmethod
+    def setUpClass(cls):
+        cls.k = 10
+        cls.n = 10
+        cls.metric = 'n-MRR@%d' % cls.k
+
+    def _obs_split_data_check(self, obs_full, obs1, obs2):
+            # all the data is still there
+            self.assertEqual(len(obs1.df_obs) + len(obs2.df_obs), len(obs_full.df_obs))
+            # no intersections
+            intersections = pd.merge(obs1.df_obs, obs2.df_obs, on=['userid', 'itemid'], how='inner')
+            self.assertEqual(len(intersections), 0)
+
+    def test_a_obs_handler(self):
         from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 
         ratings_df = pd.read_csv(rating_csv_path)
         obs = ObservationsDF(ratings_df, uid_col='userid', iid_col='itemid')
-        obs = obs.sample_observations(n_users=500)
-        # TODO: assertions
-        self.state.train_obs, self.state.test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
+        obs = obs.sample_observations(n_users=1000, n_items=1000)
 
+        # regular split
+        train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
+        self._obs_split_data_check(obs, train_obs, test_obs)
+        self.state.train_obs, self.state.test_obs = train_obs, test_obs
 
-    def test_2_lightfm_recommender(self):
+        # split for only some users
+        user_ratio = 0.2
+        train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=user_ratio)
+        self._obs_split_data_check(obs, train_obs, test_obs)
+        post_split_ratio = test_obs.df_obs['userid'].nunique() / train_obs.df_obs['userid'].nunique()
+        self.assertAlmostEqual(user_ratio, post_split_ratio, places=1)
+
+    def test_b_1_lfm_recommender(self):
         from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
 
         lfm_rec = LightFMRecommender()
         lfm_rec.fit(self.state.train_obs, epochs=10)
+        self.assertEqual(lfm_rec.fit_params['epochs'], 10)
+        self._check_recommendations_and_similarities(lfm_rec)
+        self.state.lfm_rec = lfm_rec
 
-        # TODO: assertions
-        rep_exact = lfm_rec.eval_on_test_by_ranking_exact(self.state.test_obs.df_obs, prefix='lfm regular exact ')
+    def _check_recommendations(self, recs, users, n):
+        # check format
+        self.assertEqual(len(recs), len(users))
+        self.assertListEqual(list(recs.columns), ['userid', 'itemid', 'prediction'])
+        self.assertTrue(all(recs['itemid'].apply(len).values == n))
 
-        rep_reg = lfm_rec.eval_on_test_by_ranking(self.state.test_obs.df_obs, prefix='lfm regular ', n_rec=100)
+        # check predictions sorted
+        for i in np.random.choice(np.arange(len(recs)), min(100, len(recs))):
+            self.assertListEqual(recs['prediction'][i], sorted(recs['prediction'][i], reverse=True))
 
-        recs = lfm_rec.get_recommendations(lfm_rec.all_users, n_rec=5)
+    def _check_similarities(self, simils, items, n):
+        # check format
+        self.assertEqual(len(simils), len(items))
+        self.assertListEqual(list(simils.columns), ['itemid_source', 'itemid', 'prediction'])
+        self.assertTrue(all(simils['itemid'].apply(len).values == n))
 
-        simils = lfm_rec.get_similar_items(lfm_rec.all_items, n_simil=5)
+        # sample check no self-similarities returned
+        for i in np.random.choice(np.arange(len(simils)), min(100, len(simils))):
+            self.assertTrue(simils['itemid_source'][i] not in simils['itemid'][i])
 
-        lfm_rec.fit_with_early_stop(self.state.train_obs, epochs_max=20, epochs_step=2, stop_patience=1,
-                                    valid_ratio=0.2, metric='n-MRR@10', refit_on_all=True)
+        # sample check predictions are sorted
+        for i in np.random.choice(np.arange(len(simils)), min(100, len(simils))):
+            self.assertListEqual(list(simils['prediction'][i]), sorted(simils['prediction'][i], reverse=True))
 
+    def _check_recommendations_and_similarities(self, rec):
+        self._check_recommendations(rec.get_recommendations(n_rec=self.n), rec.all_users, n=self.n)
+        self._check_similarities(rec.get_similar_items(n_simil=self.n), rec.all_items, n=self.n)
 
-        space = lfm_rec.guess_search_space()
-        hp_results = lfm_rec.hyper_param_search(
+    def test_b_2_lfm_rec_evaluation(self):
+        k = self.k
+
+        rep_exact = self.state.lfm_rec.eval_on_test_by_ranking_exact(
+            self.state.test_obs.df_obs, prefix='lfm regular exact ', k=k)
+        print(rep_exact)
+
+        rep_reg = self.state.lfm_rec.eval_on_test_by_ranking(
+            self.state.test_obs.df_obs, prefix='lfm regular ', n_rec=200, k=k)
+        print(rep_reg)
+
+        self.assertListEqual(list(rep_reg.columns), list(rep_exact.columns))
+
+        # test that those fields are almost equal for the two test methods
+        tolerance = 0.05
+        for col in rep_reg.columns:
+            self.assertTrue(all(abs(1 - (rep_exact[col].values / rep_reg[col].values)) < tolerance))
+
+    def test_b_3_lfm_early_stop(self):
+        lfm_rec = deepcopy(self.state.lfm_rec)
+        lfm_rec.fit(self.state.train_obs, epochs=1)
+        prev_epochs = lfm_rec.fit_params['epochs']
+
+        lfm_rec.fit_with_early_stop(
             self.state.train_obs,
-            metric='n-MRR@10',
-            hp_space=dict(
+            epochs_max=5, epochs_step=5, stop_patience=1,
+            valid_ratio=0.2, metric=self.metric, k=self.k,
+            refit_on_all=False, plot_convergence=False)
+
+        sut_epochs = lfm_rec.fit_params['epochs']
+
+        # check that epochs parameter changed
+        self.assertNotEqual(prev_epochs, sut_epochs)
+
+        # check that in the report dataframe the maximum metric value is for our new epoch number
+        self.assertEqual(lfm_rec.early_stop_metrics_df[self.metric].idxmax(), sut_epochs)
+
+
+    def test_b_4_lfm_hp_search(self):
+        lfm_rec = deepcopy(self.state.lfm_rec)
+        space = lfm_rec.guess_search_space()
+        n_iters = 2
+        hp_space = dict(
                 no_components=space.Integer(10, 40),
                 epochs=space.Integer(5, 20),
                 item_alpha=space.Real(1e-8, 1e-5, prior='log-uniform')
-            ),
-            n_iters=2,
+            )
+        hp_results = lfm_rec.hyper_param_search(
+            self.state.train_obs,
+            metric=self.metric,
+            k=self.k,
+            plot_graph=False,
+            hp_space=hp_space,
+            n_iters=n_iters,
             )
 
-        hp_results.best_model.fit(self.state.train_obs)
-        rep_hp = hp_results.best_model.eval_on_test_by_ranking(self.state.test_obs, prefix='lfm hp search ')
+        # check that best model works
+        self._check_recommendations_and_similarities(hp_results.best_model)
 
-        self.state.lfm_rec = lfm_rec
+        # check that hp space and params have same keys
+        best_params = hp_results.best_params
+        self.assertListEqual(sorted(best_params.keys()), sorted(hp_space.keys()))
 
+        # check report format
+        rep = hp_results.report
+        self.assertEqual(len(rep), n_iters)
 
-    def test_cooc_recommender(self):
+        # check that best values in report are best values for best params
+        best_params_sut = rep.loc[rep['target_loss'].idxmin()][best_params.keys()].to_dict()
+        self.assertDictEqual(best_params_sut, best_params)
+
+    def test_c_cooc_recommender(self):
         from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
-        self.item_cooc_rec = ItemCoocRecommender()
-        self.item_cooc_rec.fit(self.train_obs)
-        print(self.item_cooc_rec.eval_on_test_by_ranking(self.test_obs, prefix='item cooccurrence '))
+
+        item_cooc_rec = ItemCoocRecommender()
+        item_cooc_rec.fit(self.state.train_obs)
+        item_cooc_rep = item_cooc_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='item cooccurrence ')
+        print(item_cooc_rep)
+        self._check_recommendations_and_similarities(item_cooc_rec)
+        self.state.item_cooc_rec = item_cooc_rec
+
+    def test_d_comb_rank_ens(self):
+        from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
+
+        comb_ranks_rec = CombinedRankEnsemble(
+            recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
+        comb_rank_rep = comb_ranks_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined ranks ')
+        print(comb_rank_rep)
+        self._check_recommendations_and_similarities(comb_ranks_rec)
+
+    def test_d_comb_simil_ens(self):
+        from ml_recsys_tools.recommenders.combination_ensembles import CombinedSimilRecoEns
+
+        comb_simil_rec = CombinedSimilRecoEns(
+            recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
+        comb_simil_rec.fit(self.state.train_obs)
+        comb_simil_rep = comb_simil_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined simils ')
+        print(comb_simil_rep)
+        self._check_recommendations_and_similarities(comb_simil_rec)
 
 
-# combine LightFM and Cooccurrence recommenders
-# using recommendation ranks, and evaluate
-from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
-comb_ranks_rec = CombinedRankEnsemble(
-    recommenders=[lfm_rec, item_cooc_rec])
-print(comb_ranks_rec.eval_on_test_by_ranking(test_obs, prefix='combined ranks '))
-
-
-# combine LightFM and Cooccurrence recommenders
-# using similarities, and evaluate
-from ml_recsys_tools.recommenders.combination_ensembles import CombinedSimilRecoEns
-comb_simil_rec = CombinedSimilRecoEns(
-    recommenders=[lfm_rec, item_cooc_rec])
-comb_simil_rec.fit(train_obs)
-print(comb_simil_rec.eval_on_test_by_ranking(test_obs, prefix='combined simils '))
-
-
-# combine LightFM, Cooccurrence and Combined Simil recommender
-# using recommendation ranks, and evaluate
-from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
-comb_ranks_simil_rec = CombinedRankEnsemble(
-    recommenders=[lfm_rec, item_cooc_rec, comb_simil_rec])
-print(comb_ranks_simil_rec.eval_on_test_by_ranking(
-    test_obs, prefix='combined ranks and simils '))
-
-
-# get all recommendations and print a sample
-recs_ens = comb_ranks_simil_rec.get_recommendations(
-    comb_ranks_simil_rec.all_users, n_rec=5)
-print(recs_ens.sample(5))
-
-# get all similarities and print a sample
-simils_ens = comb_ranks_simil_rec.get_similar_items(
-    comb_ranks_simil_rec.all_items, n_simil=5)
-print(simils_ens.sample(10))

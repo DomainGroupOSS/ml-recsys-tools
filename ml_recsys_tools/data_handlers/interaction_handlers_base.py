@@ -45,23 +45,24 @@ class ObservationsDF(LogCallsTimeAndOutput):
                         % str(dups.sum()))
             self.df_obs = self.df_obs[~dups]
 
-    def user_and_item_counts(self, plot=False):
+    def _user_and_item_counts(self, plot=False):
         if len(self.df_obs):
-            self.items_per_user = self.df_obs.groupby(self.uid_col).apply(len). \
+            items_per_user = self.df_obs.groupby(self.uid_col).apply(len). \
                 sort_values(ascending=False).reset_index(name='items_per_user')
-            self.users_per_items = self.df_obs.groupby(self.iid_col).apply(len). \
+            users_per_items = self.df_obs.groupby(self.iid_col).apply(len). \
                 sort_values(ascending=False).reset_index(name='users_per_items')
         else:
             raise ValueError('Observations dataframe is empty')
 
         if plot:
-            self.items_per_user.value_counts().reset_index(drop=True). \
+            items_per_user.value_counts().reset_index(drop=True). \
                 plot(logx=True, logy=True, grid=True, label='items_per_user')
-            self.users_per_items.value_counts().reset_index(drop=True). \
+            users_per_items.value_counts().reset_index(drop=True). \
                 plot(logx=True, logy=True, grid=True, label='users_per_items')
             plt.ylabel('count of ..')
             plt.xlabel('with that many')
             plt.legend()
+        return items_per_user, users_per_items
 
     def sample_observations(self,
                             n_users=None,
@@ -78,35 +79,42 @@ class ObservationsDF(LogCallsTimeAndOutput):
         :param min_item_hist: minimal number of unique users who viewed a item
         :return: dataframe
         """
-        self.user_and_item_counts()
+        if method == 'top' or min_user_hist or min_item_hist:
+            items_per_user, users_per_items = self._user_and_item_counts()
 
-        if min_item_hist:
-            item_filt = self.users_per_items[
-                self.users_per_items['users_per_items'] >= min_item_hist]
-        else:
-            item_filt = self.users_per_items
+            if min_user_hist:
+                items_per_user = items_per_user[
+                    items_per_user['items_per_user'] >= min_user_hist]
+            users_filt = items_per_user[self.uid_col].values
 
-        if min_user_hist:
-            users_filt = self.items_per_user[
-                self.items_per_user['items_per_user'] >= min_user_hist]
+            if min_item_hist:
+                users_per_items = users_per_items[
+                    users_per_items['users_per_items'] >= min_item_hist]
+            item_filt = users_per_items[self.iid_col].values
+
         else:
-            users_filt = self.items_per_user
+            users_filt = self.df_obs[self.uid_col].unique()
+            item_filt = self.df_obs[self.iid_col].unique()
 
         if n_users is None:
-            users_sample = users_filt[self.uid_col]
+            users_sample = users_filt
         elif method == 'random':
-            users_sample = users_filt.sample(n_users, random_state=random_state)[self.uid_col]
+            # users_sample = users_filt.sample(n_users, random_state=random_state)
+            np.random.seed(random_state)
+            users_sample = np.random.choice(users_filt, n_users, replace=False)
         elif method == 'top':
-            users_sample = users_filt.iloc[:n_users][self.uid_col]
+            users_sample = users_filt[:n_users]
         else:
             raise ValueError('Uknown sampling method')
 
         if n_items is None:
-            item_sample = item_filt[self.iid_col]
+            item_sample = item_filt
         elif method == 'random':
-            item_sample = item_filt.sample(n_items, random_state=random_state)[self.iid_col]
+            # item_sample = item_filt.sample(n_items, random_state=random_state)
+            np.random.seed(random_state)
+            item_sample = np.random.choice(item_filt, n_items, replace=False)
         elif method == 'top':
-            item_sample = item_filt.iloc[:n_items][self.iid_col]
+            item_sample = item_filt[:n_items]
         else:
             raise ValueError('Uknown sampling method')
 

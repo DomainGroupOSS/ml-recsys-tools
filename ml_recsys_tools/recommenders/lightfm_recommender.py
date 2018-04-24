@@ -88,7 +88,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
                             epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
-                            plot_convergence=True, decline_threshold=0.05):
+                            plot_convergence=True, decline_threshold=0.05, k=10):
 
         # split validation data
         sqrt_ratio = valid_ratio ** 0.5
@@ -111,7 +111,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         def score_func(cur_epoch, step):
             self.fit_partial(train_obs_internal, epochs=step)
             lfm_report = self.eval_on_test_by_ranking(
-                valid_obs.df_obs, include_train=False, prefix='')
+                valid_obs.df_obs, include_train=False, prefix='', k=k)
             cur_score = lfm_report.loc['test', metric]
             update_full_metrics_df(cur_epoch, lfm_report)
             return cur_score
@@ -132,6 +132,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         if plot_convergence:
             all_metrics = all_metrics.divide(all_metrics.max())
             all_metrics.plot()
+        self.early_stop_metrics_df = all_metrics
 
         if not refit_on_all:
             simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)
@@ -187,7 +188,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         return biases, representations
 
-    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10, remove_self=True, embeddings_mode=None,
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
+                          remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', pbar=None):
         """
         uses learned embeddings to get N most similar items
@@ -223,7 +225,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
             source_encoder=self.sparse_mat_builder.iid_encoder,
             source_mat=representations,
             source_biases=biases,
-            n=n_simil,
+            n=n_simil+1 if remove_self else n_simil,
             simil_mode=simil_mode,
             pbar=pbar
         )
@@ -316,7 +318,8 @@ class LightFMRecommender(BaseDFSparseRecommender):
         df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
         return df
 
-    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',), prefix='lfm ', include_train=True):
+    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',),
+                                      prefix='lfm ', include_train=True, k=10):
 
         @self.logging_decorator
         def _get_training_ranks():

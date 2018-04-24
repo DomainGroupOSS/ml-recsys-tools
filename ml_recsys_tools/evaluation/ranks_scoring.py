@@ -28,15 +28,15 @@ def chance_ranks(test_mat):
     return rand_ranks
 
 
-def mean_scores_report(model, datasets, dataset_names):
+def mean_scores_report(model, datasets, dataset_names, k=10):
     ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
-    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names)
+    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k)
 
 
-def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names):
+def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
     data = []
     for ranks, dataset in zip(ranks_list, datasets):
-        res = all_scores_on_ranks(ranks, dataset).describe().loc['mean']
+        res = all_scores_on_ranks(ranks, dataset, k=k).describe().loc['mean']
         data.append(res)
     return pd.DataFrame(data=data, index=dataset_names)
 
