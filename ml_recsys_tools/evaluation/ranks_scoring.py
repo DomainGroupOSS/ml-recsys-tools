@@ -13,7 +13,7 @@ def best_possible_ranks(test_mat):
     nnz_counts = best_ranks.getnnz(axis=1)
     best_ranks.data = np.concatenate(
         [np.random.choice(item_inds[:n], n, replace=False) if n else []
-        for n in nnz_counts]).astype(np.float32)
+         for n in nnz_counts]).astype(np.float32)
     return best_ranks
 
 
@@ -24,7 +24,7 @@ def chance_ranks(test_mat):
     nnz_counts = rand_ranks.getnnz(axis=1)
     rand_ranks.data = np.concatenate(
         [np.random.choice(item_inds, n, replace=False)
-        for n in nnz_counts]).astype(np.float32)
+         for n in nnz_counts]).astype(np.float32)
     return rand_ranks
 
 
@@ -76,7 +76,7 @@ def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
         ('n-diversity@%d' % k,
          diversity_at_k(**ranks_kwargs, k=k) /
          diversity_at_k(**best_possible_kwargs, k=k)),
-        ])
+    ])
 
     return pd.DataFrame(metrics)[list(metrics.keys())]
 
@@ -139,7 +139,6 @@ def reciprocal_rank_on_ranks(
 
 def mrr_norm_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False, k=None):
-
     def harmonic_number(n):
         # https://stackoverflow.com/questions/404346/python-program-to-calculate-harmonic-series
         """Returns an approximate value of n-th harmonic number.
@@ -218,6 +217,7 @@ def gini_coefficient_at_k(ranks, test_interactions, k=10, train_interactions=Non
         calculates the gini coefficient for the
         counts of recommended items @ k for all users
     """
+
     def gini(x, w=None):
         # from https://stackoverflow.com/questions/39512260/calculating-gini-coefficient-in-python-numpy
         # Array indexing requires reset indexes.

@@ -249,7 +249,8 @@ class BaseDFSparseRecommender(BaseDFRecommender):
     #         [[self._user_col, self._item_col, self._prediction_col]]
     #     return flat_df
 
-    def _remove_self_similarities(self, flat_df, col1, col2):
+    @staticmethod
+    def _remove_self_similarities(flat_df, col1, col2):
         return flat_df[flat_df[col1].values != flat_df[col2].values].copy()
 
     @staticmethod

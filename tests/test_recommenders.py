@@ -17,11 +17,11 @@ class TestRecommendersBasic(TestCaseWithState):
         cls.metric = 'n-MRR@%d' % cls.k
 
     def _obs_split_data_check(self, obs_full, obs1, obs2):
-            # all the data is still there
-            self.assertEqual(len(obs1.df_obs) + len(obs2.df_obs), len(obs_full.df_obs))
-            # no intersections
-            intersections = pd.merge(obs1.df_obs, obs2.df_obs, on=['userid', 'itemid'], how='inner')
-            self.assertEqual(len(intersections), 0)
+        # all the data is still there
+        self.assertEqual(len(obs1.df_obs) + len(obs2.df_obs), len(obs_full.df_obs))
+        # no intersections
+        intersections = pd.merge(obs1.df_obs, obs2.df_obs, on=['userid', 'itemid'], how='inner')
+        self.assertEqual(len(intersections), 0)
 
     def test_a_obs_handler(self):
         from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
@@ -116,16 +116,15 @@ class TestRecommendersBasic(TestCaseWithState):
         # check that in the report dataframe the maximum metric value is for our new epoch number
         self.assertEqual(lfm_rec.early_stop_metrics_df[self.metric].idxmax(), sut_epochs)
 
-
     def test_b_4_lfm_hp_search(self):
         lfm_rec = deepcopy(self.state.lfm_rec)
         space = lfm_rec.guess_search_space()
         n_iters = 2
         hp_space = dict(
-                no_components=space.Integer(10, 40),
-                epochs=space.Integer(5, 20),
-                item_alpha=space.Real(1e-8, 1e-5, prior='log-uniform')
-            )
+            no_components=space.Integer(10, 40),
+            epochs=space.Integer(5, 20),
+            item_alpha=space.Real(1e-8, 1e-5, prior='log-uniform')
+        )
         hp_results = lfm_rec.hyper_param_search(
             self.state.train_obs,
             metric=self.metric,
@@ -133,7 +132,7 @@ class TestRecommendersBasic(TestCaseWithState):
             plot_graph=False,
             hp_space=hp_space,
             n_iters=n_iters,
-            )
+        )
 
         # check that best model works
         self._check_recommendations_and_similarities(hp_results.best_model)
@@ -178,5 +177,3 @@ class TestRecommendersBasic(TestCaseWithState):
         comb_simil_rep = comb_simil_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined simils ')
         print(comb_simil_rep)
         self._check_recommendations_and_similarities(comb_simil_rec)
-
-

@@ -164,7 +164,6 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
 def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
                               sparse_mat, row_func, exclude_mat_sp=None,
                               target_ids=None, chunksize=10000, pbar=None):
-
     source_inds = source_encoder.transform(np.array(source_ids, dtype=str))
 
     if target_ids is None:
@@ -173,11 +172,11 @@ def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
     target_inds = target_encoder.transform(np.array(target_ids, dtype=str))
     target_inds.sort()
 
-    sub_mat_ll = sparse_mat.\
+    sub_mat_ll = sparse_mat. \
                      tocsr()[source_inds, :][:, target_inds].tolil()
 
     exclude_mat_ll = exclude_mat_sp[source_inds, :][:, target_inds].tolil() \
-                         if exclude_mat_sp is not None else None
+        if exclude_mat_sp is not None else None
 
     def top_n_inds_batch(inds_batch):
         nonlocal exclude_mat_ll, sub_mat_ll
@@ -209,7 +208,6 @@ def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
 @log_time_and_shape
 def top_N_sorted_on_sparse(source_ids, target_ids, encoder, sparse_mat,
                            n_top=10, chunksize=10000, pbar=None):
-
     def _pad_k_zeros(vec, k):
         return np.pad(vec, (0, k), 'constant', constant_values=0)
 
@@ -218,7 +216,7 @@ def top_N_sorted_on_sparse(source_ids, target_ids, encoder, sparse_mat,
         n_min = min(n_top, len(row_data))
 
         if exclude_inds is not None:
-            row_data[row_indices==exclude_inds] = -np.inf
+            row_data[row_indices == exclude_inds] = -np.inf
 
         i_sort = np.argsort(-row_data)[:n_min]
 

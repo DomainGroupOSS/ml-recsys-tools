@@ -148,7 +148,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
         df_filtered = pd.merge(
             self.df_obs, other_df_obs, on=[self.iid_col, self.uid_col], how='left')
         df_filtered = df_filtered[df_filtered[self.rating_col + '_y'].isnull()]. \
-            rename({self.rating_col + '_x': self.rating_col}, axis=1).\
+            rename({self.rating_col + '_x': self.rating_col}, axis=1). \
             drop(self.rating_col + '_y', axis=1)
         other = copy.deepcopy(self)
         other.df_obs = df_filtered
