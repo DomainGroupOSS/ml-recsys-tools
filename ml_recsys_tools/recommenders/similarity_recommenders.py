@@ -138,13 +138,16 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
     #     return self.sparse_mat_builder.iid_encoder.inverse_transform(rec_ids), rec_scores
 
     def _get_recommendations_flat(
-            self, user_ids, item_ids, exclude_training=True,
+            self, user_ids, item_ids=None, exclude_training=True,
             n_rec=100, pbar=None, **kwargs):
 
         self._check_no_negatives()
 
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
-        item_inds.sort()
+        if item_ids is not None:
+            item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+            item_inds.sort()
+        else:
+            item_inds = None
 
         top_simil_for_users = partial(
             self._recommend_for_item_inds,
@@ -237,11 +240,14 @@ class UserCoocRecommender(ItemCoocRecommender):
         raise NotImplementedError
 
     def _get_recommendations_flat(
-            self, user_ids, item_ids, n_rec=100,
+            self, user_ids, item_ids=None, n_rec=100,
             exclude_training=True, pbar=None, **kwargs):
 
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
-        item_inds.sort()
+        if item_ids is not None:
+            item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+            item_inds.sort()
+        else:
+            item_inds = None
 
         def row_func(user_inds, row_data, exclude_inds):
             sub_mat = self.train_mat[user_inds, :]
@@ -254,14 +260,16 @@ class UserCoocRecommender(ItemCoocRecommender):
                 sub_mat.data[sub_mat.indptr[i]:sub_mat.indptr[i + 1]] *= r
 
             sum_weight_occurs = np.array(np.sum(sub_mat.tocsr(), axis=0)).ravel()
-            sum_weight_occurs = sum_weight_occurs[item_inds]
+
+            if item_inds is not None:
+                sum_weight_occurs = sum_weight_occurs[item_inds]
 
             n_rec_min = min(n_rec, len(sum_weight_occurs))
 
             i_part = np.argpartition(sum_weight_occurs, -n_rec_min)[-n_rec_min:]
             i_sort = i_part[np.argsort(-sum_weight_occurs[i_part])[:n_rec_min]]
-
-            return item_inds[i_sort], sum_weight_occurs[i_sort]
+            best_inds = item_inds[i_sort] if item_inds is not None else i_sort
+            return best_inds, sum_weight_occurs[i_sort]
 
         best_ids, best_scores = custom_row_func_on_sparse(
             row_func=row_func,
