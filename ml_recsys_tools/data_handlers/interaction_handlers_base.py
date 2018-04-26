@@ -166,23 +166,35 @@ class ObservationsDF(LogCallsTimeAndOutput):
             items_col=self.iid_col, rating_col=self.rating_col)
         return mat_builder
 
-    def split_train_test_to_dfs(self, ratio=0.2, users_ratio=1.0, random_state=None):
+    def split_train_test_to_dfs(self, ratio=0.2, users_ratio=1.0,
+                                time_split_column=None, random_state=None):
+
+        if users_ratio < 1.0 and time_split_column is not None:
+            raise ValueError('Can either split by time, or for subset of users, not both.')
+
         if users_ratio < 1.0:
             return train_test_split_by_col(
                 self.df_obs, col_ratio=users_ratio, test_ratio=ratio,
                 col_name=self.uid_col, random_state=random_state)
+
+        elif time_split_column:
+            self.df_obs.sort_values(time_split_column, inplace=True)
+            split_ind = int((len(self.df_obs)-1) * ratio)
+            return self.df_obs.iloc[:-split_ind], self.df_obs.iloc[-split_ind:]
+
         else:
             return train_test_split(self.df_obs, test_size=ratio, random_state=random_state)
 
-    def split_train_test(self, ratio=0.2, users_ratio=1.0, random_state=None):
-        obs_train, obs_test = self.split_train_test_to_dfs(
-            ratio=ratio, users_ratio=users_ratio, random_state=random_state)
+    def split_train_test(self, ratio=0.2, users_ratio=1.0, time_split_column=None, random_state=None):
+        df_train, df_test = self.split_train_test_to_dfs(
+            ratio=ratio, users_ratio=users_ratio,
+            random_state=random_state, time_split_column=time_split_column)
 
         train_other = copy.deepcopy(self)
-        train_other.df_obs = obs_train.copy()
+        train_other.df_obs = df_train
 
         test_other = copy.deepcopy(self)
-        test_other.df_obs = obs_test.copy()
+        test_other.df_obs = df_test
 
         return train_other, test_other
 
@@ -200,7 +212,7 @@ def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid'
         df_test_col, test_size=test_ratio, random_state=random_state)
 
     # concat train dfs
-    df_train = pd.concat([df_train_col, df_non_test_items], axis=0)
+    df_train = pd.concat([df_train_col, df_non_test_items])
     # shuffle
     df_train = df_train.sample(frac=1).reset_index(drop=True)
     return df_train, df_test
