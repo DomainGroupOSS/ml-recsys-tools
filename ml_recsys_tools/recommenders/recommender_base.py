@@ -71,7 +71,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         self._set_model_params(params)
 
     @abstractmethod
-    def fit(self, train_obs: ObservationsDF, **kwargs):
+    def fit(self, train_obs: ObservationsDF, *args, **kwargs):
         return self
 
     @abstractmethod
