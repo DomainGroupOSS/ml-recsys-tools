@@ -74,7 +74,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
 
         return merged_df
 
-    def _get_recommendations_flat(self, user_ids, item_ids, n_rec,
+    def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclude_training=True, pbar=None, **kwargs):
 
         calc_funcs = [partial(rec.get_recommendations,
@@ -189,7 +189,7 @@ class CascadeEnsemble(CombinationEnsembleBase):
         assert hasattr(self.recommenders[1], 'predict_on_df'), \
             'no "predict_on_df" for second recommender'
 
-    def _get_recommendations_flat(self, user_ids, item_ids, n_rec,
+    def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclude_training=True, pbar=None, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,

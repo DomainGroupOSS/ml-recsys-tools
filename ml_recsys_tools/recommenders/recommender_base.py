@@ -10,7 +10,6 @@ import pickle
 
 import time
 
-from ml_recsys_tools.data_handlers.interactions_with_features import ExternalFeaturesDF
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
 from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
@@ -218,7 +217,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             user_ids,
             filter_array=self.all_users,
             message_prefix=message_prefix,
-            message_suffix='useres that were not in training set.')
+            message_suffix='users that were not in training set.')
 
     def remove_unseen_items(self, item_ids, message_prefix=''):
         return self._filter_array(
@@ -298,7 +297,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         return mat_builder
 
     @abstractmethod
-    def _get_recommendations_flat(self, user_ids, item_ids, n_rec,
+    def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclude_training=True, pbar=None, **kwargs):
         return pd.DataFrame()
 
@@ -314,8 +313,6 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         if item_ids is not None:
             item_ids = self.remove_unseen_items(item_ids, message_prefix='get_recommendations: ')
-        else:
-            item_ids = self.all_items
 
         recos_flat = self._get_recommendations_flat(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
@@ -345,7 +342,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                                 n_rec=100, k=10):
         @self.logging_decorator
         def relevant_users():
-            # get only those users that are present in the evaluation / training dataframes
+            # get only those users that are present in the evaluation dataframes
             all_test_users = []
             [all_test_users.extend(df[self._user_col].unique().tolist()) for df in test_dfs]
             all_test_users = np.array(all_test_users)
