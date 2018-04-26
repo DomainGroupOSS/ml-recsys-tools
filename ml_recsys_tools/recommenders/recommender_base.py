@@ -71,16 +71,23 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         self._set_model_params(params)
 
     @abstractmethod
-    def fit(self, *args, **kwargs):
-        pass
+    def fit(self, train_obs: ObservationsDF, **kwargs):
+        return self
 
     @abstractmethod
-    def get_recommendations(self, *args, **kwargs):
-        pass
+    def get_recommendations(
+            self, user_ids=None, item_ids=None, n_rec=10,
+            exclude_training=True,
+            results_format='lists',
+            **kwargs):
+        return pd.DataFrame()
 
     @abstractmethod
-    def eval_on_test_by_ranking(self, *args, **kwargs):
-        pass
+    def eval_on_test_by_ranking(
+            self, test_dfs, test_names=('',), prefix='rec ',
+            include_train=True, items_filter=None, k=10,
+            **kwargs):
+        return pd.DataFrame()
 
     def _recos_lists_to_flat(self, recos_lists_df):
 
