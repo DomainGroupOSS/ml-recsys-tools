@@ -91,12 +91,16 @@ class S3FileIO:
     def read(self, remote_path):
         try:
             client = boto3.client('s3')
-            with io.BytesIO() as f:
-                client.download_fileobj(
-                    Bucket=self.bucket_name,
-                    Key=remote_path,
-                    Fileobj=f)
-                data = f.read()
+            ## for some reason this returns empty sometimes, but get_object works..
+            # with io.BytesIO() as f:
+            #     client.download_fileobj(
+            #         Bucket=self.bucket_name,
+            #         Key=remote_path,
+            #         Fileobj=f)
+            #     data = f.read()
+            data = client.get_object(
+                Bucket=self.bucket_name, Key=remote_path)['Body'].\
+                read()
             try:
                 data = gzip.decompress(data)
             except OSError:
