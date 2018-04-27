@@ -210,6 +210,11 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
         self.all_users = train_df[self.sparse_mat_builder.uid_source_col].unique().astype(str)
         self.all_items = train_df[self.sparse_mat_builder.iid_source_col].unique().astype(str)
+        # shuffling because np.unique() returns elements in almost sorted order by counts,
+        # and it's probably not a good thing: it changes regional sparsity,
+        # and at a later stage might be sampled / iterated in order
+        np.random.shuffle(self.all_users)
+        np.random.shuffle(self.all_items)
         if calc_train_mat:
             self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(train_df)
 

@@ -262,6 +262,12 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         all_uids = source_df[self.uid_source_col].unique()
         all_iids = source_df[self.iid_source_col].unique()
 
+        # shuffling because np.unique() returns elements in almost sorted order by counts,
+        # and it's probably not a good thing: it changes regional sparsity,
+        # and at a later stage might be sampled / iterated in order
+        np.random.shuffle(all_uids)
+        np.random.shuffle(all_iids)
+
         self.n_rows = len(all_uids)
         self.n_cols = len(all_iids)
 
