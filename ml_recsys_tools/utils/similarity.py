@@ -21,7 +21,7 @@ def top_N_unsorted(mat, n):
 
     top_values = mat[_row_ind_mat(top_inds), top_inds]
 
-    return np.array(top_values), np.array(top_inds)
+    return np.array(top_inds), np.array(top_values)
 
 
 def _argsort_mask_descending(mat):
@@ -33,11 +33,11 @@ def _argsort_mask_descending(mat):
 def top_N_sorted(mat, n):
     # returns sorted top N elements and indexes in each row of matrix mat
 
-    top_values, top_inds = top_N_unsorted(mat, n)
+    top_inds, top_values= top_N_unsorted(mat, n)
 
     sort_inds = _argsort_mask_descending(top_values)
 
-    return top_values[sort_inds], top_inds[sort_inds]
+    return top_inds[sort_inds], top_values[sort_inds]
 
 
 def _top_N_similar(source_inds, source_mat, target_mat, n,
@@ -82,7 +82,7 @@ def _top_N_similar(source_inds, source_mat, target_mat, n,
         exclude_mat_sp = exclude_mat_sp[source_inds, :].tocoo()
         scores[exclude_mat_sp.row, exclude_mat_sp.col] = -np.inf
 
-    best_scores, best_inds = top_N_unsorted(scores, n)
+    best_inds, best_scores = top_N_unsorted(scores, n)
 
     sort_inds = _argsort_mask_descending(best_scores)
 

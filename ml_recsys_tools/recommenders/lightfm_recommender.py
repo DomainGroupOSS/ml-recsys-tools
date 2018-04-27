@@ -395,7 +395,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
         full_pred_mat = self._predict_for_users_dense(user_ids, exclude_training=exclude_training)
 
-        top_scores, top_inds = top_N_sorted(full_pred_mat, n=n_rec)
+        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
 
         item_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
 
