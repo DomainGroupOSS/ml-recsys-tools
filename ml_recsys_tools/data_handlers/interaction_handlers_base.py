@@ -38,6 +38,17 @@ class ObservationsDF(LogCallsTimeAndOutput):
 
         self._check_duplicated_interactions()
 
+    def __len__(self):
+        return len(self.df_obs)
+
+    def __repr__(self):
+        return super().__repr__() + ', %d Observations' % len(self)
+
+    def __add__(self, other):
+        self.df_obs = pd.concat([self.df_obs, other.df_obs])
+        self._check_duplicated_interactions()
+        return self
+
     def _check_duplicated_interactions(self):
         dups = self.df_obs.duplicated([self.uid_col, self.iid_col])
         if dups.sum():
@@ -184,6 +195,25 @@ class ObservationsDF(LogCallsTimeAndOutput):
 
         else:
             return train_test_split(self.df_obs, test_size=ratio, random_state=random_state)
+
+    def split_by_time_col(self, time_col, test_time_min, test_time_max):
+
+        time_filt = (str(test_time_min) <= self.df_obs[time_col].astype(str)) & \
+                    (self.df_obs[time_col].astype(str) <= str(test_time_max))
+
+        # time_filt = (test_time_min <= pd.to_datetime(self.df_obs[time_col])) & \
+        #             (pd.to_datetime(self.df_obs[time_col]) <= test_time_max)
+
+        df_train = self.df_obs[~time_filt].copy()
+        df_test = self.df_obs[time_filt].copy()
+
+        train_other = copy.deepcopy(self)
+        train_other.df_obs = df_train
+
+        test_other = copy.deepcopy(self)
+        test_other.df_obs = df_test
+
+        return train_other, test_other
 
     def split_train_test(self, ratio=0.2, users_ratio=1.0, time_split_column=None, random_state=None):
         df_train, df_test = self.split_train_test_to_dfs(

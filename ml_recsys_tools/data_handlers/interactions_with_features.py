@@ -176,6 +176,15 @@ class ObsWithFeatures(ObservationsDF):
         self.df_items = self._preprocess_items_df(df_items)
         self._filter_relevant_obs_and_items()
 
+    def __add__(self, other):
+        super().__add__(other)
+        self.df_items = pd.concat([self.df_items, other.df_items])
+        self.df_items.drop_duplicates(self.item_id_col, inplace=True)
+        return self
+
+    def __repr__(self):
+        return super().__repr__() + ', %d Items' % len(self.df_items)
+
     def _preprocess_items_df(self, df_items):
         # make sure the ID col is of object type
         df_items[self.item_id_col] = df_items[self.item_id_col].astype(str)
