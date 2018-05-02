@@ -36,8 +36,17 @@ class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
     """
     class for one-hot encoding a continuous variable by binning
     """
-    def __init__(self, n_bins=50, **kwargs):
+    def __init__(self, n_bins=50, spillage=2, **kwargs):
+        """
+        :param n_bins: number of bins
+        :param spillage:
+            number of neighbouring bins that are also activated in
+            order to preserve some "proximity" relationship, default to 2
+            e.g. for spillage=1 a result vec would be [.. 0, 0, 0.25, 0.5, 1, 0.5, 0.25, 0, 0 ..]
+        :param kwargs:
+        """
         super().__init__(**kwargs)
+        self._spillage = spillage
         self._binner = FloatBinningEncoder(n_bins=n_bins)
 
     def fit(self, y):
@@ -47,4 +56,9 @@ class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
 
     def transform(self, y):
         y_binned = self._binner.transform(y)
-        return super().transform(y_binned)
+        binarized = super().transform(y_binned)
+        if self._spillage:
+            for i in range(1, self._spillage + 1):
+                binarized += super().transform(y_binned + i) / 2**i
+                binarized += super().transform(y_binned - i) / 2**i
+        return binarized

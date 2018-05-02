@@ -22,7 +22,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
 
     def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None, verbose=True):
         super().__init__(verbose)
-        self.feat_df = feat_df
+        self.feat_df = feat_df.copy()
         self.id_col = id_col
         self.num_cols = num_cols
         self.cat_cols = cat_cols
@@ -64,6 +64,15 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
 
         return self
 
+    def _check_intersecting_num_and_cat_columns(self):
+        intersecting_cols = set(self.cat_cols).intersection(set(self.num_cols))
+        if len(intersecting_cols):
+            for col in intersecting_cols:
+                alt_name = col + '_num'
+                self.feat_df[alt_name] = self.feat_df[col].copy()
+                self.num_cols.remove(col)
+                self.num_cols.append(alt_name)
+
     def create_items_features_matrix(self,
                                      items_encoder,
                                      normalize_output=False,
@@ -82,12 +91,15 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
             'rows' - normalize rows with l1 norm
             anything else - normalize cols with l1 norm
         :param numeric_n_bins: number of bins for binning numeric features
-        :param feat_weight: feature weight relative to identity matrix (can be used to emphasize one or the other)
+        :param feat_weight:
+            feature weight relative to identity matrix (can be used to emphasize one or the other)
+            can also be a dictionary of weights to be applied to columns e.g. {'column_name': 10}
 
         :return: sparse feature mat n_items x n_features
         """
 
-        # get numeric cols
+        self._check_intersecting_num_and_cat_columns()
+
         feat_df = self.feat_df[
             [self.id_col] + self.cat_cols + self.num_cols]
         # get only features for relevant items
@@ -117,13 +129,21 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                 numeric_feat_cols=self.num_cols,
                 numeric_n_bins=numeric_n_bins)
 
+            # weight the features before adding the identity mat
+            if np.isscalar(feat_weight):
+                feat_mat = feat_mat.astype(np.float32) * feat_weight
+            elif isinstance(feat_weight, dict):
+                for col, weight in feat_weight.items():
+                    cols_mask = np.core.defchararray.startswith(
+                        df_transformer.transformed_names_, col)
+                    feat_mat[:, cols_mask] *= weight
+            else:
+                raise ValueError('Uknown feature weight format.')
+
             # normalize each row
             if normalize_output:
                 axis = int(normalize_output == 'rows')
                 feat_mat = normalize(feat_mat, norm='l1', axis=axis, copy=False)
-
-            # weight down the features before adding the identity mat
-            feat_mat = feat_mat.astype(np.float32) * feat_weight
 
             if add_identity_mat:
                 # identity mat
