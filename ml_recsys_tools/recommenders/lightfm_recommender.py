@@ -266,7 +266,7 @@ class LightFMRecommender(BaseDFSparseRecommender):
         simil_df = self._format_results_df(
             user_ids, target_ids_mat=best_ids,
             scores_mat=best_scores, results_format='similarities_flat'). \
-            rename({self._item_col_simil: self._user_col})
+            rename({self._item_col_simil: self._user_col}, axis=1)
         # this is UGLY, if this function is ever useful, fix this please (the renaming shortcut)
 
         if remove_self:
