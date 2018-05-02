@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 import warnings
 from functools import partial
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
@@ -73,14 +74,17 @@ def _top_N_similar(source_inds, source_mat, target_mat, n,
         if target_biases is not None:
             scores += target_biases
 
-        scores = np.array(scores)
+        if sp.issparse(scores):
+            scores = scores.toarray()
+        else:
+            scores = np.array(scores)
 
     else:
         raise NotImplementedError('unknown similarity mode')
 
     if exclude_mat_sp is not None:
-        exclude_mat_sp = exclude_mat_sp[source_inds, :].tocoo()
-        scores[exclude_mat_sp.row, exclude_mat_sp.col] = -np.inf
+        exclude_mat_sp_coo = exclude_mat_sp[source_inds, :].tocoo()
+        scores[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
     best_inds, best_scores = top_N_unsorted(scores, n)
 
