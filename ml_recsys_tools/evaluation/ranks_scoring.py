@@ -3,7 +3,121 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 from lightfm.evaluation import precision_at_k, recall_at_k, auc_score, reciprocal_rank
+
+from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 from ml_recsys_tools.utils.parallelism import N_CPUS
+
+
+class ModelMockRanksCacher:
+    """
+    this is used in order to use lightfm functions without copying them out and rewriting
+    this makes possible to:
+        - not calculate ranks every time from scratch (if you have them precalculated)
+        - use the functions to score non lightfm models
+    """
+
+    def __init__(self, cached_mat):
+        self.cached_mat = cached_mat
+
+    def predict_rank(self, *args, **kwargs):
+        return self.cached_mat
+
+
+def mean_scores_report(model, datasets, dataset_names, k=10):
+    ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
+    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k)
+
+
+def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
+    data = []
+    for ranks, dataset in zip(ranks_list, datasets):
+        full_report = RanksScorer(ranks_mat=ranks, test_mat=dataset, k=k).scores_report()
+        res = full_report.describe().loc['mean']
+        data.append(res)
+    return pd.DataFrame(data=data, index=dataset_names)
+
+
+class RanksScorer(LogCallsTimeAndOutput):
+
+    def __init__(self, ranks_mat, test_mat, train_mat=None, k=10, verbose=True):
+        super().__init__(verbose=verbose)
+        self.ranks_mat = ranks_mat
+        self.test_mat = test_mat
+        self.train_mat = train_mat
+        self.k = k
+        self.best_ranks_mat = self._best_ranks()
+
+    def _best_ranks(self):
+        return best_possible_ranks(self.test_mat)
+
+    def _ranks_kwargs(self):
+        return {
+            'ranks': self.ranks_mat,
+            'test_interactions': self.test_mat,
+            'train_interactions': self.train_mat,
+            }
+
+    def _best_ranks_kwargs(self):
+        return {
+            'ranks': self.best_ranks_mat,
+            'test_interactions': self.test_mat,
+            'train_interactions': self.train_mat,
+            }
+
+    def scores_report(self):
+        metrics = OrderedDict([
+            ('AUC', self.auc()),
+            ('reciprocal', self.reciprocal()),
+            ('n-MRR@%d' % self.k, self.n_mrr_at_k()),
+            ('n-MRR', self.n_mrr()),
+            ('n-DCG@%d' % self.k, self.n_dcg_at_k()),
+            ('n-precision@%d' % self.k, self.n_precision_at_k()),
+            ('precision@%d' % self.k, self.precision_at_k()),
+            ('recall@%d' % self.k, self.recall_at_k()),
+            ('n-recall@%d' % self.k, self.n_recall_at_k()),
+            ('n-i-gini@%d' % self.k, self.n_i_gini_at_k()),
+            ('n-diversity@%d' % self.k, self.n_diversity_at_k()),
+        ])
+
+        return pd.DataFrame(metrics)[list(metrics.keys())]
+
+    def auc(self):
+        return auc_score_on_ranks(**self._ranks_kwargs())
+
+    def reciprocal(self):
+        return reciprocal_rank_on_ranks(**self._ranks_kwargs())
+
+    def n_mrr_at_k(self):
+        return mrr_norm_on_ranks(**self._ranks_kwargs(), k=self.k)
+
+    def n_mrr(self):
+        return mrr_norm_on_ranks(**self._ranks_kwargs())
+
+    def n_dcg_at_k(self):
+        return dcg_binary_at_k(**self._ranks_kwargs(), k=self.k) / \
+               dcg_binary_at_k(**self._best_ranks_kwargs(), k=self.k)
+
+    def n_precision_at_k(self):
+        return precision_at_k_on_ranks(**self._ranks_kwargs(), k=self.k) / \
+               precision_at_k_on_ranks(**self._best_ranks_kwargs(), k=self.k)
+
+    def precision_at_k(self):
+        return precision_at_k_on_ranks(**self._ranks_kwargs(), k=self.k)
+
+    def n_recall_at_k(self):
+        return recall_at_k_on_ranks(**self._ranks_kwargs(), k=self.k) / \
+               recall_at_k_on_ranks(**self._best_ranks_kwargs(), k=self.k)
+
+    def recall_at_k(self):
+        return recall_at_k_on_ranks(**self._ranks_kwargs(), k=self.k)
+
+    def n_i_gini_at_k(self):
+        return (1 - gini_coefficient_at_k(**self._ranks_kwargs(), k=self.k)) / \
+               (1 - gini_coefficient_at_k(**self._best_ranks_kwargs(), k=self.k))
+
+    def n_diversity_at_k(self):
+        return diversity_at_k(**self._ranks_kwargs(), k=self.k) / \
+               diversity_at_k(**self._best_ranks_kwargs(), k=self.k)
 
 
 def best_possible_ranks(test_mat):
@@ -26,74 +140,6 @@ def chance_ranks(test_mat):
         [np.random.choice(item_inds, n, replace=False)
          for n in nnz_counts]).astype(np.float32)
     return rand_ranks
-
-
-def mean_scores_report(model, datasets, dataset_names, k=10):
-    ranks_list = [model.predict_rank(dataset, num_threads=N_CPUS) for dataset in datasets]
-    return mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k)
-
-
-def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
-    data = []
-    for ranks, dataset in zip(ranks_list, datasets):
-        res = all_scores_on_ranks(ranks, dataset, k=k).describe().loc['mean']
-        data.append(res)
-    return pd.DataFrame(data=data, index=dataset_names)
-
-
-def all_scores_on_ranks(ranks, test_data, train_data=None, k=10):
-    ranks_kwargs = \
-        {'ranks': ranks,
-         'test_interactions': test_data,
-         'train_interactions': train_data,
-         }
-
-    best_possible_kwargs = \
-        {'ranks': best_possible_ranks(test_data),
-         'test_interactions': test_data,
-         'train_interactions': train_data,
-         }
-
-    metrics = OrderedDict([
-        ('AUC', auc_score_on_ranks(**ranks_kwargs)),
-        ('reciprocal', reciprocal_rank_on_ranks(**ranks_kwargs)),
-        ('n-MRR@%d' % k, mrr_norm_on_ranks(**ranks_kwargs, k=k)),
-        ('n-MRR', mrr_norm_on_ranks(**ranks_kwargs)),
-        ('n-DCG@%d' % k,
-         dcg_binary_at_k(**ranks_kwargs, k=k) /
-         dcg_binary_at_k(**best_possible_kwargs, k=k)),
-        ('n-precision@%d' % k,
-         precision_at_k_on_ranks(**ranks_kwargs, k=k) /
-         precision_at_k_on_ranks(**best_possible_kwargs, k=k)),
-        ('precision@%d' % k, precision_at_k_on_ranks(**ranks_kwargs, k=k)),
-        ('recall@%d' % k, recall_at_k_on_ranks(**ranks_kwargs, k=k)),
-        ('n-recall@%d' % k,
-         recall_at_k_on_ranks(**ranks_kwargs, k=k) /
-         recall_at_k_on_ranks(**best_possible_kwargs, k=k)),
-        ('n-i-gini@%d' % k,
-         (1 - gini_coefficient_at_k(**ranks_kwargs, k=k)) /
-         (1 - gini_coefficient_at_k(**best_possible_kwargs, k=k))),
-        ('n-diversity@%d' % k,
-         diversity_at_k(**ranks_kwargs, k=k) /
-         diversity_at_k(**best_possible_kwargs, k=k)),
-    ])
-
-    return pd.DataFrame(metrics)[list(metrics.keys())]
-
-
-class ModelMockRanksCacher:
-    """
-    this is used in order to use lightfm functions without copying them out and rewriting
-    this makes possible to:
-        - not calculate ranks every time from scratch (if you have them precalculated)
-        - use the functions to score non lightfm models
-    """
-
-    def __init__(self, cached_mat):
-        self.cached_mat = cached_mat
-
-    def predict_rank(self, *args, **kwargs):
-        return self.cached_mat
 
 
 def precision_at_k_on_ranks(
@@ -139,6 +185,7 @@ def reciprocal_rank_on_ranks(
 
 def mrr_norm_on_ranks(
         ranks, test_interactions, train_interactions=None, preserve_rows=False, k=None):
+
     def harmonic_number(n):
         # https://stackoverflow.com/questions/404346/python-program-to-calculate-harmonic-series
         """Returns an approximate value of n-th harmonic number.
@@ -219,24 +266,25 @@ def gini_coefficient_at_k(ranks, test_interactions, k=10, train_interactions=Non
     """
 
     def gini(x, w=None):
-        # from https://stackoverflow.com/questions/39512260/calculating-gini-coefficient-in-python-numpy
-        # Array indexing requires reset indexes.
-        x = pd.Series(x).reset_index(drop=True)
-        if w is None:
-            w = np.ones_like(x)
-        w = pd.Series(w).reset_index(drop=True)
-        n = x.size
-        wxsum = sum(w * x)
-        wsum = sum(w)
-        sxw = np.argsort(x)
-        sx = x[sxw] * w[sxw]
-        sw = w[sxw]
-        pxi = np.cumsum(sx) / wxsum
-        pci = np.cumsum(sw) / wsum
-        g = 0.0
-        for i in np.arange(1, n):
-            g = g + pxi.iloc[i] * pci.iloc[i - 1] - pci.iloc[i] * pxi.iloc[i - 1]
-        return g
+        # https://stackoverflow.com/questions/48999542/more-efficient-weighted-gini-coefficient-in-python/
+        # The rest of the code requires numpy arrays.
+        x = np.asarray(x)
+        if w is not None:
+            w = np.asarray(w)
+            sorted_indices = np.argsort(x)
+            sorted_x = x[sorted_indices]
+            sorted_w = w[sorted_indices]
+            # Force float dtype to avoid overflows
+            cumw = np.cumsum(sorted_w, dtype=float)
+            cumxw = np.cumsum(sorted_x * sorted_w, dtype=float)
+            return (np.sum(cumxw[1:] * cumw[:-1] - cumxw[:-1] * cumw[1:]) /
+                    (cumxw[-1] * cumw[-1]))
+        else:
+            sorted_x = np.sort(x)
+            n = len(x)
+            cumx = np.cumsum(sorted_x, dtype=float)
+            # The above formula, with all weights equal to 1 simplifies to:
+            return (n + 1 - 2 * np.sum(cumx) / cumx[-1]) / n
 
     ranks = ranks.copy().tocsr()
     ranks.data += 1

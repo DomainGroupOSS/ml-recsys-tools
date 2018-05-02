@@ -54,8 +54,8 @@ def log_time_and_shape(fn):
         duration_str = '%.2f' % elapsed
 
         sys_monitor.stop()
-        mem_str = 'mem: %s%%(peak:%s%%) cpu:%s%%' % \
-                  (sys_monitor.current_memory, sys_monitor.peak_memory, sys_monitor.avg_cpu_load)
+        mem_str = 'mem: %s%%(peak:%s%%) cpu:%d%%' % \
+                  (sys_monitor.current_memory, sys_monitor.peak_memory, int(sys_monitor.avg_cpu_load))
 
         ret_str = variable_info(result)
 
