@@ -5,7 +5,7 @@ import inspect
 from types import FunctionType
 from abc import ABC, ABCMeta
 from threading import Thread
-from psutil import virtual_memory
+from psutil import virtual_memory, cpu_percent
 
 from ml_recsys_tools.utils.logger import simple_logger
 
@@ -44,7 +44,7 @@ def variable_info(result):
 def log_time_and_shape(fn):
     @functools.wraps(fn)
     def inner(*args, **kwargs):
-        mem_monitor = MaxMemoryMonitor().start()
+        sys_monitor = ResourceMonitor().start()
 
         start = time.time()
 
@@ -53,9 +53,9 @@ def log_time_and_shape(fn):
         elapsed = time.time() - start
         duration_str = '%.2f' % elapsed
 
-        cur_mem, peak_mem = mem_monitor.stop()
-
-        mem_str = '%s%%(peak:%s%%)' % (cur_mem, peak_mem)
+        sys_monitor.stop()
+        mem_str = 'mem: %s%%(peak:%s%%) cpu:%s%%' % \
+                  (sys_monitor.current_memory, sys_monitor.peak_memory, sys_monitor.avg_cpu_load)
 
         ret_str = variable_info(result)
 
@@ -64,7 +64,7 @@ def log_time_and_shape(fn):
         fn_str = class_name(fn) + fn.__name__
 
         msg = ' ' * stack_depth + \
-              '%s, elapsed: %s, returned: %s, sys mem: %s' % \
+              '%s, elapsed: %s, returned: %s, sys %s' % \
               (fn_str, duration_str, ret_str, mem_str)
 
         if elapsed >= LOGGING_VERBOSITY.min_time:
@@ -90,45 +90,57 @@ def timer_deco(fn):
     return inner
 
 
-class MaxMemoryMonitor:
+class ResourceMonitor:
     def __init__(self, interval=0.2):
         self.interval = interval
-        self.peak_memory = None
-        self.thread = None
+        self._init_counters()
+        self._thread = None
         self._run_condition = False
+
+    def _init_counters(self):
+        self.current_memory = 0
+        self.peak_memory = 0
+        self.avg_cpu_load = 0
+        self._n_measurements = 0
 
     def __del__(self):
         if self._run_condition:
             self._run_condition = False
-            self.thread.join(self.interval + 0.1)
+            self._thread.join(self.interval + 0.1)
 
     @staticmethod
     def _current():
         try:
-            return virtual_memory().percent
+            return virtual_memory().percent, cpu_percent()
         except KeyError:
             # for some reason there's a KeyError: ('psutil',) in psutil
-            return 0
+            return 0, 0
 
-    def _measure_peak(self):
-        self.peak_memory = max(self.peak_memory, self._current())
+    def _measure(self):
+        cur_mem, cur_cpu = self._current()
+        self.current_memory = cur_mem
+        self.peak_memory = max(self.peak_memory, cur_mem)
+        self.avg_cpu_load = (self.avg_cpu_load * self._n_measurements + cur_cpu) / \
+                            (self._n_measurements + 1)
+        self._n_measurements += 1
 
     def _thread_loop(self):
         while self._run_condition:
-            self._measure_peak()
+            self._measure()
             time.sleep(self.interval)
 
     def start(self):
+        self._init_counters()
+        if self._thread is not None:
+            self._thread.join(0)
         self._run_condition = True
-        self.peak_memory = 0
-        self.thread = Thread(target=self._thread_loop, name='MaxMemoryMonitor')
-        self.thread.start()
+        self._thread = Thread(target=self._thread_loop, name='ResourceMonitor')
+        self._thread.start()
         return self
 
     def stop(self):
         self._run_condition = False
-        self._measure_peak()
-        return self._current(), self.peak_memory
+        self._measure()
 
 
 def get_stack_depth():

@@ -27,11 +27,11 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         self.num_cols = num_cols
         self.cat_cols = cat_cols
         if self.num_cols is None and self.cat_cols is None:
-            self._infer_categorical_numerical_columns()
+            self.infer_categorical_numerical_columns()
 
-    def _infer_categorical_numerical_columns(self,
-                                             categorical_unique_ratio=0.05,
-                                             categorical_n_unique=20):
+    def infer_categorical_numerical_columns(self,
+                                            categorical_unique_ratio=0.05,
+                                            categorical_n_unique=20):
 
         len_df = len(self.feat_df)
 
@@ -46,7 +46,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
             if str(self.feat_df[col].dtype) in ['O', 'o']:
                 self.cat_cols.append(col)
             else:
-                n_unique = self.feat_df[col].nuniques
+                n_unique = self.feat_df[col].nunique()
                 unique_ratio = n_unique / len_df
                 if n_unique < categorical_n_unique or \
                         unique_ratio <= categorical_unique_ratio:
