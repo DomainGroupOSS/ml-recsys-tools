@@ -86,6 +86,17 @@ class LightFMRecommender(BaseDFSparseRecommender):
                 self.train_mat, **fit_params)
         return self
 
+    def fit_batches(self, train_obs, train_dfs, epochs_per_batch=None, **fit_params):
+        self._prep_for_fit(train_obs)
+        for df in iter(train_dfs):
+            batch_train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(df)
+            if epochs_per_batch is not None:
+                fit_params['epochs'] = epochs_per_batch
+            fit_params['sample_weight'] = batch_train_mat.tocoo() \
+                if self.use_sample_weight else None
+            self._set_fit_params(fit_params)
+            self.model.fit_partial(batch_train_mat, **self.fit_params)
+
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
                             epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
                             plot_convergence=True, decline_threshold=0.05, k=10):
