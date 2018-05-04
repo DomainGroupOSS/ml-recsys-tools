@@ -199,7 +199,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
         elif time_split_column:
             self.df_obs.sort_values(time_split_column, inplace=True)
             split_ind = int((len(self.df_obs)-1) * ratio)
-            return self.df_obs.iloc[:-split_ind], self.df_obs.iloc[-split_ind:]
+            return self.df_obs.iloc[:-split_ind].copy(), self.df_obs.iloc[-split_ind:].copy()
 
         else:
             return train_test_split(self.df_obs, test_size=ratio, random_state=random_state)
