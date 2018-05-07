@@ -192,7 +192,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
                 user_pred_mat = user_pred_mat[:, item_inds]
             return top_N_sorted(user_pred_mat.toarray(), n_rec)
 
-        ret = map_batches_multiproc(best_for_batch, user_inds, chunksize=1000)
+        ret = map_batches_multiproc(best_for_batch, user_inds, chunksize=200)
 
         best_inds = np.concatenate([r[0] for r in ret], axis=0)
         best_scores = np.concatenate([r[1] for r in ret], axis=0)
