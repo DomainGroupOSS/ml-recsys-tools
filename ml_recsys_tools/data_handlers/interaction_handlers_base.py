@@ -171,6 +171,14 @@ class ObservationsDF(LogCallsTimeAndOutput):
     def items_filtered_df(self, item):
         return self.df_obs[self.df_obs[self.iid_col] == item]
 
+    @staticmethod
+    def time_filter_on_df(df, time_col, days_delta_tuple):
+        time_max = pd.Timestamp(df[time_col].max()) - pd.Timedelta(days=min(days_delta_tuple))
+        time_delta = pd.Timedelta(days=abs(days_delta_tuple[0] - days_delta_tuple[1]))
+        time_filt = (str(time_max - time_delta) < df[time_col].astype(str)) & \
+                    (df[time_col].astype(str) <= str(time_max))
+        return time_filt
+
     def get_sparse_matrix_helper(self):
         mat_builder = InteractionMatrixBuilder(
             self.df_obs, users_col=self.uid_col,
@@ -191,18 +199,15 @@ class ObservationsDF(LogCallsTimeAndOutput):
         elif time_split_column:
             self.df_obs.sort_values(time_split_column, inplace=True)
             split_ind = int((len(self.df_obs)-1) * ratio)
-            return self.df_obs.iloc[:-split_ind], self.df_obs.iloc[-split_ind:]
+            return self.df_obs.iloc[:-split_ind].copy(), self.df_obs.iloc[-split_ind:].copy()
 
         else:
             return train_test_split(self.df_obs, test_size=ratio, random_state=random_state)
 
-    def split_by_time_col(self, time_col, test_time_min, test_time_max):
+    def split_by_time_col(self, time_col, days_delta_tuple):
 
-        time_filt = (str(test_time_min) <= self.df_obs[time_col].astype(str)) & \
-                    (self.df_obs[time_col].astype(str) <= str(test_time_max))
-
-        # time_filt = (test_time_min <= pd.to_datetime(self.df_obs[time_col])) & \
-        #             (pd.to_datetime(self.df_obs[time_col]) <= test_time_max)
+        time_filt = self.time_filter_on_df(
+            self.df_obs, time_col=time_col, days_delta_tuple=days_delta_tuple)
 
         df_train = self.df_obs[~time_filt].copy()
         df_test = self.df_obs[time_filt].copy()
