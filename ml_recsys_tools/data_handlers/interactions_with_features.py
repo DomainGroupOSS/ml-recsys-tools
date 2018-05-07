@@ -26,6 +26,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         self.id_col = id_col
         self.num_cols = num_cols
         self.cat_cols = cat_cols
+        self.df_transformer = None
         if self.num_cols is None and self.cat_cols is None:
             self.infer_categorical_numerical_columns()
 
@@ -123,7 +124,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
             full_feat_df[self.cat_cols].astype(str)
 
         if len(full_feat_df):
-            feat_mat, df_transformer = self.ohe_hot_encode_features_df(
+            feat_mat, self.df_transformer = self.ohe_hot_encode_features_df(
                 full_feat_df,
                 categorical_feat_cols=self.cat_cols,
                 numeric_feat_cols=self.num_cols,
@@ -135,7 +136,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
             elif isinstance(feat_weight, dict):
                 for col, weight in feat_weight.items():
                     cols_mask = np.core.defchararray.startswith(
-                        df_transformer.transformed_names_, col)
+                        self.df_transformer.transformed_names_, col)
                     feat_mat[:, cols_mask] *= weight
             else:
                 raise ValueError('Uknown feature weight format.')
