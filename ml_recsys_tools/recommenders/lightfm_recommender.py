@@ -14,8 +14,17 @@ from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS
 from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
 
+
 # monkey patch print function
-lightfm.lightfm.print = simple_logger.info
+def _epoch_logger(s, print_each_n=20):
+    try:
+        if not int(s.replace('Epoch ', '')) % print_each_n:
+            simple_logger.info(s)
+    except Exception as e:
+        simple_logger.error('Failed in _epoch_logger: %s' % str(e))
+        simple_logger.info(s)
+
+lightfm.lightfm.print = _epoch_logger
 
 
 class LightFMRecommender(BaseDFSparseRecommender):
@@ -88,13 +97,14 @@ class LightFMRecommender(BaseDFSparseRecommender):
 
     def fit_batches(self, train_obs, train_dfs, epochs_per_batch=None, **fit_params):
         self._prep_for_fit(train_obs)
-        for df in iter(train_dfs):
+        for i, df in enumerate(train_dfs):
             batch_train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(df)
             if epochs_per_batch is not None:
                 fit_params['epochs'] = epochs_per_batch
             fit_params['sample_weight'] = batch_train_mat.tocoo() \
                 if self.use_sample_weight else None
             self._set_fit_params(fit_params)
+            simple_logger.info('Fitting batch %d (%d interactions)' % (i, len(df)))
             self.model.fit_partial(batch_train_mat, **self.fit_params)
 
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
