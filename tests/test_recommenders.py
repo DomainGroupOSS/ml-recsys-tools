@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 from examples.prep_movielense_data import get_and_prep_data
 from ml_recsys_tools.utils.testing import TestCaseWithState
-from tests.test_movielens_data import movielens_dir
+from test_movielens_data import movielens_dir
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
 
