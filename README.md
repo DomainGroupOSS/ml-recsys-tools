@@ -7,20 +7,24 @@ Includes:
 
 Recommender model and LightFM tools:
 
-    - LightFM and other recommenders with:
+    - LightFM package based recommenders (https://github.com/lyst/lightfm).
+
+    - Implicit package based ALS recommender (https://github.com/benfred/implicit).
+
+    - Serving / Tuning / Evaluation features added for various recommenders:
             - dataframes for all inputs and outputs
-            - adding external features
-            - early stopping fit
+            - adding external features (for LightFM hybrid mode)
+            - early stopping fit (for LightFM)
             - hyperparam search
             - fast batched user recommendation sampling
             - fast batched similar items samplilng with different similarity measures
             - fast batched similar users sampling
             - fast evaluation by sampling and ranking
 
-    - additional models:
-        - similarity based recommenders:
+    - Additional recommender models:
+        - similarity based:
             - cooccurence (items, users)
-            - generic similarity based
+            - generic similarity based (can be used for with external features)
         - ensembles:
             - subdivision based (multiple recommenders each on subset of data - e.g. geographical region):
                 - geo based: simple grid, equidense grid, geo clustering
@@ -64,6 +68,6 @@ Examples:
 Still to add:
 - more examples
 - much more comments and docstrings
-- tests
+- more tests
 
  ```
