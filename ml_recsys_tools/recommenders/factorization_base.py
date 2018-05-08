@@ -63,7 +63,7 @@ class FactorizationRecommender(BaseDFSparseRecommender):
             update_full_metrics_df(cur_epoch, lfm_report)
             return cur_score
 
-        max_epoch = early_stopping_runner(
+        best_epoch = early_stopping_runner(
             score_func=score_func,
             check_point_func=check_point_func,
             epochs_start=epochs_start,
@@ -73,7 +73,6 @@ class FactorizationRecommender(BaseDFSparseRecommender):
             decline_threshold=decline_threshold,
             plot_graph=plot_convergence
         )
-
         simple_logger.info('Early stop, all_metrics:\n' + str(all_metrics))
 
         if plot_convergence:
@@ -81,14 +80,14 @@ class FactorizationRecommender(BaseDFSparseRecommender):
             all_metrics.plot()
         self.early_stop_metrics_df = all_metrics
 
-        self._set_epochs(epochs=max_epoch)
-        if not refit_on_all:
-            simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)
-            self.model, self.model_checkpoint = self.model_checkpoint, None
-        else:
-            # refit on whole data
-            simple_logger.info('Refitting on whole train data for %d epochs' % max_epoch)
+        self._set_epochs(epochs=best_epoch)
+
+        if refit_on_all:
+            simple_logger.info('Refitting on whole train data for %d epochs' % best_epoch)
             self.fit(train_obs)
+        else:
+            simple_logger.info('Loading best model from checkpoint at %d epochs' % best_epoch)
+            self.model, self.model_checkpoint = self.model_checkpoint, None
 
         return self
 
