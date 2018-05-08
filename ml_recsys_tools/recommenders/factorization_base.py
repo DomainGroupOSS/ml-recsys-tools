@@ -1,8 +1,13 @@
 from abc import abstractmethod
+from copy import deepcopy
 
+import pandas as pd
 import numpy as np
 
+from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
+from ml_recsys_tools.utils.automl import early_stopping_runner
+from ml_recsys_tools.utils.logger import simple_logger
 from ml_recsys_tools.utils.similarity import most_similar
 
 
@@ -19,6 +24,74 @@ class FactorizationRecommender(BaseDFSparseRecommender):
     @abstractmethod
     def _prep_for_fit(self, train_obs, **fit_params):
         pass
+
+    @abstractmethod
+    def fit_partial(self, train_obs, **fit_params):
+        pass
+
+    @abstractmethod
+    def _set_epochs(self, epochs):
+        pass
+
+    def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
+                            epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
+                            plot_convergence=True, decline_threshold=0.05, k=10):
+
+        # split validation data
+        sqrt_ratio = valid_ratio ** 0.5
+        train_obs_internal, valid_obs = train_obs.split_train_test(
+            users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
+
+        self.model = None
+        self.model_checkpoint = None
+        all_metrics = pd.DataFrame()
+
+        def update_full_metrics_df(cur_epoch, report_df):
+            nonlocal all_metrics
+            all_metrics = all_metrics.append(
+                report_df.rename(index={'test': cur_epoch}))
+
+        def check_point_func():
+            if not refit_on_all:
+                self.model_checkpoint = deepcopy(self.model)
+
+        def score_func(cur_epoch, step):
+            self.fit_partial(train_obs_internal, epochs=step)
+            lfm_report = self.eval_on_test_by_ranking(
+                valid_obs.df_obs, include_train=False, prefix='', k=k)
+            cur_score = lfm_report.loc['test', metric]
+            update_full_metrics_df(cur_epoch, lfm_report)
+            return cur_score
+
+        max_epoch = early_stopping_runner(
+            score_func=score_func,
+            check_point_func=check_point_func,
+            epochs_start=epochs_start,
+            epochs_max=epochs_max,
+            epochs_step=epochs_step,
+            stop_patience=stop_patience,
+            decline_threshold=decline_threshold,
+            plot_graph=plot_convergence
+        )
+
+        simple_logger.info('Early stop, all_metrics:\n' + str(all_metrics))
+
+        if plot_convergence:
+            all_metrics = all_metrics.divide(all_metrics.max())
+            all_metrics.plot()
+        self.early_stop_metrics_df = all_metrics
+
+        self._set_epochs(epochs=epochs_max)
+        if not refit_on_all:
+            simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)
+            self.model, self.model_checkpoint = self.model_checkpoint, None
+        else:
+            # refit on whole data
+            simple_logger.info('Refitting on whole train data for %d epochs' % max_epoch)
+            self.fit(train_obs)
+
+        return self
+
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
                           remove_self=True, embeddings_mode=None,

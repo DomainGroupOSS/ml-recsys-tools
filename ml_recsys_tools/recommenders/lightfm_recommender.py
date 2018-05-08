@@ -85,85 +85,31 @@ class LightFMRecommender(FactorizationRecommender):
         return self
 
     def fit_partial(self, train_obs, epochs=1):
-        fit_params = self._dict_update(self.fit_params, {'epochs': epochs})
+        self._set_epochs(epochs)
         if self.model is None:
-            self.fit(train_obs, **fit_params)
+            self.fit(train_obs)
         else:
-            self.model.fit_partial(
-                self.train_mat, **fit_params)
+            self.model.fit_partial(self.train_mat)
         return self
 
     def fit_batches(self, train_obs, train_dfs, epochs_per_batch=None, **fit_params):
         self._prep_for_fit(train_obs)
         for i, df in enumerate(train_dfs):
             batch_train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(df)
+
             if epochs_per_batch is not None:
                 fit_params['epochs'] = epochs_per_batch
+
             fit_params['sample_weight'] = batch_train_mat.tocoo() \
                 if self.use_sample_weight else None
+
             self._set_fit_params(fit_params)
+
             simple_logger.info('Fitting batch %d (%d interactions)' % (i, len(df)))
             self.model.fit_partial(batch_train_mat, **self.fit_params)
 
-    def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
-                            epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
-                            plot_convergence=True, decline_threshold=0.05, k=10):
-
-        # split validation data
-        sqrt_ratio = valid_ratio ** 0.5
-        train_obs_internal, valid_obs = train_obs.split_train_test(
-            users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
-
-        self.model = None
-        self.model_checkpoint = None
-        all_metrics = pd.DataFrame()
-
-        def update_full_metrics_df(cur_epoch, report_df):
-            nonlocal all_metrics
-            all_metrics = all_metrics.append(
-                report_df.rename(index={'test': cur_epoch}))
-
-        def check_point_func():
-            if not refit_on_all:
-                self.model_checkpoint = deepcopy(self.model)
-
-        def score_func(cur_epoch, step):
-            self.fit_partial(train_obs_internal, epochs=step)
-            lfm_report = self.eval_on_test_by_ranking(
-                valid_obs.df_obs, include_train=False, prefix='', k=k)
-            cur_score = lfm_report.loc['test', metric]
-            update_full_metrics_df(cur_epoch, lfm_report)
-            return cur_score
-
-        max_epoch = early_stopping_runner(
-            score_func=score_func,
-            check_point_func=check_point_func,
-            epochs_start=epochs_start,
-            epochs_max=epochs_max,
-            epochs_step=epochs_step,
-            stop_patience=stop_patience,
-            decline_threshold=decline_threshold,
-            plot_graph=plot_convergence
-        )
-
-        simple_logger.info('Early stop, all_metrics:\n' + str(all_metrics))
-
-        if plot_convergence:
-            all_metrics = all_metrics.divide(all_metrics.max())
-            all_metrics.plot()
-        self.early_stop_metrics_df = all_metrics
-
-        if not refit_on_all:
-            simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)
-            self.fit_params = self._dict_update(self.fit_params, {'epochs': max_epoch})
-            self.model = self.model_checkpoint
-            self.model_checkpoint = None
-        else:
-            # refit on whole data
-            simple_logger.info('Refitting on whole train data for %d epochs' % max_epoch)
-            self.fit(train_obs, epochs=max_epoch)
-
-        return self
+    def _set_epochs(self, epochs):
+        self.set_params(epochs=epochs)
 
     def set_params(self, **params):
         """
