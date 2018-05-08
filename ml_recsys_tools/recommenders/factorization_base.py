@@ -81,7 +81,7 @@ class FactorizationRecommender(BaseDFSparseRecommender):
             all_metrics.plot()
         self.early_stop_metrics_df = all_metrics
 
-        self._set_epochs(epochs=epochs_max)
+        self._set_epochs(epochs=max_epoch)
         if not refit_on_all:
             simple_logger.info('Loading best model from checkpoint at %d epochs' % max_epoch)
             self.model, self.model_checkpoint = self.model_checkpoint, None

@@ -79,6 +79,13 @@ item_cooc_rec = ItemCoocRecommender()
 item_cooc_rec.fit(train_obs)
 print(item_cooc_rec.eval_on_test_by_ranking(test_obs, prefix='item cooccurrence '))
 
+# train and evaluate an ALS recommender (fast)
+from ml_recsys_tools.recommenders.implib_recommenders import ALSRecommender
+
+als_rec = ALSRecommender()
+als_rec.fit(train_obs)
+print(als_rec .eval_on_test_by_ranking(test_obs, prefix='als '))
+
 # combine LightFM and Cooccurrence recommenders
 # using recommendation ranks, and evaluate
 from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble

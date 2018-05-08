@@ -159,6 +159,15 @@ class TestRecommendersBasic(TestCaseWithState):
         self._check_recommendations_and_similarities(item_cooc_rec)
         self.state.item_cooc_rec = item_cooc_rec
 
+    def test_c_als_recommender(self):
+        from ml_recsys_tools.recommenders.implib_recommenders import ALSRecommender
+
+        als_rec = ALSRecommender()
+        als_rec.fit(self.state.train_obs)
+        als_rep = als_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='als ')
+        print(als_rep)
+        self._check_recommendations_and_similarities(als_rec)
+
     def test_d_comb_rank_ens(self):
         from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
 
@@ -177,3 +186,5 @@ class TestRecommendersBasic(TestCaseWithState):
         comb_simil_rep = comb_simil_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined simils ')
         print(comb_simil_rep)
         self._check_recommendations_and_similarities(comb_simil_rec)
+
+
