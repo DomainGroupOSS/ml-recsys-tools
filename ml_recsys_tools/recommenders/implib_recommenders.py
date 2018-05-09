@@ -12,11 +12,12 @@ class ALSRecommender(FactorizationRecommender):
         use_bm25=False,
         bm25_k1=100,
         bm25_b=0.8,
+        cg_steps=3,
+        regularization=0.01,
     )
 
     default_model_params = dict(
         factors=100,
-        regularization=0.01,
         iterations=15,
         calculate_training_loss=True,
         num_threads=0)
@@ -30,8 +31,8 @@ class ALSRecommender(FactorizationRecommender):
     def _prep_for_fit(self, train_obs, **fit_params):
         self._set_data(train_obs)
         self.set_params(**fit_params)
-        self._set_implib_train_mat()
         self.model = AlternatingLeastSquares(**self.model_params)
+        self._set_implib_train_mat()
 
     def _set_implib_train_mat(self):
         # implib ALS expects matrix in items x users format
@@ -41,6 +42,9 @@ class ALSRecommender(FactorizationRecommender):
                 self.implib_train_mat,
                 K1=self.fit_params['bm25_k1'],
                 B=self.fit_params['bm25_b'])
+        self.model.regularization = \
+            self.fit_params['regularization'] * self.implib_train_mat.nnz
+        self.model.cg_steps = self.fit_params['cg_steps']
 
     def set_params(self, **params):
         params = self._pop_set_dict(

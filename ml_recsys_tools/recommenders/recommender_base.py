@@ -10,6 +10,8 @@ import pickle
 
 import time
 
+from sklearn.feature_selection import mutual_info_regression
+
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
 from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
@@ -172,11 +174,10 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             bo.optimize(data_dict={'training': train_data, 'validation': validation_data},
                         n_calls=n_iters)
 
-        bo_report = bo.best_results_summary(res_bo, percentile=0)
-
         return SimpleNamespace(**{
             'optimizer': bo,
-            'report': bo_report,
+            'report': bo.best_results_summary(res_bo, percentile=0),
+            'mutual_info': bo.params_mutual_info(),
             'result': res_bo,
             'best_params': best_params,
             'best_model': best_model})
@@ -467,6 +468,12 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
             reset_index(). \
             drop('index', axis=1). \
             sort_values('target_loss')
+
+    def params_mutual_info(self):
+        params = list(self.search_space.keys())
+        mutual_info = mutual_info_regression(self.all_metrics[params].values,
+                               self.all_metrics['target_loss'].values)
+        return pd.DataFrame([mutual_info], columns=params)
 
     def objective_func(self, values):
         try:
