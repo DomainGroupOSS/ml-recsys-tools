@@ -8,19 +8,19 @@ from ml_recsys_tools.utils.instrumentation import simple_logger
 
 class ALSRecommender(FactorizationRecommender):
 
+    default_model_params = dict(
+        factors=800,
+        iterations=2,
+        calculate_training_loss=True,
+        num_threads=0)
+
     default_fit_params = dict(
-        use_bm25=False,
+        use_bm25=True,
         bm25_k1=100,
         bm25_b=0.15,
         cg_steps=3,
         regularization=1e-8,
     )
-
-    default_model_params = dict(
-        factors=1000,
-        iterations=3,
-        calculate_training_loss=True,
-        num_threads=0)
 
     def _get_item_factors(self, mode=None):
         return None, self.model.item_factors

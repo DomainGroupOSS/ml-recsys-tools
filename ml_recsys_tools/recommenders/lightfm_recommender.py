@@ -29,13 +29,6 @@ lightfm.lightfm.print = _epoch_logger
 
 class LightFMRecommender(FactorizationRecommender):
 
-    default_fit_params = {
-        'epochs': 100,
-        'item_features': None,
-        'num_threads': N_CPUS,
-        'verbose': True,
-    }
-
     default_model_params = {
         'loss': 'warp',
         'learning_schedule': 'adadelta',
@@ -43,6 +36,13 @@ class LightFMRecommender(FactorizationRecommender):
         'max_sampled': 10,
         'item_alpha': 0,
         'user_alpha': 0,
+    }
+
+    default_fit_params = {
+        'epochs': 100,
+        'item_features': None,
+        'num_threads': N_CPUS,
+        'verbose': True,
     }
 
     def __init__(self,
