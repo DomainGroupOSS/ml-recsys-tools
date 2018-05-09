@@ -11,14 +11,14 @@ class ALSRecommender(FactorizationRecommender):
     default_fit_params = dict(
         use_bm25=False,
         bm25_k1=100,
-        bm25_b=0.8,
+        bm25_b=0.15,
         cg_steps=3,
-        regularization=0.01,
+        regularization=1e-8,
     )
 
     default_model_params = dict(
-        factors=100,
-        iterations=15,
+        factors=1000,
+        iterations=3,
         calculate_training_loss=True,
         num_threads=0)
 
