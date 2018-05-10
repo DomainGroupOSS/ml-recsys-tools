@@ -23,7 +23,7 @@
 * #### Additional recommender models:
     * ##### Similarity based:
         * cooccurence (items, users)
-        * generic similarity based (can be used for with external features)  
+        * generic similarity based (can be used with external features)  
               
 * #### Ensembles:
     * subdivision based (multiple recommenders each on subset of data - e.g. geographical region):
@@ -66,6 +66,7 @@
         * Two combination ensembles (Ranks and Simils)
 
 * #### Still to add:
-    * more examples
+    * add example in README.MD
+    * add and reorganize examples 
     * much more comments and docstrings
     * more tests
