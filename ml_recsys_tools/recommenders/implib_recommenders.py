@@ -32,11 +32,12 @@ class ALSRecommender(BaseFactorizationRecommender):
         self._set_data(train_obs)
         self.set_params(**fit_params)
         self.model = AlternatingLeastSquares(**self.model_params)
-        self._set_implib_train_mat()
+        self.model.cg_steps = self.fit_params['cg_steps']  # not passable to __init__()
+        self._set_implib_train_mat(self.train_mat)
 
-    def _set_implib_train_mat(self):
+    def _set_implib_train_mat(self, train_mat):
         # implib ALS expects matrix in items x users format
-        self.implib_train_mat = self.train_mat.T
+        self.implib_train_mat = train_mat.T
         if self.fit_params['use_bm25']:
             self.implib_train_mat = bm25_weight(
                 self.implib_train_mat,
@@ -44,7 +45,6 @@ class ALSRecommender(BaseFactorizationRecommender):
                 B=self.fit_params['bm25_b'])
         self.model.regularization = \
             self.fit_params['regularization'] * self.implib_train_mat.nnz
-        self.model.cg_steps = self.fit_params['cg_steps']
 
     def set_params(self, **params):
         params = self._pop_set_dict(
@@ -62,6 +62,23 @@ class ALSRecommender(BaseFactorizationRecommender):
         else:
             self.model.fit(self.implib_train_mat)
         return self
+
+    def fit_batches(self, train_obs, train_dfs, epochs_per_batch=None, **fit_params):
+        self._prep_for_fit(train_obs)
+        for i, df in enumerate(train_dfs):
+            batch_train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(df)
+
+            if epochs_per_batch is not None:
+                fit_params['iterations'] = epochs_per_batch
+            else:
+                fit_params['iterations'] = 1
+                self.model.cg_steps = 1
+            self._set_fit_params(fit_params)
+
+            self._set_implib_train_mat(batch_train_mat)
+
+            simple_logger.info('Fitting batch %d (%d interactions)' % (i, len(df)))
+            self.model.fit(self.implib_train_mat)
 
     def _set_epochs(self, epochs):
         self.set_params(iterations=epochs)
