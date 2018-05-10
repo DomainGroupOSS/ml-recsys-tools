@@ -23,13 +23,13 @@
     * ##### Similarity based:
         * cooccurence (items, users)
         * generic similarity based (can be used for with external features)        
-    * ##### Ensembles:
-        * subdivision based (multiple recommenders each on subset of data - e.g. geographical region):
-            * geo based: simple grid, equidense grid, geo clustering
-            * LightFM and cooccurrence based
-        * combination based - combining recommendations from multiple recommenders
-        * similarity combination based - similarity based recommender on similarities from multiple recommenders
-        * cascade ensemble
+* #### Ensembles:
+    * subdivision based (multiple recommenders each on subset of data - e.g. geographical region):
+        * geo based: simple grid, equidense grid, geo clustering
+        * LightFM and cooccurrence based
+    * combination based - combining recommendations from multiple recommenders
+    * similarity combination based - similarity based recommender on similarities from multiple recommenders
+    * cascade ensemble
         
 * #### Interaction dataframe and sparse matrix handlers / builders:
     * sampling, data splitting,
