@@ -18,19 +18,21 @@
             * user recommendation sampling
             * similar items samplilng with different similarity measures
             * similar users sampling
-            * evaluation by sampling and ranking            
+            * evaluation by sampling and ranking      
+                  
 * #### Additional recommender models:
     * ##### Similarity based:
         * cooccurence (items, users)
-        * generic similarity based (can be used for with external features)        
+        * generic similarity based (can be used for with external features)  
+              
 * #### Ensembles:
     * subdivision based (multiple recommenders each on subset of data - e.g. geographical region):
         * geo based: simple grid, equidense grid, geo clustering
         * LightFM and cooccurrence based
     * combination based - combining recommendations from multiple recommenders
     * similarity combination based - similarity based recommender on similarities from multiple recommenders
-    * cascade ensemble
-        
+    * cascade ensemble 
+           
 * #### Interaction dataframe and sparse matrix handlers / builders:
     * sampling, data splitting,
     * external features matrix creation (additional item features),
@@ -38,7 +40,7 @@
     * evaluation and ranking helpers
     * handlers for observations coupled with external features and features with geo coordinates
     * mappers for geo features, observations, recommendations, similarities etc.
-    
+        
 * #### Evaluation utils:
     * score reports on lightfm metrics (AUC, precision, recall, reciprocal)
     * n-DCG, and n-MRR metrics, n-precision / recall
