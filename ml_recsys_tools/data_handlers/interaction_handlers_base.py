@@ -30,6 +30,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
         self.uid_col = uid_col
         self.iid_col = iid_col
         self.rating_col = rating_col
+        self.timestamp_col = None
 
         if self.df_obs is not None:
             self.df_obs[self.uid_col] = self.df_obs[self.uid_col].astype(str)
@@ -48,6 +49,22 @@ class ObservationsDF(LogCallsTimeAndOutput):
         self.df_obs = pd.concat([self.df_obs, other.df_obs])
         self._check_duplicated_interactions()
         return self
+
+    @property
+    def user_ids(self):
+        return self.df_obs[self.uid_col].values
+
+    @property
+    def item_ids(self):
+        return self.df_obs[self.iid_col].values
+
+    @property
+    def ratings(self):
+        return self.df_obs[self.rating_col].values
+
+    @property
+    def timestamps(self):
+        return self.df_obs[self.timestamp_col].values
 
     def _check_duplicated_interactions(self):
         dups = self.df_obs.duplicated([self.uid_col, self.iid_col])
