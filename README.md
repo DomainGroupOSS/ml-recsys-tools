@@ -9,17 +9,20 @@ Recommender model and LightFM tools:
 
     - LightFM package based recommenders (https://github.com/lyst/lightfm).
 
+    - Spotlight package based implicit recommender (https://github.com/maciejkula/spotlight).
+
     - Implicit package based ALS recommender (https://github.com/benfred/implicit).
 
     - Serving / Tuning / Evaluation features added for various recommenders:
             - dataframes for all inputs and outputs
             - adding external features (for LightFM hybrid mode)
-            - early stopping fit (for LightFM)
+            - early stopping fit (for iterative models: LightFM, ALS, Spotlight)
             - hyperparam search
-            - fast batched user recommendation sampling
-            - fast batched similar items samplilng with different similarity measures
-            - fast batched similar users sampling
-            - fast evaluation by sampling and ranking
+            - fast batched methods for (except Spotlight for now):
+                - user recommendation sampling
+                - similar items samplilng with different similarity measures
+                - similar users sampling
+                - evaluation by sampling and ranking
 
     - Additional recommender models:
         - similarity based:

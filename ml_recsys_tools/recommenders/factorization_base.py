@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from copy import deepcopy
+from functools import partial
 
 import pandas as pd
 import numpy as np
@@ -8,10 +9,11 @@ from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
 from ml_recsys_tools.utils.automl import early_stopping_runner
 from ml_recsys_tools.utils.logger import simple_logger
-from ml_recsys_tools.utils.similarity import most_similar
+from ml_recsys_tools.utils.parallelism import map_batches_multiproc
+from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted
 
 
-class FactorizationRecommender(BaseDFSparseRecommender):
+class BaseFactorizationRecommender(BaseDFSparseRecommender):
 
     @abstractmethod
     def _get_item_factors(self, mode=None):
@@ -31,6 +33,14 @@ class FactorizationRecommender(BaseDFSparseRecommender):
 
     @abstractmethod
     def _set_epochs(self, epochs):
+        pass
+
+    @abstractmethod
+    def _predict(self, user_ids, item_ids):
+        pass
+
+    @abstractmethod
+    def _predict_rank(self, test_mat, train_mat=None):
         pass
 
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
@@ -209,3 +219,90 @@ class FactorizationRecommender(BaseDFSparseRecommender):
         return self._format_results_df(
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
+
+    def predict_on_df(self, df):
+        mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
+        df = mat_builder.remove_unseen_labels(df)
+        df = mat_builder.add_encoded_cols(df)
+        df[self._prediction_col] = self._predict(
+            df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
+        df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
+        return df
+
+    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',),
+                                      prefix='lfm ', include_train=True, k=10):
+
+        @self.logging_decorator
+        def _get_training_ranks():
+            ranks_mat = self._predict_rank(self.train_mat)
+            return ranks_mat, self.train_mat
+
+        @self.logging_decorator
+        def _get_test_ranks(test_df):
+            test_sparse = self.sparse_mat_builder.build_sparse_interaction_matrix(test_df)
+            ranks_mat = self.model.predict_rank(test_sparse, self.train_mat)
+            return ranks_mat, test_sparse
+
+        return self._eval_on_test_by_ranking_LFM(
+            train_ranks_func=_get_training_ranks,
+            test_tanks_func=_get_test_ranks,
+            test_dfs=test_dfs,
+            test_names=test_names,
+            prefix=prefix,
+            include_train=include_train,
+            k=k)
+
+    def get_recommendations_exact(
+            self, user_ids, item_ids=None, n_rec=10, exclude_training=True, chunksize=200, results_format='lists'):
+
+        calc_func = partial(
+            self._get_recommendations_exact,
+            n_rec=n_rec,
+            item_ids=item_ids,
+            exclude_training=exclude_training,
+            results_format=results_format)
+
+        chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
+
+        ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
+        return pd.concat(ret, axis=0)
+
+    def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
+
+        if item_ids is None:
+            item_ids = self.sparse_mat_builder.iid_encoder.classes_
+
+        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
+        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+
+        n_users = len(user_inds)
+        n_items = len(item_inds)
+        user_inds_mat = user_inds.repeat(n_items)
+        item_inds_mat = np.tile(item_inds, n_users)
+
+        full_pred_mat = self._predict(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
+
+        if exclude_training:
+            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
+            full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
+
+            # train_mat.sort_indices()
+            # for pred_ind, user_ind in enumerate(user_inds):
+            #     train_inds = train_mat.indices[
+            #                  train_mat.indptr[user_ind]: train_mat.indptr[user_ind + 1]]
+            #     full_pred_mat[pred_ind, train_inds] = -np.inf
+
+        return full_pred_mat
+
+    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
+                                   results_format='lists'):
+
+        full_pred_mat = self._predict_for_users_dense(user_ids, item_ids, exclude_training=exclude_training)
+
+        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
+
+        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
+
+        return self._format_results_df(
+            source_vec=user_ids, target_ids_mat=best_ids,
+            scores_mat=top_scores, results_format='recommendations_' + results_format)
