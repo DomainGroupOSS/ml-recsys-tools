@@ -43,13 +43,12 @@ class SpotlightImplicitRecommender(BaseFactorizationRecommender):
         self.model.fit(self.spotlight_dataset, **self.fit_params)
 
     def fit_partial(self, train_obs, epochs=1):
-        raise NotImplementedError()
-        # self._set_epochs(epochs)
-        # if self.model is None:
-        #     self.fit(train_obs)
-        # else:
-        #     self.model.fit(self.spotlight_dataset)
-        # return self
+        self._set_epochs(epochs)
+        if self.model is None:
+            self.fit(train_obs)
+        else:
+            self.model.fit(self.spotlight_dataset)
+        return self
 
     def _set_epochs(self, epochs):
         self.set_params(n_iter=epochs)
@@ -57,18 +56,20 @@ class SpotlightImplicitRecommender(BaseFactorizationRecommender):
     def _predict(self, user_ids, item_ids):
         return self.model.predict(user_ids, item_ids)
 
-    def _get_recommendations_flat(
-            self, user_ids, n_rec, item_ids=None, exclude_training=True,
-            pbar=None, item_features_mode=None, use_biases=True):
-        return self.get_recommendations_exact(
-            user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-            exclude_training=exclude_training, results_format='flat')
+    # def _get_recommendations_flat(
+    #         self, user_ids, n_rec, item_ids=None, exclude_training=True,
+    #         pbar=None, item_features_mode=None, use_biases=True):
+    #     return self.get_recommendations_exact(
+    #         user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
+    #         exclude_training=exclude_training, results_format='flat')
 
     def _get_item_factors(self, mode=None):
-        raise NotImplementedError()
+        return self.model._net.item_biases.weight.data.numpy().ravel(), \
+               self.model._net.item_embeddings.weight.data.numpy()
 
     def _get_user_factors(self, mode=None):
-        raise NotImplementedError()
+        return self.model._net.user_biases.weight.data.numpy().ravel(), \
+               self.model._net.user_embeddings.weight.data.numpy()
 
     def _predict_rank(self, test_mat, train_mat=None):
         raise NotImplementedError()

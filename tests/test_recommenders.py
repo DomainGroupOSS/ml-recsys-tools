@@ -119,7 +119,7 @@ class TestRecommendersBasic(TestCaseWithState):
     def test_b_4_lfm_hp_search(self):
         lfm_rec = deepcopy(self.state.lfm_rec)
         space = lfm_rec.guess_search_space()
-        n_iters = 2
+        n_iters = 4
         hp_space = dict(
             no_components=space.Integer(10, 40),
             epochs=space.Integer(5, 20),
@@ -167,6 +167,15 @@ class TestRecommendersBasic(TestCaseWithState):
         als_rep = als_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='als ')
         print(als_rep)
         self._check_recommendations_and_similarities(als_rec)
+
+    def test_c_spotlight_implicit_recommender(self):
+        from ml_recsys_tools.recommenders.spotlight_recommenders import SpotlightImplicitRecommender
+
+        rec = SpotlightImplicitRecommender()
+        rec.fit(self.state.train_obs)
+        report = rec.eval_on_test_by_ranking(self.state.test_obs, prefix='spot ')
+        print(report)
+        self._check_recommendations_and_similarities(rec)
 
     def test_d_comb_rank_ens(self):
         from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
