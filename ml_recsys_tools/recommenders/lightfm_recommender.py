@@ -1,18 +1,9 @@
-from copy import deepcopy
-
-import numpy as np
-import pandas as pd
-from functools import partial
-
 from lightfm import LightFM
 import lightfm.lightfm
 
-from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
-from ml_recsys_tools.recommenders.factorization_base import FactorizationRecommender
-from ml_recsys_tools.utils.automl import early_stopping_runner
+from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
 from ml_recsys_tools.utils.instrumentation import simple_logger
-from ml_recsys_tools.utils.parallelism import map_batches_multiproc, N_CPUS
-from ml_recsys_tools.utils.similarity import top_N_sorted
+from ml_recsys_tools.utils.parallelism import N_CPUS
 
 
 # monkey patch print function
@@ -27,7 +18,7 @@ def _epoch_logger(s, print_each_n=20):
 lightfm.lightfm.print = _epoch_logger
 
 
-class LightFMRecommender(FactorizationRecommender):
+class LightFMRecommender(BaseFactorizationRecommender):
 
     default_model_params = {
         'loss': 'warp',
@@ -156,99 +147,16 @@ class LightFMRecommender(FactorizationRecommender):
     def _get_user_factors(self, mode=None):
         return self.model.get_user_representations()
 
-    def predict_on_df(self, df):
-        mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
-        df = mat_builder.remove_unseen_labels(df)
-        df = mat_builder.add_encoded_cols(df)
-        df[self._prediction_col] = self.model.predict(
-            df[mat_builder.uid_col].values,
-            df[mat_builder.iid_col].values,
+    def _predict(self, user_ids, item_ids):
+        return self.model.predict(user_ids, item_ids,
+                                  item_features=self.fit_params['item_features'],
+                                  num_threads=self.fit_params['num_threads'])
+
+
+    def _predict_rank(self, test_mat, train_mat=None):
+        return self.model.predict_rank(
+            test_interactions=test_mat,
+            train_interactions=train_mat,
             item_features=self.fit_params['item_features'],
             num_threads=self.fit_params['num_threads'])
-        df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
-        return df
 
-    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',),
-                                      prefix='lfm ', include_train=True, k=10):
-
-        @self.logging_decorator
-        def _get_training_ranks():
-            ranks_mat = self.model.predict_rank(
-                self.train_mat,
-                item_features=self.fit_params['item_features'],
-                num_threads=self.fit_params['num_threads'])
-            return ranks_mat, self.train_mat
-
-        @self.logging_decorator
-        def _get_test_ranks(test_df):
-            test_sparse = self.sparse_mat_builder.build_sparse_interaction_matrix(test_df)
-            ranks_mat = self.model.predict_rank(
-                test_sparse, train_interactions=self.train_mat,
-                item_features=self.fit_params['item_features'],
-                num_threads=self.fit_params['num_threads'])
-            return ranks_mat, test_sparse
-
-        return self._eval_on_test_by_ranking_LFM(
-            train_ranks_func=_get_training_ranks,
-            test_tanks_func=_get_test_ranks,
-            test_dfs=test_dfs,
-            test_names=test_names,
-            prefix=prefix,
-            include_train=include_train)
-
-    def get_recommendations_exact(
-            self, user_ids, n_rec=10, exclude_training=True, chunksize=200, results_format='lists'):
-
-        calc_func = partial(
-            self._get_recommendations_exact,
-            n_rec=n_rec,
-            exclude_training=exclude_training,
-            results_format=results_format)
-
-        chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
-
-        ret = map_batches_multiproc(
-            calc_func, user_ids, chunksize=chunksize, pbar='get_recommendations_exact_and_slow')
-        return pd.concat(ret, axis=0)
-
-    def _predict_for_users_dense(self, user_ids, exclude_training):
-
-        mat_builder = self.sparse_mat_builder
-        n_items = mat_builder.n_cols
-
-        user_inds = mat_builder.uid_encoder.transform(user_ids)
-
-        n_users = len(user_inds)
-        user_inds_mat = user_inds.repeat(n_items)
-        item_inds_mat = np.tile(np.arange(n_items), n_users)
-
-        full_pred_mat = self.model.predict(
-            user_inds_mat,
-            item_inds_mat,
-            item_features=self.fit_params['item_features'],
-            num_threads=self.fit_params['num_threads']). \
-            reshape((n_users, n_items))
-
-        train_mat = self.train_mat.tocsr()
-
-        if exclude_training:
-            train_mat.sort_indices()
-            for pred_ind, user_ind in enumerate(user_inds):
-                train_inds = train_mat.indices[
-                             train_mat.indptr[user_ind]: train_mat.indptr[user_ind + 1]]
-                full_pred_mat[pred_ind, train_inds] = -np.inf
-
-        return full_pred_mat
-
-    def _get_recommendations_exact(self, user_ids, n_rec=10, exclude_training=True,
-                                   results_format='lists'):
-
-        full_pred_mat = self._predict_for_users_dense(user_ids, exclude_training=exclude_training)
-
-        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
-
-        item_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
-
-        return self._format_results_df(
-            source_vec=user_ids, target_ids_mat=item_ids,
-            scores_mat=top_scores, results_format='recommendations_' + results_format)

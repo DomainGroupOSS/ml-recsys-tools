@@ -2,11 +2,11 @@ from implicit.als import AlternatingLeastSquares
 # from implicit.bpr import BayesianPersonalizedRanking
 from implicit.nearest_neighbours import bm25_weight
 
-from ml_recsys_tools.recommenders.factorization_base import FactorizationRecommender
+from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
 from ml_recsys_tools.utils.instrumentation import simple_logger
 
 
-class ALSRecommender(FactorizationRecommender):
+class ALSRecommender(BaseFactorizationRecommender):
 
     default_model_params = dict(
         factors=1000,
@@ -84,5 +84,11 @@ class ALSRecommender(FactorizationRecommender):
         self.set_params(iterations=epochs)
         if self.model is not None:
             self.model.iterations = epochs
+
+    def _predict(self, user_ids, item_ids):
+        raise NotImplementedError()
+
+    def _predict_rank(self, test_mat, train_mat=None):
+        raise NotImplementedError()
 
 
