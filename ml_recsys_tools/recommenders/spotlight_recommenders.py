@@ -1,7 +1,14 @@
+import pandas as pd
+import numpy as np
+from spotlight.evaluation import FLOAT_MAX
+
 from spotlight.interactions import Interactions
 from spotlight.factorization.implicit import ImplicitFactorizationModel
+from spotlight.sequence.implicit import ImplicitSequenceModel
 
 from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
+from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
+from ml_recsys_tools.utils.similarity import top_N_sorted
 
 
 def spotlight_interactions_from_sparse(sp_mat):
@@ -61,3 +68,68 @@ class SpotlightImplicitRecommender(BaseFactorizationRecommender):
 
     def _predict_rank(self, test_mat, train_mat=None):
         raise NotImplementedError()
+
+
+class SequenceRecommender(BaseDFSparseRecommender):
+
+    default_model_params = dict(
+        n_iter=3,
+        representation='cnn',
+        loss='bpr')
+
+    def _interactions_sequence_from_obs(self,
+            obs, timestamp_col='first_timestamp',
+            max_sequence_length=10, min_sequence_length=None, step_size=None):
+        obs.timestamp_col = timestamp_col
+        return Interactions(
+            user_ids=self.sparse_mat_builder.uid_encoder.
+                transform(obs.user_ids.astype(str)).astype('int32'),
+            item_ids=self.sparse_mat_builder.iid_encoder.
+                transform(obs.item_ids.astype(str)).astype('int32') + 1,
+            ratings=obs.ratings,
+            timestamps=obs.timestamps
+        ). \
+            to_sequence(
+            max_sequence_length=max_sequence_length,
+            min_sequence_length=min_sequence_length,
+            step_size=step_size
+        )
+
+    def fit(self, train_obs, **kwargs):
+        self._set_data(train_obs)
+        self.sequence_interactions = self._interactions_sequence_from_obs(train_obs)
+        self.model = ImplicitSequenceModel(**self.model_params)
+        self.model.fit(self.sequence_interactions)
+
+    def _predict(self, item_ids=None, exclude_training=True):
+
+        if item_ids is None:
+            item_ids = self.sparse_mat_builder.iid_encoder.classes_
+
+        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids) + 1
+
+        sequences = self.sequence_interactions.sequences
+
+        for i in range(len(sequences)):
+
+            predictions = self.model.predict(sequences[i], item_ids=item_inds)
+
+            if exclude_training:
+                predictions[sequences[i]] = FLOAT_MAX
+
+        return NotImplementedError()
+
+
+
+    def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
+                                  exclude_training=True, pbar=None, **kwargs):
+
+        full_pred_mat = self._predict(item_ids=item_ids, exclude_training=exclude_training)
+
+        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
+
+        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds - 1)
+
+        return self._format_results_df(
+            source_vec=user_ids, target_ids_mat=best_ids,
+            scores_mat=top_scores, results_format='recommendations_flat')
