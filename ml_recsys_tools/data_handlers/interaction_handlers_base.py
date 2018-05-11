@@ -272,6 +272,13 @@ def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid'
 
 class InteractionMatrixBuilder(LogCallsTimeAndOutput):
 
+    # this filter is due to this issue, can be removed with next version of sklearn (should be fixed)
+    # https://stackoverflow.com/questions/49545947/sklearn-deprecationwarning-truth-value-of-an-array
+    warnings.filterwarnings(message="The truth value of an empty array is ambiguous. "
+                                    "Returning False, but in future this will result in an error. "
+                                    "Use `array.size > 0` to check that an array is not empty.",
+                            action='ignore', category=DeprecationWarning)
+
     def __init__(self, source_df, users_col='userid', items_col='adid', rating_col='rating', verbose=True):
         super().__init__(verbose=verbose)
 
@@ -295,13 +302,6 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
 
         self.uid_encoder = LabelEncoder().fit(all_uids)
         self.iid_encoder = LabelEncoder().fit(all_iids)
-
-        # this filter is due to this issue, can be removed with next version of sklearn (should be fixed)
-        # https://stackoverflow.com/questions/49545947/sklearn-deprecationwarning-truth-value-of-an-array
-        warnings.filterwarnings(message="The truth value of an empty array is ambiguous. "
-                                        "Returning False, but in future this will result in an error. "
-                                        "Use `array.size > 0` to check that an array is not empty.",
-                                action='ignore', category=DeprecationWarning)
 
     def _add_encoded_cols(self, df):
         df = df.assign(
