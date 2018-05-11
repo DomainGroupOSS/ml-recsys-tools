@@ -33,11 +33,6 @@ class SpotlightImplicitRecommender(BaseFactorizationRecommender):
     def _set_spotlight_train_data(self, train_mat):
         self.spotlight_dataset = spotlight_interactions_from_sparse(train_mat)
 
-    # def set_params(self, **params):
-    #     params = self._pop_set_dict(
-    #         self.fit_params, params, self.default_fit_params.keys())
-    #     super().set_params(**params)
-
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.model.fit(self.spotlight_dataset, **self.fit_params)
@@ -55,13 +50,6 @@ class SpotlightImplicitRecommender(BaseFactorizationRecommender):
 
     def _predict(self, user_ids, item_ids):
         return self.model.predict(user_ids, item_ids)
-
-    # def _get_recommendations_flat(
-    #         self, user_ids, n_rec, item_ids=None, exclude_training=True,
-    #         pbar=None, item_features_mode=None, use_biases=True):
-    #     return self.get_recommendations_exact(
-    #         user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-    #         exclude_training=exclude_training, results_format='flat')
 
     def _get_item_factors(self, mode=None):
         return self.model._net.item_biases.weight.data.numpy().ravel(), \
