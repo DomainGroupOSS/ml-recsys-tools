@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from spotlight.evaluation import FLOAT_MAX
 
 from spotlight.interactions import Interactions
 from spotlight.factorization.implicit import ImplicitFactorizationModel
@@ -16,7 +15,7 @@ def spotlight_interactions_from_sparse(sp_mat):
     return Interactions(user_ids=sp_mat.row, item_ids=sp_mat.col, ratings=sp_mat.data)
 
 
-class SpotlightImplicitRecommender(BaseFactorizationRecommender):
+class EmbeddingFactorsRecommender(BaseFactorizationRecommender):
 
     default_model_params = dict(
         loss='pointwise',  # 'bpr', 'hinge', 'adaptive hinge'
@@ -70,17 +69,35 @@ class SpotlightImplicitRecommender(BaseFactorizationRecommender):
         raise NotImplementedError()
 
 
-class SequenceRecommender(BaseDFSparseRecommender):
+class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
 
     default_model_params = dict(
-        n_iter=3,
-        representation='cnn',
-        loss='bpr')
+        loss='adaptive_hinge',  # 'pointwise', 'bpr', 'hinge', 'adaptive_hinge'
+        representation='lstm',  # 'pooling', 'cnn', 'lstm', 'mixture'
+        embedding_dim=128,
+        n_iter=10,
+        batch_size=64,
+        l2=0.0,
+        learning_rate=1e-2,
+        num_negative_samples=5
+    )
 
-    def _interactions_sequence_from_obs(self,
-            obs, timestamp_col='first_timestamp',
-            max_sequence_length=10, min_sequence_length=None, step_size=None):
+    default_fit_params = dict(
+        max_sequence_length=10,
+        timestamp_col='first_timestamp'
+    )
+
+    def _interactions_sequence_from_obs(
+            self,
+            obs,
+            timestamp_col='first_timestamp',
+            max_sequence_length=10,
+            min_sequence_length=None,
+            step_size=None,
+            **kwargs):
+
         obs.timestamp_col = timestamp_col
+
         return Interactions(
             user_ids=self.sparse_mat_builder.uid_encoder.
                 transform(obs.user_ids.astype(str)).astype('int32'),
@@ -95,41 +112,55 @@ class SequenceRecommender(BaseDFSparseRecommender):
             step_size=step_size
         )
 
-    def fit(self, train_obs, **kwargs):
+    def fit(self, train_obs, **fit_params):
         self._set_data(train_obs)
-        self.sequence_interactions = self._interactions_sequence_from_obs(train_obs)
+        self._set_fit_params(fit_params)
+        self.sequence_interactions = self._interactions_sequence_from_obs(train_obs, **self.fit_params)
         self.model = ImplicitSequenceModel(**self.model_params)
         self.model.fit(self.sequence_interactions)
-
-    def _predict(self, item_ids=None, exclude_training=True):
-
-        if item_ids is None:
-            item_ids = self.sparse_mat_builder.iid_encoder.classes_
-
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids) + 1
-
-        sequences = self.sequence_interactions.sequences
-
-        for i in range(len(sequences)):
-
-            predictions = self.model.predict(sequences[i], item_ids=item_inds)
-
-            if exclude_training:
-                predictions[sequences[i]] = FLOAT_MAX
-
-        return NotImplementedError()
-
-
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclude_training=True, pbar=None, **kwargs):
 
-        full_pred_mat = self._predict(item_ids=item_ids, exclude_training=exclude_training)
+        return self._get_recommendations_exact(
+            user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
+            exclude_training=exclude_training, results_format='flat')
+
+    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
+                                   results_format='lists'):
+
+        full_pred_mat = self._predict_dense(user_ids, item_ids, exclude_training=exclude_training)
 
         top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
 
-        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds - 1)
+        best_ids = item_ids[top_inds] if item_ids is not None else \
+            self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
 
         return self._format_results_df(
             source_vec=user_ids, target_ids_mat=best_ids,
-            scores_mat=top_scores, results_format='recommendations_flat')
+            scores_mat=top_scores, results_format='recommendations_' + results_format)
+
+    def _predict_dense(self, user_ids, item_ids=None, exclude_training=True):
+
+        if item_ids is None:
+            item_ids = self.sparse_mat_builder.iid_encoder.classes_
+
+        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
+
+        sequences = self.sequence_interactions.sequences
+
+        pred_mat = np.zeros((len(user_inds), len(item_inds)))
+
+        #TODO: try all at once, try multiploc (batched from caller)
+
+        item_inds_spot = item_inds.reshape(-1, 1) + 1
+
+        for i_row, user_ind in enumerate(user_inds):
+            pred_mat[i_row, :] = self.model.predict(sequences[user_ind], item_ids=item_inds_spot)
+
+        if exclude_training:
+            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
+            pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
+
+        return pred_mat

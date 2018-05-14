@@ -42,7 +42,9 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
 
     @classmethod
     def guess_search_space(cls):
-        return SearchSpaceGuess(cls)
+        return SearchSpaceGuess(cls).\
+            set_from_dict(cls.default_model_params).\
+            set_from_dict(cls.default_fit_params)
 
     @staticmethod
     def _dict_update(d, u):

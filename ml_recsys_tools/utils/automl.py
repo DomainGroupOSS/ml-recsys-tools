@@ -38,13 +38,16 @@ class SearchSpaceGuess:
 
     def set_from_dict(self, dictionary):
         for key, value in dictionary.items():
-            if isinstance(value, int):
+            if isinstance(value, bool):
+                variable = self.Categorical([value])
+            elif isinstance(value, int):
                 variable = self.Integer(value, value + 1)
             elif isinstance(value, float):
                 variable = self.Real(value, value + 1)
             else:
                 variable = self.Categorical([value])
             setattr(self, key, variable)
+        return self
 
     def __repr__(self):
         return pprint.pformat(self.__dict__)
@@ -68,7 +71,7 @@ class SearchSpaceGuess:
                              for d in all_init_params.values()
                              for el in list(d.items())])
 
-        self.set_from_dict(search_space)
+        return self.set_from_dict(search_space)
 
 
 class BayesSearchHoldOut:
