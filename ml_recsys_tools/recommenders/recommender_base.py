@@ -189,11 +189,14 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             pickle.dump(self, f)
 
     def hyper_param_search(self, train_obs, hp_space, n_iters=100,
-                           valid_ratio=0.04, random_search=0.9, **kwargs):
+                           valid_ratio=0.04, random_search=0.9,
+                           valid_split_time_col=None, **kwargs):
 
-        sqrt_ratio = valid_ratio ** 0.5
         train_obs_bo, valid_obs_bo = train_obs.split_train_test(
-            users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
+            ratio=valid_ratio ** 0.5 if valid_split_time_col is None else valid_ratio,
+            users_ratio=valid_ratio ** 0.5 if valid_split_time_col is None else 1,
+            time_split_column=valid_split_time_col,
+            random_state=RANDOM_STATE)
 
         return self.hyper_param_search_on_split_data(
             train_data=train_obs_bo, validation_data=valid_obs_bo.df_obs,

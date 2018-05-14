@@ -1,7 +1,11 @@
 import pandas as pd
 import numpy as np
 from copy import deepcopy
+
+from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
+
 from examples.prep_movielense_data import get_and_prep_data
+
 from ml_recsys_tools.utils.testing import TestCaseWithState
 from test_movielens_data import movielens_dir
 
@@ -16,35 +20,16 @@ class TestRecommendersBasic(TestCaseWithState):
         cls.n = 10
         cls.metric = 'n-MRR@%d' % cls.k
 
-    def _obs_split_data_check(self, obs_full, obs1, obs2):
-        # all the data is still there
-        self.assertEqual(len(obs1.df_obs) + len(obs2.df_obs), len(obs_full.df_obs))
-        # no intersections
-        intersections = pd.merge(obs1.df_obs, obs2.df_obs, on=['userid', 'itemid'], how='inner')
-        self.assertEqual(len(intersections), 0)
-
-    def test_a_obs_handler(self):
-        from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
-
+    def _setup_obs_handler(self):
         ratings_df = pd.read_csv(rating_csv_path)
         obs = ObservationsDF(ratings_df, uid_col='userid', iid_col='itemid')
         obs = obs.sample_observations(n_users=1000, n_items=1000)
-
-        # regular split
-        train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
-        self._obs_split_data_check(obs, train_obs, test_obs)
-        self.state.train_obs, self.state.test_obs = train_obs, test_obs
-
-        # split for only some users
-        user_ratio = 0.2
-        train_obs, test_obs = obs.split_train_test(ratio=0.2, users_ratio=user_ratio)
-        self._obs_split_data_check(obs, train_obs, test_obs)
-        post_split_ratio = test_obs.df_obs['userid'].nunique() / train_obs.df_obs['userid'].nunique()
-        self.assertAlmostEqual(user_ratio, post_split_ratio, places=1)
+        self.state.train_obs, self.state.test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
 
     def test_b_1_lfm_recommender(self):
-        from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+        self._setup_obs_handler()
 
+        from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
         lfm_rec = LightFMRecommender()
         lfm_rec.fit(self.state.train_obs, epochs=10)
         self.assertEqual(lfm_rec.fit_params['epochs'], 10)

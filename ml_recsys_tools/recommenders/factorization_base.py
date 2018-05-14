@@ -45,12 +45,14 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
 
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
                             epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
-                            plot_convergence=True, decline_threshold=0.05, k=10):
+                            plot_convergence=True, decline_threshold=0.05, k=10, valid_split_time_col=None):
 
         # split validation data
-        sqrt_ratio = valid_ratio ** 0.5
         train_obs_internal, valid_obs = train_obs.split_train_test(
-            users_ratio=sqrt_ratio, ratio=sqrt_ratio, random_state=RANDOM_STATE)
+            ratio=valid_ratio ** 0.5 if valid_split_time_col is None else valid_ratio,
+            users_ratio=valid_ratio ** 0.5 if valid_split_time_col is None else 1,
+            time_split_column=valid_split_time_col,
+            random_state=RANDOM_STATE)
 
         self.model = None
         self.model_checkpoint = None
