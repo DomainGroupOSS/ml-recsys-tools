@@ -23,14 +23,14 @@ RANDOM_STATE = 42
 
 class ObservationsDF(LogCallsTimeAndOutput):
 
-    def __init__(self, df_obs=None, uid_col='userid', iid_col='itemid',
+    def __init__(self, df_obs=None, uid_col='userid', iid_col='itemid', timestamp_col=None,
                  rating_col='rating', verbose=True, **kwargs):
         super().__init__(verbose, **kwargs)
         self.df_obs = df_obs
         self.uid_col = uid_col
         self.iid_col = iid_col
         self.rating_col = rating_col
-        self.timestamp_col = None
+        self.timestamp_col = timestamp_col
 
         if self.df_obs is not None:
             self.df_obs[self.uid_col] = self.df_obs[self.uid_col].astype(str)
@@ -204,6 +204,23 @@ class ObservationsDF(LogCallsTimeAndOutput):
 
     def split_train_test_to_dfs(self, ratio=0.2, users_ratio=1.0,
                                 time_split_column=None, random_state=None):
+        """
+        splits the underlying dataframe  into train and test using the arguments to choose the method.
+        If time_split_column is provided: the split is done using that column and provided ratio.
+        Otherwise a random split either within a subset of users or not is done.
+
+        Raises an error if both users_ratio and time_split_column are not their defaults,
+        because only one method can be used.
+
+        :param ratio: the fraction of data that should be in the resulting test segment.
+        :param users_ratio: the fraction of users for which a split should be done. Using this arguments
+            speeds up subsequent evaluation, because prediction will only be calculated for a subset
+            of users. The ratio is only applied to those users.
+        :param time_split_column: an optional argument that changes the split into a time split.
+        :param random_state: a random state that is only used if the split if a shuffle split (not time).
+
+        :return: two ObservationsDF objects, one with training data and the other with test data.
+        """
 
         if users_ratio < 1.0 and time_split_column is not None:
             raise ValueError('Can either split by time, or for subset of users, not both.')
@@ -238,9 +255,25 @@ class ObservationsDF(LogCallsTimeAndOutput):
         return train_other, test_other
 
     def split_train_test(self, ratio=0.2, users_ratio=1.0, time_split_column=None, random_state=None):
+        """
+        splits the object into train and test objects using the arguments to choose the method.
+        If time_split_column is provided: the split is done using that column and provided ratio.
+        Otherwise it's a random split either within a subset of users or not is done.
+
+        :param ratio: the fraction of data that should be in the resulting test segment
+        :param users_ratio: the fraction of users for which a split should be done. Using this arguments
+            speeds up subsequent evaluation, because prediction will only be calculated for a subset
+            of users. The ratio is only applied to those users.
+        :param time_split_column: an optional argument that changes the split into a time split.
+        :param random_state: a random state that is only used if the split if a shuffle split (not time).
+
+        :return: two ObservationsDF objects, one with training data and the other with test data.
+        """
         df_train, df_test = self.split_train_test_to_dfs(
-            ratio=ratio, users_ratio=users_ratio,
-            random_state=random_state, time_split_column=time_split_column)
+            ratio=ratio,
+            users_ratio=users_ratio,
+            random_state=random_state,
+            time_split_column=time_split_column)
 
         train_other = copy.deepcopy(self)
         train_other.df_obs = df_train
