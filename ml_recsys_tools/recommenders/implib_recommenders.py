@@ -19,7 +19,7 @@ class ALSRecommender(BaseFactorizationRecommender):
         bm25_k1=100,
         bm25_b=0.15,
         cg_steps=4,
-        regularization=4e-07,
+        regularization=0,
     )
 
     def _get_item_factors(self, mode=None):
