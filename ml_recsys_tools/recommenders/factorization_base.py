@@ -269,6 +269,19 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
         ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
         return pd.concat(ret, axis=0)
 
+    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
+                                   results_format='lists'):
+
+        full_pred_mat = self._predict_for_users_dense(user_ids, item_ids, exclude_training=exclude_training)
+
+        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
+
+        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
+
+        return self._format_results_df(
+            source_vec=user_ids, target_ids_mat=best_ids,
+            scores_mat=top_scores, results_format='recommendations_' + results_format)
+
     def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
 
         if item_ids is None:
@@ -288,23 +301,4 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
             exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
             full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
-            # train_mat.sort_indices()
-            # for pred_ind, user_ind in enumerate(user_inds):
-            #     train_inds = train_mat.indices[
-            #                  train_mat.indptr[user_ind]: train_mat.indptr[user_ind + 1]]
-            #     full_pred_mat[pred_ind, train_inds] = -np.inf
-
         return full_pred_mat
-
-    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
-                                   results_format='lists'):
-
-        full_pred_mat = self._predict_for_users_dense(user_ids, item_ids, exclude_training=exclude_training)
-
-        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
-
-        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
-
-        return self._format_results_df(
-            source_vec=user_ids, target_ids_mat=best_ids,
-            scores_mat=top_scores, results_format='recommendations_' + results_format)

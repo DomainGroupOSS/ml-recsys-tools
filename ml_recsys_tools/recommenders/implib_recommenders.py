@@ -46,11 +46,6 @@ class ALSRecommender(BaseFactorizationRecommender):
         self.model.regularization = \
             self.fit_params['regularization'] * self.implib_train_mat.nnz
 
-    def set_params(self, **params):
-        params = self._pop_set_dict(
-            self.fit_params, params, self.default_fit_params.keys())
-        super().set_params(**params)
-
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.model.fit(self.implib_train_mat)

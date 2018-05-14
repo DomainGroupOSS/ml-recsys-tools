@@ -103,11 +103,6 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self.set_params(epochs=epochs)
 
     def set_params(self, **params):
-        """
-        this is for skopt / sklearn compatibility
-        """
-        if 'epochs' in params:
-            self._set_fit_params({'epochs': params.pop('epochs')})
         params = self._pop_set_params(
             params, ['use_sample_weight', 'external_features', 'external_features_params'])
         super().set_params(**params)
