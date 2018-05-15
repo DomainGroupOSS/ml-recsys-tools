@@ -12,7 +12,7 @@ import skopt.callbacks
 from skopt.plots import plot_convergence
 from skopt.optimizer import forest_minimize, gp_minimize, gbrt_minimize, dummy_minimize
 from skopt.utils import dimensions_aslist, point_asdict
-from skopt.space import Real, Categorical, Integer
+import skopt.space
 
 from ml_recsys_tools.utils.instrumentation import log_time_and_shape, collect_named_init_params
 from ml_recsys_tools.utils.logger import simple_logger
@@ -21,10 +21,26 @@ from ml_recsys_tools.utils.logger import simple_logger
 skopt.callbacks.print = simple_logger.info
 
 
+class Integer(skopt.space.Integer):
+    # changes the sampled values from numpy ints to python ints
+    def rvs(self, n_samples=1, random_state=None):
+        return [int(s) for s in super().rvs(n_samples=n_samples, random_state=random_state)]
+
+
+class Real(skopt.space.Real):
+    # changes the sampled values from numpy floats to python floats
+    def rvs(self, n_samples=1, random_state=None):
+        return [float(s) for s in super().rvs(n_samples=n_samples, random_state=random_state)]
+
+
+Categorical = skopt.space.Categorical
+
+
 class SearchSpaceGuess:
-    Integer = Integer
-    Real = Real
+
     Categorical = Categorical
+    Real = Real
+    Integer = Integer
 
     def __init__(self, arg):
         """

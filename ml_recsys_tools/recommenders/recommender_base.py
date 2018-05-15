@@ -72,8 +72,13 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         """
         this is for skopt / sklearn compatibility
         """
-        params = self._pop_set_dict(
-            self.fit_params, params, self.default_fit_params.keys())
+        # pop-set fit_params if provided in bulk
+        self._set_fit_params(params.pop('fit_params', {}))
+        # pop-set model_params if provided in bulk
+        self._set_model_params(params.pop('model_params', {}))
+        # pop-set fit_params by keys from default_fit_params if provided flat
+        params = self._pop_set_dict(self.fit_params, params, self.default_fit_params.keys())
+        # the rest are assumed to be model_params provided flat
         self._set_model_params(params)
 
     @abstractmethod
