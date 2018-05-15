@@ -283,6 +283,18 @@ class ObservationsDF(LogCallsTimeAndOutput):
 
         return train_other, test_other
 
+    def generate_time_batches(self, n_batches, time_col, days_delta=1):
+        remaining = copy.deepcopy(self)
+        inf_days = 10000  # just lots of days
+        for i in reversed(range(n_batches)):
+            # this is done so that the earliest batch contains all
+            # the data that's not in later batches
+            delta = days_delta if i < (n_batches - 1) else inf_days
+
+            remaining, batch_obs = remaining.split_by_time_col(
+                time_col, (i * days_delta, i * days_delta + delta))
+            yield batch_obs.df_obs
+
 
 def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid', random_state=None):
     # split field unique values

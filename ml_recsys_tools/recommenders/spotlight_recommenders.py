@@ -75,8 +75,8 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
     default_model_params = dict(
         loss='adaptive_hinge',  # 'pointwise', 'bpr', 'hinge', 'adaptive_hinge'
         representation='lstm',  # 'pooling', 'cnn', 'lstm', 'mixture'
-        embedding_dim=128,
-        n_iter=10,
+        embedding_dim=32,
+        n_iter=4,
         batch_size=64,
         l2=0.0,
         learning_rate=1e-2,
@@ -84,7 +84,7 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
     )
 
     default_fit_params = dict(
-        max_sequence_length=10,
+        max_sequence_length=200,
         timestamp_col='first_timestamp'
     )
 

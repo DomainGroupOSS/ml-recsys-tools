@@ -11,6 +11,7 @@ import pickle
 import time
 
 from sklearn.feature_selection import mutual_info_regression
+from sklearn.preprocessing import LabelEncoder
 
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
@@ -482,10 +483,16 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
             sort_values('target_loss')
 
     def params_mutual_info(self):
-        params = list(self.search_space.keys())
-        mutual_info = mutual_info_regression(self.all_metrics[params].values,
-                               self.all_metrics['target_loss'].values)
-        return pd.DataFrame([mutual_info], columns=params)
+        mutual_info = {}
+        loss = self.all_metrics['target_loss'].values.reshape(-1, 1)
+        for feat in self.search_space.keys():
+            vec = self.all_metrics[feat].values.reshape(-1, 1)
+            try:
+                mutual_info[feat] = mutual_info_regression(vec, loss.reshape(-1, 1))[0]
+            except ValueError:
+                mutual_info[feat] = mutual_info_regression(
+                    LabelEncoder().fit_transform(vec).reshape(-1, 1), loss)[0]
+        return pd.DataFrame([mutual_info])
 
     def objective_func(self, values):
         try:
@@ -497,8 +504,10 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
                 self.data_dict['validation'], include_train=False, prefix='', k=self.k)
             loss = 1 - report_df.loc['test', self.metric]
             self._record_all_metrics(
-                report_df=report_df, values=values,
-                time_taken=time.time() - start, target_loss=loss)
+                report_df=report_df,
+                values=values,
+                time_taken=time.time() - start,
+                target_loss=loss)
             return loss
 
         except Exception as e:
