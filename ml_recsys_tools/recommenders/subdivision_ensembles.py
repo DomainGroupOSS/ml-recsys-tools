@@ -67,13 +67,13 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
         super().__init__(**kwargs)
 
     def _init_sub_models(self):
-        super()._init_sub_models()
         self.sub_class_type = LightFMRecommender
-        self._set_sub_class_params({'use_sample_weight': self.use_sample_weight,
+        super()._init_sub_models(**{'use_sample_weight': self.use_sample_weight,
                                     # 'sparse_mat_builder': self.sparse_mat_builder,
                                     'model_params': self.model_params,
                                     'fit_params': self.fit_params
                                     })
+        # self._set_sub_model_params()
 
     def set_params(self, **params):
         """
@@ -110,7 +110,7 @@ class GeoClusteringEnsembleBase(SubdivisionEnsembleBase):
     def _generate_sub_model_train_data(self, train_obs: ObsWithGeoFeatures):
         train_obs.geo_cluster_items(n_clusters=self.n_models)
 
-        labels = train_obs.df_items[self.train_obs.cluster_label_col].unique()
+        labels = train_obs.df_items[train_obs.cluster_label_col].unique()
 
         for label in labels:
             yield train_obs. \
@@ -123,12 +123,9 @@ class LFMGeoClusteringEnsemble(GeoClusteringEnsembleBase, LFMEnsembleBase):
 
 class CoocEnsembleBase(SubdivisionEnsembleBase, ItemCoocRecommender):
 
-    def _init_sub_models(self):
-        super()._init_sub_models()
+    def _init_sub_models(self, params=None):
         self.sub_class_type = ItemCoocRecommender
-        self._set_sub_class_params(self.fit_params)
-        # self._set_sub_class_params(
-        #     dict(**{'sparse_mat_builder': self.sparse_mat_builder}, **self.fit_params))
+        super()._init_sub_models(fit_params=self.fit_params)
 
     def _fit_sub_model(self, args):
         i_m, obs, fit_params = args

@@ -31,16 +31,9 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         elif 'proc' in concurrency_backend:
             return Pool(self.n_concurrent(), maxtasksperchild=3)
 
-    def _init_sub_models(self):
-        self.sub_class_init_params = [{}] * self.n_models
-        self.train_obs = None
-        self.sub_models = [None] * self.n_models
-
-    def _set_sub_class_params(self, params):
-        self.sub_class_init_params = [self._dict_update(p_cur, p_new)
-                                      for p_cur, p_new in
-                                      zip(self._broadcast(self.sub_class_init_params),
-                                          self._broadcast(params))]
+    def _init_sub_models(self, **params):
+        self.sub_models = [self.sub_class_type(**params.copy())
+                           for _ in range(self.n_models)]
 
     def n_concurrent(self):
         return min(self.n_models, self.max_concurrent, N_CPUS)
@@ -54,12 +47,13 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def set_params(self, **params):
         params = self._pop_set_params(
             params, ['n_models'])
-
+        # set on self
         super().set_params(**params.copy())
-
-        self._set_model_params(params.copy())
-
+        # init sub models to make sure they're the right object already
         self._init_sub_models()
+        # set for each sub_model
+        for model in self.sub_models:
+            model.set_params(**params.copy())
 
     @abstractmethod
     def _generate_sub_model_train_data(self, train_obs):
@@ -71,9 +65,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def fit(self, train_obs, **fit_params):
         self._set_data(train_obs)
-
-        self.sub_models = [self.sub_class_type(**p)
-                           for p in self.sub_class_init_params]
 
         sub_model_train_data_generator = self._generate_sub_model_train_data(train_obs)
 
@@ -132,24 +123,24 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         return simil_all if results_format == 'flat' \
             else self._simil_flat_to_lists(simil_all, n_cutoff=n_simil)
 
-    def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
-        stats = []
-        reports = []
-        for m in self.sub_models:
-            users = m.train_df[self.train_obs.uid_col].unique()
-            items = m.train_df[self.train_obs.iid_col].unique()
-            sub_test_dfs = [df[df[self.train_obs.uid_col].isin(users) &
-                               df[self.train_obs.iid_col].isin(items)] for df in test_dfs]
-            lfm_report = m.eval_on_test_by_ranking(
-                include_train=include_train,
-                test_dfs=sub_test_dfs,
-                prefix='lfm sub model',
-                test_names=test_names
-            )
-            stats.append('train: %d, test: %s' %
-                         (len(m.train_df), [len(df) for df in sub_test_dfs]))
-            reports.append(lfm_report)
-        return stats, reports
+    # def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
+    #     stats = []
+    #     reports = []
+    #     for m in self.sub_models:
+    #         users = m.train_df[self.train_obs.uid_col].unique()
+    #         items = m.train_df[self.train_obs.iid_col].unique()
+    #         sub_test_dfs = [df[df[self.train_obs.uid_col].isin(users) &
+    #                            df[self.train_obs.iid_col].isin(items)] for df in test_dfs]
+    #         lfm_report = m.eval_on_test_by_ranking(
+    #             include_train=include_train,
+    #             test_dfs=sub_test_dfs,
+    #             prefix='lfm sub model',
+    #             test_names=test_names
+    #         )
+    #         stats.append('train: %d, test: %s' %
+    #                      (len(m.train_df), [len(df) for df in sub_test_dfs]))
+    #         reports.append(lfm_report)
+    #     return stats, reports
 
 
 class CombinationEnsembleBase(BaseDFSparseRecommender):
