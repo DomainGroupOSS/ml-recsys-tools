@@ -1,20 +1,28 @@
+import os
 import pprint
 from functools import partial
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import copy
+
+import time
 from matplotlib import pyplot
+from sklearn.feature_selection import mutual_info_regression
 
 from sklearn.metrics import recall_score, precision_score, f1_score
 from sklearn.ensemble.voting_classifier import VotingClassifier
 
-import skopt.callbacks
+from sklearn.preprocessing import LabelEncoder
+from skopt.learning import RandomForestRegressor
 from skopt.plots import plot_convergence
 from skopt.optimizer import forest_minimize, gp_minimize, gbrt_minimize, dummy_minimize
 from skopt.utils import dimensions_aslist, point_asdict
 import skopt.space
 
-from ml_recsys_tools.utils.instrumentation import log_time_and_shape, collect_named_init_params
+from ml_recsys_tools.utils.instrumentation import \
+    log_time_and_shape, collect_named_init_params, LogCallsTimeAndOutput
 from ml_recsys_tools.utils.logger import simple_logger
 
 # monkey patch print function
@@ -90,16 +98,23 @@ class SearchSpaceGuess:
         return self.set_from_dict(search_space)
 
 
-class BayesSearchHoldOut:
+class BayesSearchHoldOut(LogCallsTimeAndOutput):
+
+    target_loss_col = 'target_loss'
+    time_taken_col = 'time_taken'
 
     def __init__(self, search_space, pipeline, loss, random_ratio=0.5,
-                 plot_graph=True, **kwargs):
+                 plot_graph=True, interrupt_message_file=None, verbose=True, **kwargs):
         self.search_space = search_space
         self.loss = loss
         self.pipeline = pipeline
-        self.data_dict = None
+        self.train_data = None
+        self.validation_data = None
         self.random_ratio = random_ratio
         self.plot_graph = plot_graph
+        self.interrupt_message_file = interrupt_message_file
+        super().__init__(verbose=verbose, **kwargs)
+        self.all_metrics = pd.DataFrame()
 
     def values_to_dict(self, values):
         return point_asdict(self.search_space, values)
@@ -126,22 +141,36 @@ class BayesSearchHoldOut:
         pipeline.set_params(**params_dict)
         return pipeline
 
+    def _fit_predict_loss(self, pipeline):
+        pipeline.fit(self.train_data['x'], self.train_data['y'])
+        y_pred = pipeline.predict(self.validation_data['x'])
+        loss = self.loss(self.validation_data['y'], y_pred)
+        return loss, None
+
     def objective_func(self, values):
-        pipeline = self.init_pipeline(values)
-        pipeline.fit(self.data_dict['x_train'], self.data_dict['y_train'])
-        y_pred = pipeline.predict(self.data_dict['x_valid'])
-        return self.loss(self.data_dict['y_valid'], y_pred)
+        try:
+            self._check_interrupt()
+            pipeline = self.init_pipeline(values)
+            start = time.time()
+
+            loss, report_df = self._fit_predict_loss(pipeline)
+
+            self._record_all_metrics(
+                report_df=report_df,
+                values=values,
+                time_taken=time.time() - start,
+                target_loss=loss)
+            return loss
+        except Exception as e:
+            simple_logger.exception(e)
+            simple_logger.error(values)
+            # raise e
+            return 1.0
 
     @log_time_and_shape
-    def optimize(self, data_dict, n_calls, n_jobs=-1, optimizer='gb'):
+    def optimize(self, train_data, validation_data, n_calls, n_jobs=-1, optimizer='gb'):
         """
         example code:
-
-        data_dict={ 'x_train': x_train_bo,
-                        'y_train': y_train_bo,
-                        'x_valid': x_val_bo,
-                        'y_valid': y_val_bo,
-                        }
 
         hp_space = {
                     'model': Categorical([LGBMClassifier()]),
@@ -157,13 +186,16 @@ class BayesSearchHoldOut:
             return 1-np.mean(recall_score(y_true, y_pred, average=None))
 
         bo = BayesSearchHoldOut(search_space=hp_space, pipeline=pipe, loss=custom_loss)
-        res_bo, best_params, best_model = bo.optimize(data_dict=data_dict,n_calls=100)
+        results = bo.optimize(
+            train_data={'x': x_train_bo, 'y': y_train_bo},
+            validation_data={'x': x_val_bo, 'y': y_val_bo},
+            n_calls=100)
 
         """
 
         if optimizer == 'rf':
             opt_func = partial(forest_minimize,
-                               # base_estimator="RF",
+                               base_estimator=RandomForestRegressor(n_estimators=10),
                                n_points=1000,
                                acq_func="EI")
         elif optimizer == 'gb':
@@ -175,7 +207,8 @@ class BayesSearchHoldOut:
         else:
             raise NotImplementedError('unknown optimizer')
 
-        self.data_dict = data_dict
+        self.train_data = train_data
+        self.validation_data = validation_data
 
         res_bo = opt_func(
             self.objective_func,
@@ -196,21 +229,83 @@ class BayesSearchHoldOut:
             plot_convergence(res_bo)
             pyplot.plot(res_bo.func_vals)
 
-        return res_bo, best_params, best_model
+        # return res_bo, best_params, best_model
+        return SimpleNamespace(**{
+            'optimizer': self,
+            'report': self.best_results_summary(res_bo, percentile=0),
+            'mutual_info_loss': self.params_mutual_info(),
+            'mutual_info_time': self.params_mutual_info(self.time_taken_col),
+            'result': res_bo,
+            'best_params': best_params,
+            'best_model': best_model})
+
+    # def best_results_summary(self, res_bo, percentile=95):
+    #     return self.best_results_report(
+    #         res_bo, percentile=percentile, search_space=self.search_space)
+
+    # @staticmethod
+    # def best_results_report(res_bo, percentile, search_space):
+    #     cut_off = np.percentile(res_bo.func_vals, 100 - percentile)
+    #     best_x = [x + [res_bo.func_vals[i]] for
+    #               i, x in enumerate(res_bo.x_iters)
+    #               if res_bo.func_vals[i] <= cut_off]
+    #     return pd.DataFrame(best_x,
+    #                         columns=sorted(search_space.keys()) + ['target_loss']). \
+    #         sort_values('target_loss')
+
+    def _check_interrupt(self):
+        if self.interrupt_message_file is not None \
+                and os.path.exists(self.interrupt_message_file):
+
+            with open(self.interrupt_message_file) as f:
+                message = f.readline()
+
+            if 'stop' in message:
+                raise InterruptedError('interrupted by "stop" message in %s'
+                                       % self.interrupt_message_file)
+            elif 'pause' in message:
+                simple_logger.warn('Paused by "pause" message in %s'
+                            % self.interrupt_message_file)
+                while 'pause' in message:
+                    time.sleep(1)
+                    with open(self.interrupt_message_file) as f:
+                        message = f.readline()
+                self._check_interrupt()
+
+            elif 'update' in message:
+                simple_logger.warn('Updating HP space due to "update" message in %s'
+                            % self.interrupt_message_file)
+                raise NotImplementedError('not yet implemented')
+
+    def _record_all_metrics(self, values, time_taken, target_loss, report_df=None):
+        # records the time and the other metrics
+        if report_df is None:
+            report_df = pd.DataFrame()
+        params_dict = self.values_to_dict(values)
+        report_df[self.target_loss_col] = target_loss
+        report_df[self.time_taken_col] = time_taken
+        report_df = report_df.assign(**params_dict)
+        self.all_metrics = self.all_metrics.append(report_df)
 
     def best_results_summary(self, res_bo, percentile=95):
-        return self.best_results_report(
-            res_bo, percentile=percentile, search_space=self.search_space)
+        return self.all_metrics. \
+            reset_index(). \
+            drop('index', axis=1). \
+            sort_values(self.target_loss_col)
 
-    @staticmethod
-    def best_results_report(res_bo, percentile, search_space):
-        cut_off = np.percentile(res_bo.func_vals, 100 - percentile)
-        best_x = [x + [res_bo.func_vals[i]] for
-                  i, x in enumerate(res_bo.x_iters)
-                  if res_bo.func_vals[i] <= cut_off]
-        return pd.DataFrame(best_x,
-                            columns=sorted(search_space.keys()) + ['target_loss']). \
-            sort_values('target_loss')
+    def params_mutual_info(self, target_col=None):
+        if target_col is None:
+            target_col = self.target_loss_col
+        mutual_info = {}
+        target = self.all_metrics[target_col].values.reshape(-1, 1)
+        for feat in self.search_space.keys():
+            vec = self.all_metrics[feat].values.reshape(-1, 1)
+            try:
+                mutual_info[feat] = mutual_info_regression(vec, target)[0]
+            except ValueError:  # categorical feature (string)
+                mutual_info[feat] = mutual_info_regression(
+                    LabelEncoder().fit_transform(vec).reshape(-1, 1), target)[0]
+        return pd.DataFrame([mutual_info])
 
 
 def early_stopping_runner(

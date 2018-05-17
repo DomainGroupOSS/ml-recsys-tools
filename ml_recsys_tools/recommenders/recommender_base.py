@@ -174,23 +174,16 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             self, train_data, validation_data, hp_space,
             n_iters=100, random_search=0.9, **kwargs):
 
-        bo = RecoBayesSearchHoldOut(search_space=hp_space,
-                                    pipeline=self,
-                                    loss=None,
-                                    random_ratio=random_search,
-                                    **kwargs)
-
-        res_bo, best_params, best_model = \
-            bo.optimize(data_dict={'training': train_data, 'validation': validation_data},
-                        n_calls=n_iters)
-
-        return SimpleNamespace(**{
-            'optimizer': bo,
-            'report': bo.best_results_summary(res_bo, percentile=0),
-            'mutual_info': bo.params_mutual_info(),
-            'result': res_bo,
-            'best_params': best_params,
-            'best_model': best_model})
+        return RecoBayesSearchHoldOut(
+                search_space=hp_space,
+                pipeline=self,
+                loss=None,
+                random_ratio=random_search,
+                **kwargs).\
+            optimize(
+                train_data=train_data,
+                validation_data=validation_data,
+                n_calls=n_iters)
 
     def pickle_to_file(self, filepath):
         with open(filepath, 'wb') as f:
@@ -437,81 +430,14 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
 class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
 
-    def __init__(self, metric='AUC', k=10, interrupt_message_file=None, verbose=True, **kwargs):
+    def __init__(self, metric='AUC', k=10, **kwargs):
         self.metric = metric
         self.k = k
-        self.interrupt_message_file = interrupt_message_file
-        super().__init__(verbose=verbose, **kwargs)
-        self.all_metrics = pd.DataFrame()
+        super().__init__(**kwargs)
 
-    def _check_interrupt(self):
-        if self.interrupt_message_file is not None \
-                and os.path.exists(self.interrupt_message_file):
-
-            with open(self.interrupt_message_file) as f:
-                message = f.readline()
-
-            if 'stop' in message:
-                raise InterruptedError('interrupted by "stop" message in %s'
-                                       % self.interrupt_message_file)
-            elif 'pause' in message:
-                logger.warn('Paused by "pause" message in %s'
-                            % self.interrupt_message_file)
-                while 'pause' in message:
-                    sleep(1)
-                    with open(self.interrupt_message_file) as f:
-                        message = f.readline()
-                self._check_interrupt()
-
-            elif 'update' in message:
-                logger.warn('Updating HP space due to "update" message in %s'
-                            % self.interrupt_message_file)
-                raise NotImplementedError('not yet implemented')
-
-    def _record_all_metrics(self, report_df, values, time_taken, target_loss):
-        # records the time and the other metrics
-        params_dict = self.values_to_dict(values)
-        report_df['target_loss'] = target_loss
-        report_df['time_taken'] = time_taken
-        report_df = report_df.assign(**params_dict)
-        self.all_metrics = self.all_metrics.append(report_df)
-
-    def best_results_summary(self, res_bo, percentile=95):
-        return self.all_metrics. \
-            reset_index(). \
-            drop('index', axis=1). \
-            sort_values('target_loss')
-
-    def params_mutual_info(self):
-        mutual_info = {}
-        loss = self.all_metrics['target_loss'].values.reshape(-1, 1)
-        for feat in self.search_space.keys():
-            vec = self.all_metrics[feat].values.reshape(-1, 1)
-            try:
-                mutual_info[feat] = mutual_info_regression(vec, loss)[0]
-            except ValueError:  # categorical feature (string)
-                mutual_info[feat] = mutual_info_regression(
-                    LabelEncoder().fit_transform(vec).reshape(-1, 1), loss)[0]
-        return pd.DataFrame([mutual_info])
-
-    def objective_func(self, values):
-        try:
-            self._check_interrupt()
-            pipeline = self.init_pipeline(values)
-            start = time.time()
-            pipeline.fit(self.data_dict['training'])
-            report_df = pipeline.eval_on_test_by_ranking(
-                self.data_dict['validation'], include_train=False, prefix='', k=self.k)
-            loss = 1 - report_df.loc['test', self.metric]
-            self._record_all_metrics(
-                report_df=report_df,
-                values=values,
-                time_taken=time.time() - start,
-                target_loss=loss)
-            return loss
-
-        except Exception as e:
-            logger.exception(e)
-            logger.error(values)
-            # raise e
-            return 1.0
+    def _fit_predict_loss(self, pipeline):
+        pipeline.fit(self.train_data)
+        report_df = pipeline.eval_on_test_by_ranking(
+            self.validation_data, include_train=False, prefix='', k=self.k)
+        loss = 1 - report_df.loc['test', self.metric]
+        return loss, report_df

@@ -79,8 +79,8 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
         n_iter=4,
         batch_size=64,
         l2=0.0,
-        learning_rate=1e-2,
-        num_negative_samples=5
+        learning_rate=2e-3,
+        num_negative_samples=25
     )
 
     default_fit_params = dict(
@@ -175,7 +175,7 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
 class CNNEmbeddingRecommender(SequenceEmbeddingRecommender):
 
     cnn_default_params = dict(
-        kernel_width=3,
+        kernel_width=9,
         dilation=1,
         num_layers=3,
         nonlinearity='relu',
