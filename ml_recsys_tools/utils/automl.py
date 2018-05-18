@@ -1,3 +1,4 @@
+import inspect
 import os
 import pprint
 from functools import partial
@@ -15,6 +16,7 @@ from sklearn.metrics import recall_score, precision_score, f1_score
 from sklearn.ensemble.voting_classifier import VotingClassifier
 
 from sklearn.preprocessing import LabelEncoder
+from skopt import Optimizer
 from skopt.learning import RandomForestRegressor
 from skopt.plots import plot_convergence
 from skopt.optimizer import forest_minimize, gp_minimize, gbrt_minimize, dummy_minimize
@@ -141,117 +143,140 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         pipeline.set_params(**params_dict)
         return pipeline
 
+    def _add_loss_and_time_to_report(self, loss, time_taken, report_df=None):
+        if report_df is None:
+            report_df = pd.DataFrame()
+        report_df[self.target_loss_col] = loss
+        report_df[self.time_taken_col] = time_taken
+        return report_df
+
     def _fit_predict_loss(self, pipeline):
+        start = time.time()
         pipeline.fit(self.train_data['x'], self.train_data['y'])
         y_pred = pipeline.predict(self.validation_data['x'])
         loss = self.loss(self.validation_data['y'], y_pred)
-        return loss, None
+        return loss, self._add_loss_and_time_to_report(loss, time.time() - start)
 
     def objective_func(self, values):
         try:
             self._check_interrupt()
             pipeline = self.init_pipeline(values)
-            start = time.time()
-
             loss, report_df = self._fit_predict_loss(pipeline)
-
-            self._record_all_metrics(
-                report_df=report_df,
-                values=values,
-                time_taken=time.time() - start,
-                target_loss=loss)
-            return loss
+            return loss, report_df
         except Exception as e:
             simple_logger.exception(e)
             simple_logger.error(values)
             # raise e
-            return 1.0
+            return 1.0, self._add_loss_and_time_to_report(0, 0)
+
+    # @log_time_and_shape
+    # def optimize(self, train_data, validation_data, n_calls, optimizer='gb'):
+    #     """
+    #     example code:
+    #
+    #     hp_space = {
+    #                 'model': Categorical([LGBMClassifier()]),
+    #                 'model__n_estimators': Integer(10, 50),
+    #                 }
+    #
+    #     pipe = Pipeline([
+    #         ('vectorizer', TfidfVectorizer()),
+    #         ('model', None)
+    #     ])
+    #
+    #     def custom_loss(y_true, y_pred):
+    #         return 1-np.mean(recall_score(y_true, y_pred, average=None))
+    #
+    #     bo = BayesSearchHoldOut(search_space=hp_space, pipeline=pipe, loss=custom_loss)
+    #     results = bo.optimize(
+    #         train_data={'x': x_train_bo, 'y': y_train_bo},
+    #         validation_data={'x': x_val_bo, 'y': y_val_bo},
+    #         n_calls=100)
+    #
+    #     """
+    #
+    #     if optimizer == 'rf':
+    #         opt_func = partial(forest_minimize,
+    #                            base_estimator=RandomForestRegressor(n_estimators=10),
+    #                            n_points=1000,
+    #                            acq_func="EI")
+    #     elif optimizer == 'gb':
+    #         opt_func = gbrt_minimize
+    #     elif optimizer == 'random':
+    #         opt_func = dummy_minimize
+    #     elif optimizer == 'gp':  # too slow
+    #         opt_func = gp_minimize
+    #     else:
+    #         raise NotImplementedError('unknown optimizer')
+    #
+    #     self.train_data = train_data
+    #     self.validation_data = validation_data
+    #
+    #     res_bo = opt_func(
+    #         self.objective_func,
+    #         dimensions_aslist(search_space=self.search_space),
+    #         n_calls=n_calls,
+    #         n_random_starts=int(n_calls * self.random_ratio),
+    #         n_jobs=-1,
+    #         verbose=True,
+    #         callback=self.PrintIfBestCB(self)
+    #     )
+    #
+    #     return self._format_and_plot_result(res_bo)
+
+    def _init_optimizer(self, n_calls):
+        return Optimizer(dimensions=dimensions_aslist(search_space=self.search_space),
+                              base_estimator=RandomForestRegressor(n_estimators=10),
+                              n_initial_points=int(n_calls * self.random_ratio),
+                              acq_func="EI",
+                              acq_optimizer="sampling",
+                              acq_optimizer_kwargs=dict(
+                                  n_points=1000,
+                                  n_jobs=-1),
+                              acq_func_kwargs=dict(
+                                  xi=0.01, kappa=1.96))
 
     @log_time_and_shape
-    def optimize(self, train_data, validation_data, n_calls, n_jobs=-1, optimizer='gb'):
-        """
-        example code:
-
-        hp_space = {
-                    'model': Categorical([LGBMClassifier()]),
-                    'model__n_estimators': Integer(10, 50),
-                    }
-
-        pipe = Pipeline([
-            ('vectorizer', TfidfVectorizer()),
-            ('model', None)
-        ])
-
-        def custom_loss(y_true, y_pred):
-            return 1-np.mean(recall_score(y_true, y_pred, average=None))
-
-        bo = BayesSearchHoldOut(search_space=hp_space, pipeline=pipe, loss=custom_loss)
-        results = bo.optimize(
-            train_data={'x': x_train_bo, 'y': y_train_bo},
-            validation_data={'x': x_val_bo, 'y': y_val_bo},
-            n_calls=100)
-
-        """
-
-        if optimizer == 'rf':
-            opt_func = partial(forest_minimize,
-                               base_estimator=RandomForestRegressor(n_estimators=10),
-                               n_points=1000,
-                               acq_func="EI")
-        elif optimizer == 'gb':
-            opt_func = gbrt_minimize
-        elif optimizer == 'random':
-            opt_func = dummy_minimize
-        elif optimizer == 'gp':  # too slow
-            opt_func = gp_minimize
-        else:
-            raise NotImplementedError('unknown optimizer')
-
+    def optimize(self, train_data, validation_data, n_calls, n_parallel=1):
         self.train_data = train_data
         self.validation_data = validation_data
+        optimizer = self._init_optimizer(n_calls)
+        callback = self.PrintIfBestCB(self)
 
-        res_bo = opt_func(
-            self.objective_func,
-            dimensions_aslist(search_space=self.search_space),
-            n_calls=n_calls,
-            n_random_starts=int(n_calls * self.random_ratio),
-            n_jobs=n_jobs,
-            verbose=True,
-            callback=self.PrintIfBestCB(self)
-        )
+        # specs = dict(
+        #     args=copy.copy(inspect.currentframe().f_locals),
+        #     function=inspect.currentframe().f_code.co_name)
 
-        best_values = res_bo.x
+        result = None
+        for n in range(n_calls):
+            next_x = optimizer.ask()
+            next_y, report_df = self.objective_func(next_x)
+            self._record_all_metrics(report_df=report_df, values=next_x)
+            result = optimizer.tell(next_x, next_y)
+            # result.specs = specs
+            callback(result)
+
+        return self._format_and_plot_result(result)
+
+    def _format_and_plot_result(self, result):
+        best_values = result.x
         best_params = self.values_to_dict(best_values)
         best_model = self.init_pipeline(best_values)
 
         if self.plot_graph:
             pyplot.figure()
-            plot_convergence(res_bo)
-            pyplot.plot(res_bo.func_vals)
+            plot_convergence(result)
+            pyplot.plot(result.func_vals)
 
         # return res_bo, best_params, best_model
         return SimpleNamespace(**{
             'optimizer': self,
-            'report': self.best_results_summary(res_bo, percentile=0),
+            'report': self.best_results_summary(result, percentile=0),
             'mutual_info_loss': self.params_mutual_info(),
             'mutual_info_time': self.params_mutual_info(self.time_taken_col),
-            'result': res_bo,
+            'result': result,
             'best_params': best_params,
             'best_model': best_model})
-
-    # def best_results_summary(self, res_bo, percentile=95):
-    #     return self.best_results_report(
-    #         res_bo, percentile=percentile, search_space=self.search_space)
-
-    # @staticmethod
-    # def best_results_report(res_bo, percentile, search_space):
-    #     cut_off = np.percentile(res_bo.func_vals, 100 - percentile)
-    #     best_x = [x + [res_bo.func_vals[i]] for
-    #               i, x in enumerate(res_bo.x_iters)
-    #               if res_bo.func_vals[i] <= cut_off]
-    #     return pd.DataFrame(best_x,
-    #                         columns=sorted(search_space.keys()) + ['target_loss']). \
-    #         sort_values('target_loss')
 
     def _check_interrupt(self):
         if self.interrupt_message_file is not None \
@@ -277,13 +302,11 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                             % self.interrupt_message_file)
                 raise NotImplementedError('not yet implemented')
 
-    def _record_all_metrics(self, values, time_taken, target_loss, report_df=None):
+    def _record_all_metrics(self, values, report_df=None):
         # records the time and the other metrics
         if report_df is None:
             report_df = pd.DataFrame()
         params_dict = self.values_to_dict(values)
-        report_df[self.target_loss_col] = target_loss
-        report_df[self.time_taken_col] = time_taken
         report_df = report_df.assign(**params_dict)
         self.all_metrics = self.all_metrics.append(report_df)
 

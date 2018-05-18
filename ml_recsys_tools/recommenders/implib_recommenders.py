@@ -29,6 +29,7 @@ class ALSRecommender(BaseFactorizationRecommender):
         return None, self.model.user_factors
 
     def _prep_for_fit(self, train_obs, **fit_params):
+        # self.toggle_mkl_blas_1_thread(True)
         self._set_data(train_obs)
         self.set_params(**fit_params)
         self.model = AlternatingLeastSquares(**self.model_params)

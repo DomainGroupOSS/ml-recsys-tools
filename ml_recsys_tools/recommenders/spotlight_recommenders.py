@@ -32,6 +32,7 @@ class EmbeddingFactorsRecommender(BaseFactorizationRecommender):
         verbose=True)
 
     def _prep_for_fit(self, train_obs, **fit_params):
+        # self.toggle_mkl_blas_1_thread(False)
         self._set_data(train_obs)
         self.set_params(**fit_params)
         self.model = ImplicitFactorizationModel(**self.model_params)
@@ -114,11 +115,10 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
         )
 
     def _prep_for_fit(self, train_obs, **fit_params):
+        # self.toggle_mkl_blas_1_thread(False)
         self._set_data(train_obs)
         self._set_fit_params(fit_params)
         self.sequence_interactions = self._interactions_sequence_from_obs(train_obs, **self.fit_params)
-        # # workaournd for parameter dtypes errors in pytorch
-        # self.model_params['num_negative_samples'] = int(self.model_params['num_negative_samples'])
 
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
@@ -201,7 +201,5 @@ class CNNEmbeddingRecommender(SequenceEmbeddingRecommender):
 
     def _prep_for_fit(self, train_obs, **fit_params):
         super()._prep_for_fit(train_obs, **fit_params)
-        # # workaournd for parameter dtypes errors in pytorch
-        # self.fit_params['kernel_width'] = int(self.fit_params['kernel_width'])
         self.model_params['representation'] = self._cnn_net(self.sequence_interactions)
 

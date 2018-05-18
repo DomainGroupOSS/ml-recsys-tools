@@ -48,6 +48,15 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             set_from_dict(cls.default_fit_params)
 
     @staticmethod
+    def toggle_mkl_blas_1_thread(state):
+        if state:
+            os.environ['MKL_NUM_THREADS'] = '1'
+            os.environ['OPENBLAS_NUM_THREADS'] = '1'
+        else:
+            os.environ.pop('MKL_NUM_THREADS', None)
+            os.environ.pop('OPENBLAS_NUM_THREADS', None)
+
+    @staticmethod
     def _dict_update(d, u):
         d = d.copy()
         if u: d.update(u)
@@ -436,8 +445,10 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
         super().__init__(**kwargs)
 
     def _fit_predict_loss(self, pipeline):
+        start = time.time()
         pipeline.fit(self.train_data)
         report_df = pipeline.eval_on_test_by_ranking(
             self.validation_data, include_train=False, prefix='', k=self.k)
         loss = 1 - report_df.loc['test', self.metric]
-        return loss, report_df
+        return loss, self._add_loss_and_time_to_report(
+            loss, time.time() - start, report_df=report_df)
