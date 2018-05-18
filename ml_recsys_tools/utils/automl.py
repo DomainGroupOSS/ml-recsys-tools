@@ -1,7 +1,8 @@
-import inspect
 import os
 import pprint
 from functools import partial
+from multiprocessing import Queue
+from threading import Thread
 from types import SimpleNamespace
 
 import numpy as np
@@ -107,15 +108,18 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
     time_taken_col = 'time_taken'
 
     def __init__(self, search_space, pipeline, loss, random_ratio=0.5,
-                 plot_graph=True, interrupt_message_file=None, verbose=True, **kwargs):
+                 plot_graph=True, interrupt_message_file=None,  n_parallel=1,
+                 verbose=True,**kwargs):
         self.search_space = search_space
         self.loss = loss
         self.pipeline = pipeline
         self.train_data = None
         self.validation_data = None
+        self.callbacks = None
         self.random_ratio = random_ratio
         self.plot_graph = plot_graph
         self.interrupt_message_file = interrupt_message_file
+        self.n_parallel = n_parallel
         super().__init__(verbose=verbose, **kwargs)
         self.all_metrics = pd.DataFrame()
 
@@ -237,26 +241,70 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                               acq_func_kwargs=dict(
                                   xi=0.01, kappa=1.96))
 
+    def _init_callbacks(self, n_calls):
+        self.callbacks = [self.PrintIfBestCB(self),
+                     VerboseCallback(n_total=n_calls,
+                                     n_random=int(n_calls * self.random_ratio))]
+
+    def _eval_callbacks(self, result):
+        [c(result) for c in self.callbacks]
+
+    # @log_time_and_shape
+    # def optimize(self, train_data, validation_data, n_calls):
+    #     self.train_data = train_data
+    #     self.validation_data = validation_data
+    #     optimizer = self._init_optimizer(n_calls)
+    #     self._init_callbacks(n_calls)
+    #
+    #     result = None
+    #     for n in range(n_calls):
+    #         next_x = optimizer.ask()
+    #         next_y, report_df = self.objective_func(next_x)
+    #         self._record_all_metrics(report_df=report_df, values=next_x)
+    #         result = optimizer.tell(next_x, next_y)
+    #         # result.specs = specs
+    #         self._eval_callbacks(result)
+    #     return self._format_and_plot_result(result)
+
     @log_time_and_shape
-    def optimize(self, train_data, validation_data, n_calls, n_parallel=1):
+    def optimize(self, train_data, validation_data, n_calls):
         self.train_data = train_data
         self.validation_data = validation_data
         optimizer = self._init_optimizer(n_calls)
-        callbacks = [self.PrintIfBestCB(self),
-                     VerboseCallback(n_total=n_calls,
-                                     n_random=int(n_calls * self.random_ratio))]
-        # specs = dict(
-        #     args=copy.copy(inspect.currentframe().f_locals),
-        #     function=inspect.currentframe().f_code.co_name)
+        self._init_callbacks(n_calls)
 
         result = None
-        for n in range(n_calls):
-            next_x = optimizer.ask()
-            next_y, report_df = self.objective_func(next_x)
-            self._record_all_metrics(report_df=report_df, values=next_x)
-            result = optimizer.tell(next_x, next_y)
-            # result.specs = specs
-            [c(result) for c in callbacks]
+        config_q = Queue(maxsize=self.n_parallel)
+        results_q = Queue(maxsize=self.n_parallel)
+
+        def _config_putter(q):
+            for n in range(n_calls):
+                q.put(optimizer.ask())
+            for n in range(self.n_parallel):
+                q.put('end')
+
+        def _result_getter(q):
+            nonlocal result
+            for n in range(n_calls):
+                next_x, next_y, report_df = q.get()
+                self._record_all_metrics(report_df=report_df, values=next_x)
+                result = optimizer.tell(next_x, next_y)
+                self._eval_callbacks(result)
+
+        def _worker(q_in, q_out):
+            while True:
+                next_x = q_in.get()
+                if next_x == 'end':
+                    break
+                next_y, report_df = self.objective_func(next_x)
+                q_out.put((next_x, next_y, report_df))
+
+        putter = Thread(target=_config_putter, name='_config_putter', args=(config_q,))
+        getter = Thread(target=_result_getter, name='_result_getter', args=(results_q,))
+        workers = [Thread(target=_worker, args=(config_q, results_q)) for _ in range(self.n_parallel)]
+        threads = [putter, getter] + workers
+        [t.start() for t in threads]
+        [t.join() for t in threads]
 
         return self._format_and_plot_result(result)
 
