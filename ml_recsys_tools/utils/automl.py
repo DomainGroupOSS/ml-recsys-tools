@@ -1,7 +1,7 @@
 import os
 import pprint
 from functools import partial
-from multiprocessing import Queue
+from multiprocessing import Queue, Process
 from threading import Thread
 from types import SimpleNamespace
 
@@ -143,6 +143,11 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             simple_logger.info(params)
 
     def init_pipeline(self, values):
+        for i, value in enumerate(values):
+            if isinstance(value, np.int):
+                values[i] = int(value)
+            elif isinstance(value, np.float_):
+                values[i] = float(value)
         params_dict = self.values_to_dict(values)
         pipeline = copy.copy(self.pipeline)
         pipeline.set_params(**params_dict)
@@ -291,22 +296,22 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                 result = optimizer.tell(next_x, next_y)
                 self._eval_callbacks(result)
 
-        def _worker(q_in, q_out):
-            while True:
-                next_x = q_in.get()
-                if next_x == 'end':
-                    break
-                next_y, report_df = self.objective_func(next_x)
-                q_out.put((next_x, next_y, report_df))
-
         putter = Thread(target=_config_putter, name='_config_putter', args=(config_q,))
         getter = Thread(target=_result_getter, name='_result_getter', args=(results_q,))
-        workers = [Thread(target=_worker, args=(config_q, results_q)) for _ in range(self.n_parallel)]
+        workers = [Process(target=self._parallel_worker, args=(config_q, results_q))
+                   for _ in range(self.n_parallel)]
         threads = [putter, getter] + workers
         [t.start() for t in threads]
         [t.join() for t in threads]
-
         return self._format_and_plot_result(result)
+
+    def _parallel_worker(self, q_in, q_out):
+        while True:
+            next_x = q_in.get()
+            if next_x == 'end':
+                break
+            next_y, report_df = self.objective_func(next_x)
+            q_out.put((next_x, next_y, report_df))
 
     def _format_and_plot_result(self, result):
         best_values = result.x
