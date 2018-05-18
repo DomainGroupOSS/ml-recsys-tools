@@ -17,6 +17,7 @@ from sklearn.ensemble.voting_classifier import VotingClassifier
 
 from sklearn.preprocessing import LabelEncoder
 from skopt import Optimizer
+from skopt.callbacks import VerboseCallback
 from skopt.learning import RandomForestRegressor
 from skopt.plots import plot_convergence
 from skopt.optimizer import forest_minimize, gp_minimize, gbrt_minimize, dummy_minimize
@@ -241,8 +242,9 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         self.train_data = train_data
         self.validation_data = validation_data
         optimizer = self._init_optimizer(n_calls)
-        callback = self.PrintIfBestCB(self)
-
+        callbacks = [self.PrintIfBestCB(self),
+                     VerboseCallback(n_total=n_calls,
+                                     n_random=int(n_calls * self.random_ratio))]
         # specs = dict(
         #     args=copy.copy(inspect.currentframe().f_locals),
         #     function=inspect.currentframe().f_code.co_name)
@@ -254,7 +256,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             self._record_all_metrics(report_df=report_df, values=next_x)
             result = optimizer.tell(next_x, next_y)
             # result.specs = specs
-            callback(result)
+            [c(result) for c in callbacks]
 
         return self._format_and_plot_result(result)
 
