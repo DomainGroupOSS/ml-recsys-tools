@@ -109,7 +109,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
 
     def __init__(self, search_space, pipeline, loss, random_ratio=0.5,
                  plot_graph=True, interrupt_message_file=None,  n_parallel=1,
-                 verbose=True,**kwargs):
+                 verbose=True, smooth_transition=False, **kwargs):
         self.search_space = search_space
         self.loss = loss
         self.pipeline = pipeline
@@ -118,6 +118,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         self.callbacks = None
         self.random_ratio = random_ratio
         self.plot_graph = plot_graph
+        self.smooth_transition = smooth_transition
         self.interrupt_message_file = interrupt_message_file
         self.n_parallel = n_parallel
         super().__init__(verbose=verbose, **kwargs)
@@ -271,6 +272,12 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
     #         self._eval_callbacks(result)
     #     return self._format_and_plot_result(result)
 
+    def _smooth_transition(self, optimizer, progress):
+        # this should transition from random to BO
+        if self.smooth_transition:
+            optimizer.n_points = int(10000 ** progress)
+        return optimizer
+
     @log_time_and_shape
     def optimize(self, train_data, validation_data, n_calls):
         self.train_data = train_data
@@ -279,29 +286,28 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         self._init_callbacks(n_calls)
 
         result = None
-        config_q = Queue(maxsize=self.n_parallel)
-        results_q = Queue(maxsize=self.n_parallel)
+        config_q = Queue(maxsize=1)
+        results_q = Queue()
 
         def _config_putter(q):
-            for n in range(n_calls):
+            for i in range(n_calls):
                 q.put(optimizer.ask())
-            for n in range(self.n_parallel):
+            for i in range(self.n_parallel):
                 q.put('end')
 
-        def _result_getter(q):
-            nonlocal result
-            for n in range(n_calls):
-                next_x, next_y, report_df = q.get()
-                self._record_all_metrics(report_df=report_df, values=next_x)
-                result = optimizer.tell(next_x, next_y)
-                self._eval_callbacks(result)
-
         putter = Thread(target=_config_putter, name='_config_putter', args=(config_q,))
-        getter = Thread(target=_result_getter, name='_result_getter', args=(results_q,))
         workers = [Process(target=self._parallel_worker, args=(config_q, results_q))
                    for _ in range(self.n_parallel)]
-        threads = [putter, getter] + workers
+        threads = [putter] + workers
         [t.start() for t in threads]
+
+        for i in range(n_calls):
+            next_x, next_y, report_df = results_q.get()
+            self._record_all_metrics(report_df=report_df, values=next_x)
+            optimizer = self._smooth_transition(optimizer, i / n_calls)
+            result = optimizer.tell(next_x, next_y)
+            self._eval_callbacks(result)
+
         [t.join() for t in threads]
         return self._format_and_plot_result(result)
 
