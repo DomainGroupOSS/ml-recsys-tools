@@ -295,11 +295,15 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             for i in range(self.n_parallel):
                 q.put('end')
 
-        putter = Thread(target=_config_putter, name='_config_putter', args=(config_q,))
-        workers = [Process(target=self._parallel_worker, args=(config_q, results_q))
-                   for _ in range(self.n_parallel)]
-        threads = [putter] + workers
-        [t.start() for t in threads]
+        jobs = []
+        jobs.append(Thread(target=_config_putter, name='_config_putter', args=(config_q,)))
+
+        if self.n_parallel == 1:
+            jobs.append(Thread(target=self._parallel_worker, args=(config_q, results_q)))
+        else:
+            jobs.extend([Process(target=self._parallel_worker, args=(config_q, results_q))
+                   for _ in range(self.n_parallel)])
+        [j.start() for j in jobs]
 
         for i in range(n_calls):
             next_x, next_y, report_df = results_q.get()
@@ -308,7 +312,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             result = optimizer.tell(next_x, next_y)
             self._eval_callbacks(result)
 
-        [t.join() for t in threads]
+        [j.join() for j in jobs]
         return self._format_and_plot_result(result)
 
     def _parallel_worker(self, q_in, q_out):
