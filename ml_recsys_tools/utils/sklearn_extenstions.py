@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 import sklearn.preprocessing
-from pandas.core.dtypes.dtypes import CategoricalDtype
 from sklearn.utils import column_or_1d
 from sklearn.utils.validation import check_is_fitted
+import pandas.core.categorical as pd_cat
+from pandas.core.algorithms import _get_data_algo, _hashtables
 
 
 class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
@@ -16,18 +17,37 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     def fit(self, y):
         y = column_or_1d(y, warn=True)
         _, self.classes_ = pd.factorize(y, sort=True)
-        self._cat_dtype = CategoricalDtype(self.classes_)
+        self._cat_dtype = pd_cat.CategoricalDtype(self.classes_)
+        self._table = self._get_table_for_categories(y, self._cat_dtype.categories)
+        self._dtype = self._cat_dtype.categories.dtype
         return self
 
+    @staticmethod
+    def _get_table_for_categories(values, categories):
+        if not pd_cat.is_dtype_equal(values.dtype, categories.dtype):
+            values = pd_cat._ensure_object(values)
+            categories = pd_cat._ensure_object(categories)
+
+        (hash_klass, vec_klass), vals = _get_data_algo(values, _hashtables)
+        (_, _), cats = _get_data_algo(categories, _hashtables)
+        t = hash_klass(len(cats))
+        t.map_locations(cats)
+        return t
+
     def transform(self, y, check_labels=True):
-        check_is_fitted(self, 'classes_')
+        check_is_fitted(self, ['classes_', '_cat_dtype', '_table', '_dtype'])
         y = column_or_1d(y, warn=True)
 
-        trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()
+        # trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()
+        trans_y = pd_cat.coerce_indexer_dtype(
+            indexer=self._table.lookup(y.astype(self._dtype)),
+            categories=self._cat_dtype.categories)
+
         if check_labels:
             if -1 in trans_y:
                 diff = np.setdiff1d(np.unique(y[trans_y==-1]), self.classes_)
                 raise ValueError("y contains new labels: %s" % str(diff))
+
         return trans_y
 
 
