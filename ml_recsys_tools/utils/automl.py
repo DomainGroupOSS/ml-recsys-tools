@@ -145,7 +145,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
 
     def init_pipeline(self, values):
         for i, value in enumerate(values):
-            if isinstance(value, np.int):
+            if isinstance(value, np.int_):
                 values[i] = int(value)
             elif isinstance(value, np.float_):
                 values[i] = float(value)
@@ -248,29 +248,12 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                                   xi=0.01, kappa=1.96))
 
     def _init_callbacks(self, n_calls):
-        self.callbacks = [self.PrintIfBestCB(self),
-                     VerboseCallback(n_total=n_calls,
-                                     n_random=int(n_calls * self.random_ratio))]
+        self.callbacks = [
+            self.PrintIfBestCB(self),
+            VerboseCallback(n_total=n_calls, n_random=int(n_calls * self.random_ratio))]
 
     def _eval_callbacks(self, result):
         [c(result) for c in self.callbacks]
-
-    # @log_time_and_shape
-    # def optimize(self, train_data, validation_data, n_calls):
-    #     self.train_data = train_data
-    #     self.validation_data = validation_data
-    #     optimizer = self._init_optimizer(n_calls)
-    #     self._init_callbacks(n_calls)
-    #
-    #     result = None
-    #     for n in range(n_calls):
-    #         next_x = optimizer.ask()
-    #         next_y, report_df = self.objective_func(next_x)
-    #         self._record_all_metrics(report_df=report_df, values=next_x)
-    #         result = optimizer.tell(next_x, next_y)
-    #         # result.specs = specs
-    #         self._eval_callbacks(result)
-    #     return self._format_and_plot_result(result)
 
     def _smooth_transition(self, optimizer, progress):
         # this should transition from random to BO
@@ -285,7 +268,6 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         optimizer = self._init_optimizer(n_calls)
         self._init_callbacks(n_calls)
 
-        result = None
         config_q = Queue(maxsize=1)
         results_q = Queue()
 
@@ -295,11 +277,10 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             for i in range(self.n_parallel):
                 q.put('end')
 
-        jobs = []
-        jobs.append(Thread(target=_config_putter, name='_config_putter', args=(config_q,)))
+        jobs = [Thread(target=_config_putter, name='_config_putter', args=(config_q,))]
 
         if self.n_parallel == 1:
-            jobs.append(Thread(target=self._parallel_worker, args=(config_q, results_q)))
+            jobs.append(Thread(target=self._parallel_worker, args=(config_q, results_q)))  # for easier debugging
         else:
             jobs.extend([Process(target=self._parallel_worker, args=(config_q, results_q))
                    for _ in range(self.n_parallel)])
