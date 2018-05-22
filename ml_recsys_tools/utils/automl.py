@@ -258,7 +258,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
     def _smooth_transition(self, optimizer, progress):
         # this should transition from random to BO
         if self.smooth_transition:
-            optimizer.n_points = int(10000 ** progress)
+            optimizer.n_points = int(2000 ** progress)
         return optimizer
 
     @log_time_and_shape
