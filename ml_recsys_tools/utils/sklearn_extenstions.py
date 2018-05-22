@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import sklearn.preprocessing
+from pandas.core.dtypes.dtypes import CategoricalDtype
 from sklearn.utils import column_or_1d
 from sklearn.utils.validation import check_is_fitted
 
@@ -15,13 +16,14 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     def fit(self, y):
         y = column_or_1d(y, warn=True)
         _, self.classes_ = pd.factorize(y, sort=True)
+        self._cat_dtype = CategoricalDtype(self.classes_)
         return self
 
     def transform(self, y, check_labels=True):
         check_is_fitted(self, 'classes_')
         y = column_or_1d(y, warn=True)
 
-        trans_y = pd.Categorical(y, categories=self.classes_).codes.copy()
+        trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()
         if check_labels:
             if -1 in trans_y:
                 diff = np.setdiff1d(np.unique(y[trans_y==-1]), self.classes_)
