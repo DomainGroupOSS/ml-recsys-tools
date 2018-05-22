@@ -303,3 +303,4 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
             full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
         return full_pred_mat
+
