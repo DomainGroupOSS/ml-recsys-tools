@@ -24,6 +24,7 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
 
     @staticmethod
     def _get_table_for_categories(values, categories):
+        # ripped out of pandas.core.categorical _get_codes_for_values()
         if not pd_cat.is_dtype_equal(values.dtype, categories.dtype):
             values = pd_cat._ensure_object(values)
             categories = pd_cat._ensure_object(categories)
