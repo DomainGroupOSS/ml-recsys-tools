@@ -231,7 +231,7 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
 
         mat_builder = self.sparse_mat_builder
         df = mat_builder.remove_unseen_labels(df)
-        df = mat_builder.add_encoded_cols(df)
+        df = mat_builder.add_encoded_cols(df, parallel=False)
         df[self._prediction_col] = self._predict(
             df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
 
@@ -319,7 +319,19 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
 
     def predict_for_user(self, user_id, item_ids, rank_training_last=True):
         df = pd.DataFrame()
-        df[self.sparse_mat_builder.iid_source_col] = item_ids
+        df[self.sparse_mat_builder.iid_source_col] = item_ids  # assigning first because determines length
         df[self.sparse_mat_builder.uid_source_col] = user_id
-        return self.predict_on_df(df, exclude_training=rank_training_last)
+        df[self._prediction_col] = None
+
+        if user_id not in self.sparse_mat_builder.uid_encoder.classes_:
+            return df
+
+        new_mask = self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
+
+        preds = self._predict_for_users_dense(
+            user_ids=[user_id], item_ids=item_ids[~new_mask], exclude_training=rank_training_last)
+
+        df[self._prediction_col].values[~new_mask] = preds.ravel()
+
+        return df
 
