@@ -177,75 +177,17 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         except Exception as e:
             simple_logger.exception(e)
             simple_logger.error(values)
-            # raise e
             return 1.0, self._add_loss_and_time_to_report(0, 0)
 
-    # @log_time_and_shape
-    # def optimize(self, train_data, validation_data, n_calls, optimizer='gb'):
-    #     """
-    #     example code:
-    #
-    #     hp_space = {
-    #                 'model': Categorical([LGBMClassifier()]),
-    #                 'model__n_estimators': Integer(10, 50),
-    #                 }
-    #
-    #     pipe = Pipeline([
-    #         ('vectorizer', TfidfVectorizer()),
-    #         ('model', None)
-    #     ])
-    #
-    #     def custom_loss(y_true, y_pred):
-    #         return 1-np.mean(recall_score(y_true, y_pred, average=None))
-    #
-    #     bo = BayesSearchHoldOut(search_space=hp_space, pipeline=pipe, loss=custom_loss)
-    #     results = bo.optimize(
-    #         train_data={'x': x_train_bo, 'y': y_train_bo},
-    #         validation_data={'x': x_val_bo, 'y': y_val_bo},
-    #         n_calls=100)
-    #
-    #     """
-    #
-    #     if optimizer == 'rf':
-    #         opt_func = partial(forest_minimize,
-    #                            base_estimator=RandomForestRegressor(n_estimators=10),
-    #                            n_points=1000,
-    #                            acq_func="EI")
-    #     elif optimizer == 'gb':
-    #         opt_func = gbrt_minimize
-    #     elif optimizer == 'random':
-    #         opt_func = dummy_minimize
-    #     elif optimizer == 'gp':  # too slow
-    #         opt_func = gp_minimize
-    #     else:
-    #         raise NotImplementedError('unknown optimizer')
-    #
-    #     self.train_data = train_data
-    #     self.validation_data = validation_data
-    #
-    #     res_bo = opt_func(
-    #         self.objective_func,
-    #         dimensions_aslist(search_space=self.search_space),
-    #         n_calls=n_calls,
-    #         n_random_starts=int(n_calls * self.random_ratio),
-    #         n_jobs=-1,
-    #         verbose=True,
-    #         callback=self.PrintIfBestCB(self)
-    #     )
-    #
-    #     return self._format_and_plot_result(res_bo)
-
     def _init_optimizer(self, n_calls):
-        return Optimizer(dimensions=dimensions_aslist(search_space=self.search_space),
-                              base_estimator=RandomForestRegressor(n_estimators=10),
-                              n_initial_points=int(n_calls * self.random_ratio),
-                              acq_func="EI",
-                              acq_optimizer="sampling",
-                              acq_optimizer_kwargs=dict(
-                                  n_points=1000,
-                                  n_jobs=-1),
-                              acq_func_kwargs=dict(
-                                  xi=0.01, kappa=1.96))
+        return Optimizer(
+            dimensions=dimensions_aslist(search_space=self.search_space),
+            base_estimator=RandomForestRegressor(n_estimators=10),
+            n_initial_points=int(n_calls * self.random_ratio),
+            acq_func="EI",
+            acq_optimizer="sampling",
+            acq_optimizer_kwargs=dict(n_points=1000, n_jobs=-1),
+            acq_func_kwargs=dict(xi=0.01, kappa=1.96))
 
     def _init_callbacks(self, n_calls):
         self.callbacks = [
@@ -261,14 +203,13 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             optimizer.n_points = int(10000 ** progress)
         return optimizer
 
-    @log_time_and_shape
     def optimize(self, train_data, validation_data, n_calls):
         self.train_data = train_data
         self.validation_data = validation_data
         optimizer = self._init_optimizer(n_calls)
         self._init_callbacks(n_calls)
 
-        config_q = Queue(maxsize=1)
+        config_q = Queue(maxsize=1)  # this is to keep the configs fresh
         results_q = Queue()
 
         def _config_putter(q):
@@ -286,6 +227,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                    for _ in range(self.n_parallel)])
         [j.start() for j in jobs]
 
+        # get results from queue
         for i in range(n_calls):
             next_x, next_y, report_df = results_q.get()
             self._record_all_metrics(report_df=report_df, values=next_x)
