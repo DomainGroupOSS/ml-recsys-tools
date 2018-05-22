@@ -21,12 +21,12 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
         check_is_fitted(self, 'classes_')
         y = column_or_1d(y, warn=True)
 
+        trans_y = pd.Categorical(y, categories=self.classes_).codes.copy()
         if check_labels:
-            classes = np.unique(y)
-            if len(np.intersect1d(classes, self.classes_)) < len(classes):
-                diff = np.setdiff1d(classes, self.classes_)
+            if -1 in trans_y:
+                diff = np.setdiff1d(np.unique(y[trans_y==-1]), self.classes_)
                 raise ValueError("y contains new labels: %s" % str(diff))
-        return pd.Categorical(y, categories=self.classes_).codes.copy()
+        return trans_y
 
 
 class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
