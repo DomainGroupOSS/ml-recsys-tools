@@ -238,27 +238,27 @@ class BaseDFSparseRecommender(BaseDFRecommender):
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
             user_ids,
-            filter_array=self.all_users,
+            encoder=self.sparse_mat_builder.uid_encoder,
             message_prefix=message_prefix,
             message_suffix='users that were not in training set.')
 
     def remove_unseen_items(self, item_ids, message_prefix=''):
         return self._filter_array(
             item_ids,
-            filter_array=self.all_items,
+            encoder=self.sparse_mat_builder.iid_encoder,
             message_prefix=message_prefix,
             message_suffix='items that were not in training set.')
 
     @staticmethod
-    def _filter_array(array, filter_array, message_prefix='', message_suffix=''):
+    def _filter_array(array, encoder, message_prefix='', message_suffix=''):
         array = np.array(array).astype(str)
-        relevance_mask = np.isin(array, np.array(filter_array).astype(str))
-        n_discard = np.sum(~relevance_mask)
+        new_labels_mask = encoder.find_new_labels(array)
+        n_discard = np.sum(new_labels_mask)
         if n_discard > 0:
             logger.info(
                 '%s Discarding %d (out of %d) %s' %
                 (message_prefix, int(n_discard), len(array), message_suffix))
-        return array[relevance_mask]
+        return array[~new_labels_mask]
 
     # def _remove_training_from_df(self, flat_df):
     #     flat_df = pd.merge(

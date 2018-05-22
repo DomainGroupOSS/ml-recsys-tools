@@ -223,12 +223,25 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    def predict_on_df(self, df):
-        mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
+    def predict_on_df(self, df, exclude_training=True, user_col=None, item_col=None):
+        if user_col is not None and user_col!=self.sparse_mat_builder.uid_source_col:
+            df[self.sparse_mat_builder.uid_source_col] = df[user_col]
+        if item_col is not None and item_col!=self.sparse_mat_builder.iid_source_col:
+            df[self.sparse_mat_builder.iid_source_col] = df[item_col]
+
+        mat_builder = self.sparse_mat_builder
         df = mat_builder.remove_unseen_labels(df)
         df = mat_builder.add_encoded_cols(df)
         df[self._prediction_col] = self._predict(
             df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
+
+        if exclude_training:
+            exclude_mat_sp_coo = \
+                self.train_mat[df[mat_builder.uid_col].values, :] \
+                    [:, df[mat_builder.iid_col].values].tocoo()
+            df[df[mat_builder.uid_col].isin(exclude_mat_sp_coo.row) &
+               df[mat_builder.iid_col].isin(exclude_mat_sp_coo.col)][self._prediction_col] = -np.inf
+
         df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
         return df
 
@@ -303,4 +316,10 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
             full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
         return full_pred_mat
+
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True):
+        df = pd.DataFrame()
+        df[self.sparse_mat_builder.iid_source_col] = item_ids
+        df[self.sparse_mat_builder.uid_source_col] = user_id
+        return self.predict_on_df(df, exclude_training=rank_training_last)
 

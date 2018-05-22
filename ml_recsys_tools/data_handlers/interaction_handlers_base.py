@@ -357,8 +357,11 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
                self.iid_col: self.iid_encoder.transform(df[self.iid_source_col].values.astype(str))})
         return df
 
-    def add_encoded_cols(self, df):
-        return parallelize_dataframe(df, self._add_encoded_cols)
+    def add_encoded_cols(self, df, parallel=True):
+        if parallel:
+            return parallelize_dataframe(df, self._add_encoded_cols)
+        else:
+            return self._add_encoded_cols(df)
 
     def build_sparse_interaction_matrix(self, df, job_size=500000):
         """
@@ -409,8 +412,10 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         return mat.tocsr()
 
     def remove_unseen_labels(self, df):
-        new_u = ~df[self.uid_source_col].isin(self.uid_encoder.classes_)
-        new_i = ~df[self.iid_source_col].isin(self.iid_encoder.classes_)
+        # new_u = ~df[self.uid_source_col].isin(self.uid_encoder.classes_)
+        new_u = self.uid_encoder.find_new_labels(df[self.uid_source_col])
+        # new_i = ~df[self.iid_source_col].isin(self.iid_encoder.classes_)
+        new_i = self.iid_encoder.find_new_labels(df[self.iid_source_col])
         percent_new_u = np.mean(new_u)
         percent_new_i = np.mean(new_i)
         if percent_new_u > 0.0 or percent_new_i > 0.0:

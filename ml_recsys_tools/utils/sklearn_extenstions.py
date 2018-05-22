@@ -3,13 +3,15 @@ import pandas as pd
 import sklearn.preprocessing
 from sklearn.utils import column_or_1d
 from sklearn.utils.validation import check_is_fitted
-import pandas.core.categorical as pd_cat
-from pandas.core.algorithms import _get_data_algo, _hashtables
+from pandas.core.algorithms import _get_data_algo, _hashtables, _ensure_object
+import importlib
+
+pd_cat_module = importlib.import_module(pd.Categorical.__module__)
 
 
 class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     """
-    from here: https://github.com/scikit-learn/scikit-learn/issues/7432
+    adapterd and sped up further from here: https://github.com/scikit-learn/scikit-learn/issues/7432
     faster version of encoder that's using Pandas encoding
     which is using hash tables instead of sorted arrays
     """
@@ -17,17 +19,17 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     def fit(self, y):
         y = column_or_1d(y, warn=True)
         _, self.classes_ = pd.factorize(y, sort=True)
-        self._cat_dtype = pd_cat.CategoricalDtype(self.classes_)
-        self._table = self._get_table_for_categories(y, self._cat_dtype.categories)
+        self._cat_dtype = pd_cat_module.CategoricalDtype(self.classes_)
         self._dtype = self._cat_dtype.categories.dtype
+        self._table = self._get_table_for_categories(self.classes_, self._cat_dtype.categories)
         return self
 
     @staticmethod
     def _get_table_for_categories(values, categories):
-        # ripped out of pandas.core.categorical _get_codes_for_values()
-        if not pd_cat.is_dtype_equal(values.dtype, categories.dtype):
-            values = pd_cat._ensure_object(values)
-            categories = pd_cat._ensure_object(categories)
+        # ripped out of _get_codes_for_values() in pandas Categorical module
+        if not pd_cat_module.is_dtype_equal(values.dtype, categories.dtype):
+            values = _ensure_object(values)
+            categories = _ensure_object(categories)
 
         (hash_klass, vec_klass), vals = _get_data_algo(values, _hashtables)
         (_, _), cats = _get_data_algo(categories, _hashtables)
@@ -39,17 +41,34 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
         check_is_fitted(self, ['classes_', '_cat_dtype', '_table', '_dtype'])
         y = column_or_1d(y, warn=True)
 
-        # trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()
-        trans_y = pd_cat.coerce_indexer_dtype(
+        # trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()  # much slower
+        trans_y = pd_cat_module.coerce_indexer_dtype(
             indexer=self._table.lookup(y.astype(self._dtype)),
             categories=self._cat_dtype.categories)
 
         if check_labels:
-            if -1 in trans_y:
-                diff = np.setdiff1d(np.unique(y[trans_y==-1]), self.classes_)
-                raise ValueError("y contains new labels: %s" % str(diff))
+            mask_new_labels = self._new_labels_locs(trans_y)
+            if np.any(mask_new_labels):
+                raise ValueError("y contains new labels: %s" %
+                                 str(np.unique(y[mask_new_labels])))
 
         return trans_y
+
+    def _new_labels_locs(self, trans_y):
+        return trans_y == -1
+
+    def find_new_labels(self, y):
+        return self._new_labels_locs(self.transform(y, check_labels=False))
+
+    def __getstate__(self):
+        # custom pickling behaviour because the table object is unpickleable
+        state = super().__getstate__()
+        state['_table'] = None
+        return state
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self._table = self._get_table_for_categories(self.classes_, self._cat_dtype.categories)
 
 
 class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):

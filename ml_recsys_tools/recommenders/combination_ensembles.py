@@ -195,4 +195,8 @@ class CascadeEnsemble(CombinationEnsembleBase):
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
             exclude_training=exclude_training,
             results_format='flat', **kwargs)
-        return self.recommenders[1].predict_on_df(recos_df)
+        pred_mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
+        return self.recommenders[1].predict_on_df(
+            recos_df,
+            user_col=pred_mat_builder.uid_source_col,
+            item_col=pred_mat_builder.iid_source_col)
