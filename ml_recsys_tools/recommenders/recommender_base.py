@@ -1,17 +1,12 @@
 import os
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from time import sleep
-from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pickle
 
 import time
-
-from sklearn.feature_selection import mutual_info_regression
-from sklearn.preprocessing import LabelEncoder
 
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess

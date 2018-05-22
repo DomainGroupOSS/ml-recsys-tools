@@ -15,6 +15,7 @@ from ml_recsys_tools.utils.parallelism import batch_generator, parallelize_dataf
 from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.pandas_utils import console_settings
+from ml_recsys_tools.utils.sklearn_extenstions import PDLabelEncoder
 
 console_settings()
 
@@ -345,8 +346,10 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         self.n_rows = len(all_uids)
         self.n_cols = len(all_iids)
 
-        self.uid_encoder = LabelEncoder().fit(all_uids)
-        self.iid_encoder = LabelEncoder().fit(all_iids)
+        # self.uid_encoder = LabelEncoder().fit(all_uids)
+        # self.iid_encoder = LabelEncoder().fit(all_iids)
+        self.uid_encoder = PDLabelEncoder().fit(all_uids)
+        self.iid_encoder = PDLabelEncoder().fit(all_iids)
 
     def _add_encoded_cols(self, df):
         df = df.assign(

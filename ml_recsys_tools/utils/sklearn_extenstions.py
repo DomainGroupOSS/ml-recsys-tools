@@ -1,6 +1,32 @@
 import numpy as np
 import pandas as pd
 import sklearn.preprocessing
+from sklearn.utils import column_or_1d
+from sklearn.utils.validation import check_is_fitted
+
+
+class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
+    """
+    from here: https://github.com/scikit-learn/scikit-learn/issues/7432
+    faster version of encoder that's using Pandas encoding
+    which is using hash tables instead of sorted arrays
+    """
+
+    def fit(self, y):
+        y = column_or_1d(y, warn=True)
+        _, self.classes_ = pd.factorize(y, sort=True)
+        return self
+
+    def transform(self, y, check_labels=True):
+        check_is_fitted(self, 'classes_')
+        y = column_or_1d(y, warn=True)
+
+        if check_labels:
+            classes = np.unique(y)
+            if len(np.intersect1d(classes, self.classes_)) < len(classes):
+                diff = np.setdiff1d(classes, self.classes_)
+                raise ValueError("y contains new labels: %s" % str(diff))
+        return pd.Categorical(y, categories=self.classes_).codes.copy()
 
 
 class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
