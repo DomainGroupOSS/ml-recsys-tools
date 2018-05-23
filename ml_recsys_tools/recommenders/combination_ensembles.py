@@ -116,7 +116,7 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
                  recommenders,
                  similarity_func_params=None,
                  n_unfilt=100,
-                 numeric_n_bins=30,
+                 numeric_n_bins=32,
                  combination_mode='hmean',
                  *args, **kwargs):
         self.recommenders = recommenders

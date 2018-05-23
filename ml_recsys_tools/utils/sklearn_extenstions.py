@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 import sklearn.preprocessing
 from sklearn.utils import column_or_1d
 from sklearn.utils.validation import check_is_fitted
@@ -13,8 +14,8 @@ pd_cat_module = importlib.import_module(pd.Categorical.__module__)
 
 class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     """
-    adapterd and sped up further from here: https://github.com/scikit-learn/scikit-learn/issues/7432
-    faster version of encoder that's using Pandas encoding
+    adapted and sped up further from here: https://github.com/scikit-learn/scikit-learn/issues/7432
+    a blazingly fast version of encoder that's using Pandas encoding
     which is using hash tables instead of sorted arrays
     """
 
@@ -43,7 +44,8 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
         check_is_fitted(self, ['classes_', '_cat_dtype', '_table', '_dtype'])
         y = column_or_1d(y, warn=True)
 
-        # trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()  # much slower
+        ## slower because it creates the hash table every time
+        # trans_y = pd.Categorical(y, dtype=self._cat_dtype).codes.copy()
         trans_y = pd_cat_module.coerce_indexer_dtype(
             indexer=self._table.lookup(y.astype(self._dtype)),
             categories=self._cat_dtype.categories)
@@ -103,7 +105,7 @@ class DictLabelEncoder(sklearn.preprocessing.LabelEncoder):
         return self._new_labels_locs(self.transform(y, check_labels=False))
 
 
-class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
+class NumericBinningEncoder(sklearn.preprocessing.LabelEncoder):
     """
     class for label-encoding a continuous variable by binning
     """
@@ -132,7 +134,7 @@ class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
         return y_ind
 
 
-class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
+class NumericBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
     """
     class for one-hot encoding a continuous variable by binning
     """
@@ -147,7 +149,7 @@ class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
         """
         super().__init__(**kwargs)
         self._spillage = spillage
-        self._binner = FloatBinningEncoder(n_bins=n_bins)
+        self._binner = NumericBinningEncoder(n_bins=n_bins)
 
     def fit(self, y):
         self._binner.fit(y)
@@ -162,3 +164,55 @@ class FloatBinningBinarizer(sklearn.preprocessing.LabelBinarizer):
                 binarized += super().transform(y_binned + i) / 2**i
                 binarized += super().transform(y_binned - i) / 2**i
         return binarized
+
+
+class GrayCodesNumericBinarizer(sklearn.preprocessing.LabelBinarizer):
+    """
+    class for encoding a continuous variable by binning and binarizing to Gray codes.
+    Using Gray codes might result in better preservation of proximity (in terms
+    of euclidean or cosine distance). In addition, in the resulting representations
+    the different columns are also acting as a sort of a binary FFT / DCT
+    which may surface valuable information for learning.
+
+    and example of Gray codes for 8 bins:
+        array([[0., 0., 0.],
+               [1., 0., 0.],
+               [1., 1., 0.],
+               [0., 1., 0.],
+               [0., 1., 1.],
+               [1., 1., 1.],
+               [1., 0., 1.],
+               [0., 0., 1.]])
+    """
+    def __init__(self, n_bins=64, **kwargs):
+        """
+        :param n_bins: number of bins
+        """
+        super().__init__(**kwargs)
+        self._binner = NumericBinningEncoder(n_bins=n_bins)
+        self._codes = self.gray_codes_matrix(np.ceil(np.log2(n_bins)))  # next power of two
+        if self.sparse_output:
+            self._codes = sp.csr_matrix(self._codes)
+
+    @staticmethod
+    def gray_codes_matrix(n):
+        n = int(n)
+        codes = np.zeros((1 << n, n))
+        for i in range(0, 1 << n):
+            gray = i ^ (i >> 1)
+            while gray:
+                codes[i, int(np.log2(gray & ~(gray - 1)))] = 1
+                gray &= gray - 1
+        return codes
+
+    def fit(self, y):
+        self._binner.fit(y)
+        super().fit(range(len(self._binner.bins)))
+        return self
+
+    def transform(self, y):
+        y_binned = self._binner.transform(y)
+        return self._codes[y_binned]
+
+    def inverse_transform(self, Y, **kwargs):
+        raise NotImplementedError()
