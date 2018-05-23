@@ -7,7 +7,7 @@ import scipy.sparse as sp
 
 from sklearn.preprocessing import LabelBinarizer, normalize
 from sklearn_pandas import DataFrameMapper
-from ml_recsys_tools.utils.sklearn_extenstions import FloatBinningBinarizer
+from ml_recsys_tools.utils.sklearn_extenstions import NumericBinningBinarizer, GrayCodesNumericBinarizer
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF, RANDOM_STATE
 from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
@@ -78,7 +78,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                                      items_encoder,
                                      normalize_output=False,
                                      add_identity_mat=True,
-                                     numeric_n_bins=100,
+                                     numeric_n_bins=128,
                                      feat_weight=1.0):
         """
         creates a sparse feature matrix from item features
@@ -173,13 +173,14 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
 
     @staticmethod
     def ohe_hot_encode_features_df(full_feat_df, categorical_feat_cols, numeric_feat_cols,
-                                   numeric_n_bins=50):
+                                   numeric_n_bins=64):
         feat_mapper = DataFrameMapper(
             [(cat_col,
               LabelBinarizer(sparse_output=True))
              for cat_col in categorical_feat_cols] +
             [(num_col,
-              FloatBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+              # FloatBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+              GrayCodesNumericBinarizer(n_bins=numeric_n_bins, sparse_output=True))
              for num_col in numeric_feat_cols],
             sparse=True
         )
