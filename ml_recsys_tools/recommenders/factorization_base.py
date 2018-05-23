@@ -5,6 +5,7 @@ from functools import partial
 
 import pandas as pd
 import numpy as np
+import scipy.sparse as sp
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
@@ -296,6 +297,27 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
             source_vec=user_ids, target_ids_mat=best_ids,
             scores_mat=top_scores, results_format='recommendations_' + results_format)
 
+    # def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
+    #
+    #     if item_ids is None:
+    #         item_ids = self.sparse_mat_builder.iid_encoder.classes_
+    #
+    #     user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
+    #     item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+    #
+    #     n_users = len(user_inds)
+    #     n_items = len(item_inds)
+    #     user_inds_mat = user_inds.repeat(n_items)
+    #     item_inds_mat = np.tile(item_inds, n_users)
+    #
+    #     full_pred_mat = self._predict(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
+    #
+    #     if exclude_training:
+    #         exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
+    #         full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
+    #
+    #     return full_pred_mat
+
     def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
 
         if item_ids is None:
@@ -304,12 +326,23 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
         user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
         item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
 
-        n_users = len(user_inds)
-        n_items = len(item_inds)
-        user_inds_mat = user_inds.repeat(n_items)
-        item_inds_mat = np.tile(item_inds, n_users)
+        user_biases, user_factors = self._get_user_factors()
+        item_biases, item_factors = self._get_item_factors()
 
-        full_pred_mat = self._predict(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
+        scores = np.dot(user_factors[user_inds, :], item_factors[item_inds, :].T)
+
+        if user_biases is not None:
+            scores = (scores.T + user_biases[user_inds]).T
+
+        if item_biases is not None:
+            scores += item_biases[item_inds]
+
+        if sp.issparse(scores):
+            scores = scores.toarray()
+        else:
+            scores = np.array(scores)
+
+        full_pred_mat = scores
 
         if exclude_training:
             exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
@@ -317,21 +350,28 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
 
         return full_pred_mat
 
-    def predict_for_user(self, user_id, item_ids, rank_training_last=True):
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True, sort=True):
+
         df = pd.DataFrame()
         df[self.sparse_mat_builder.iid_source_col] = item_ids  # assigning first because determines length
         df[self.sparse_mat_builder.uid_source_col] = user_id
         df[self._prediction_col] = None
 
-        if user_id not in self.sparse_mat_builder.uid_encoder.classes_:
+        new_users_mask = self.sparse_mat_builder.uid_encoder.find_new_labels([user_id])
+        if np.any(new_users_mask):
             return df
 
-        new_mask = self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
+        new_items_mask = self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
 
         preds = self._predict_for_users_dense(
-            user_ids=[user_id], item_ids=item_ids[~new_mask], exclude_training=rank_training_last)
+            user_ids=[user_id],
+            item_ids=np.array(item_ids)[~new_items_mask],
+            exclude_training=rank_training_last)
 
-        df[self._prediction_col].values[~new_mask] = preds.ravel()
+        df[self._prediction_col].values[~new_items_mask] = preds.ravel()
+
+        if sort:
+            df.sort_values(self._prediction_col, ascending=False, inplace=True)
 
         return df
 
