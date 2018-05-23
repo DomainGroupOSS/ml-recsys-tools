@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 import sklearn.preprocessing
@@ -69,6 +71,36 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     def __setstate__(self, state):
         super().__setstate__(state)
         self._table = self._get_table_for_categories(self.classes_, self._cat_dtype.categories)
+
+
+class DictLabelEncoder(sklearn.preprocessing.LabelEncoder):
+    """
+    python dict based version of the hash table based encoder
+    somewhat slower but no pandas private parts and no pickling issues
+    """
+
+    def fit(self, y):
+        self.classes_ = np.array(list(set(y)))
+        self._table = defaultdict(
+            lambda: -1, {k: i for i, k in enumerate(self.classes_)})
+        return self
+
+    def transform(self, y, check_labels=True):
+        y = np.array(y)
+        trans_y = np.array([self._table[v] for v in y])
+
+        if check_labels:
+            mask_new_labels = self._new_labels_locs(trans_y)
+            if np.any(mask_new_labels):
+                raise ValueError("y contains new labels: %s" %
+                                 str(np.unique(y[mask_new_labels])))
+        return trans_y
+
+    def _new_labels_locs(self, trans_y):
+        return trans_y == -1
+
+    def find_new_labels(self, y):
+        return self._new_labels_locs(self.transform(y, check_labels=False))
 
 
 class FloatBinningEncoder(sklearn.preprocessing.LabelEncoder):
