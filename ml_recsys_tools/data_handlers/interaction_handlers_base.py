@@ -8,10 +8,9 @@ import scipy.sparse as sp
 
 from multiprocessing.pool import Pool
 
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
-from ml_recsys_tools.utils.parallelism import batch_generator, parallelize_dataframe, N_CPUS
+from ml_recsys_tools.utils.parallelism import batch_generator, N_CPUS
 from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.pandas_utils import console_settings
@@ -351,65 +350,29 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         self.uid_encoder = PDLabelEncoder().fit(all_uids)
         self.iid_encoder = PDLabelEncoder().fit(all_iids)
 
-    def _add_encoded_cols(self, df):
+    def add_encoded_cols(self, df):
         df = df.assign(
             **{self.uid_col: self.uid_encoder.transform(df[self.uid_source_col].values.astype(str)),
                self.iid_col: self.iid_encoder.transform(df[self.iid_source_col].values.astype(str))})
         return df
 
-    def add_encoded_cols(self, df, parallel=True):
-        if parallel:
-            return parallelize_dataframe(df, self._add_encoded_cols)
-        else:
-            return self._add_encoded_cols(df)
-
-    def build_sparse_interaction_matrix(self, df, job_size=500000):
+    def build_sparse_interaction_matrix(self, df):
         """
-        note:
-            all this complexity if to to prevent spikes of memory usage and still keep the time close to optimal
-            the DF is split into chunks, and each chunk is processed in parallel
         :param df:
-        :param job_size: the length of data that a single core should process at a time,
-            this parameter allows to control the tradeoff between memory and time,
-            large values will be faster but will spike the memory
         :return: the sparse matrix populated with interactions, of shape (n_users, n_items)
             of the source DF (which which this builder with initialized
         """
 
         df = self.remove_unseen_labels(df)
 
-        n_jobs = len(df) / job_size
-        n_parallel = int(max(1, min(N_CPUS, n_jobs)))
-        n_chunks = max(1, int(n_jobs / n_parallel))
-
-        u_arrays = np.array_split(df[self.uid_source_col].values.astype(str), n_chunks)
-        i_arrays = np.array_split(df[self.iid_source_col].values.astype(str), n_chunks)
-
-        r, c = [], []
-        with Pool(n_parallel, maxtasksperchild=5) as pool:
-            for sub_u, sub_i in zip(u_arrays, i_arrays):
-                r.append(np.concatenate(
-                    pool.map(self.uid_encoder.transform, np.array_split(sub_u, n_parallel))))
-                c.append(np.concatenate(
-                    pool.map(self.iid_encoder.transform, np.array_split(sub_i, n_parallel))))
-
         mat = sp.coo_matrix(
             (df[self.rating_source_col].values,
-             (np.concatenate(r), np.concatenate(c))),
+             (self.uid_encoder.transform(df[self.uid_source_col].values),
+              self.iid_encoder.transform(df[self.iid_source_col].values))),
             shape=(self.n_rows, self.n_cols),
-            dtype=np.float32)
+            dtype=np.float32).tocsr()
 
-        ## faster but more memory hungry version, why it comsumes so much memory - I couldn't solve
-        # mat = sp.coo_matrix(
-        #     (df[self.rating_source_col].values,
-        #      (parallelize_array(
-        #          df[self.uid_source_col].values, self.uid_encoder.transform, n_partitions=n_parallel),
-        #       parallelize_array(
-        #           df[self.iid_source_col].values, self.iid_encoder.transform, n_partitions=n_parallel))),
-        #     shape=(self.n_rows, self.n_cols),
-        #     dtype=np.float32)
-
-        return mat.tocsr()
+        return mat
 
     def remove_unseen_labels(self, df):
         # new_u = ~df[self.uid_source_col].isin(self.uid_encoder.classes_)
