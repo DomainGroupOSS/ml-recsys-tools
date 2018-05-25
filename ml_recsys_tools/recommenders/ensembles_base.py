@@ -89,7 +89,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                     user_ids=users, item_ids=item_ids,
                     n_rec=n_rec, results_format='flat', **kwargs)
                 if self.normalize_predictions:
-                    reco_df[self._prediction_col].values /= reco_df[self._prediction_col].median()
+                    reco_df[self._prediction_col] /= reco_df[self._prediction_col].median()
             return reco_df
 
         with self.get_workers_pool('threads') as pool:
@@ -116,7 +116,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                     embeddings_mode=embeddings_mode, simil_mode=simil_mode,
                     results_format='flat', pbar=None)
                 if self.normalize_predictions:
-                    simil_df[self._prediction_col].values /= simil_df[self._prediction_col].median()
+                    simil_df[self._prediction_col] /= simil_df[self._prediction_col].median()
             return simil_df
 
         with self.get_workers_pool('threads') as pool:
