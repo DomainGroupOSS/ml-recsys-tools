@@ -1,14 +1,9 @@
 from functools import partial
 from itertools import repeat
-from multiprocessing.pool import ThreadPool
-
-import numpy as np
-import pandas as pd
-import scipy.stats
 
 from ml_recsys_tools.recommenders.similarity_recommenders import SimilarityDFRecommender
 from ml_recsys_tools.utils.parallelism import batch_generator
-from ml_recsys_tools.recommenders.ensembles_base import CombinationEnsembleBase
+from ml_recsys_tools.recommenders.ensembles_base import CombinationEnsembleBase, calc_dfs_and_combine_scores
 
 
 class CombinedRankEnsemble(CombinationEnsembleBase):
@@ -19,61 +14,6 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
         self.fill_na_val = fill_na_val
         self.rank_combination_mode = rank_combination_mode
 
-    @staticmethod
-    def rank_combination_function(mode):
-        if mode == 'mean':
-            return np.mean
-        elif mode == 'max':
-            return np.max
-        elif mode == 'min':
-            return np.min
-        elif mode == 'gmean':
-            return scipy.stats.gmean
-        elif mode == 'hmean':
-            return scipy.stats.hmean
-        else:
-            raise ValueError('Unknown rank_combination_mode: ' + mode)
-
-    @staticmethod
-    def calc_dfs_and_combine_scores(calc_funcs, combine_func, fill_val,
-                                    groupby_col, item_col, scores_col, multithreaded=True):
-
-        dfs = []
-        if multithreaded:
-            with ThreadPool(len(calc_funcs)) as pool:
-                dfs = pool.map(lambda f: f(), calc_funcs)
-
-        merged_df = None
-        rank_cols = []
-
-        for i, func in enumerate(calc_funcs):
-            if dfs:
-                df = dfs[i]
-            else:
-                df = func()
-
-            rank_cols.append('rank_' + str(i))
-
-            df[rank_cols[-1]] = df.reset_index().\
-                groupby(groupby_col)[scores_col].rank(ascending=False)  # resetting index due to pandas bug
-
-            df.drop(scores_col, axis=1, inplace=True)
-
-            if merged_df is None:
-                merged_df = df
-            else:
-                merged_df = pd.merge(merged_df, df, on=[groupby_col, item_col], how='outer')
-
-        merged_df.fillna(fill_val, inplace=True)
-
-        # combine ranks
-        merged_df[scores_col] = combine_func(1 / merged_df[rank_cols].values, axis=1)
-
-        # drop temp cols
-        merged_df.drop(rank_cols, axis=1, inplace=True)
-
-        return merged_df
-
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclude_training=True, pbar=None, **kwargs):
 
@@ -82,9 +22,9 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
                               exclude_training=exclude_training,
                               results_format='flat', **kwargs)
                       for rec in self.recommenders]
-        return self.calc_dfs_and_combine_scores(
+        return calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
-            combine_func=self.rank_combination_function(self.rank_combination_mode),
+            combine_func=self.rank_combination_mode,
             fill_val=self.fill_na_val if self.fill_na_val else (n_rec + 1),
             groupby_col=self._user_col,
             item_col=self._item_col,
@@ -98,9 +38,9 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
                               n_simil=n_unfilt, results_format='flat', **kwargs)
                       for rec in self.recommenders]
 
-        combined_simil_df = self.calc_dfs_and_combine_scores(
+        combined_simil_df = calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
-            combine_func=self.rank_combination_function(self.rank_combination_mode),
+            combine_func=self.rank_combination_mode,
             fill_val=self.fill_na_val if self.fill_na_val else (n_unfilt + 1),
             groupby_col=self._item_col_simil,
             item_col=self._item_col,
@@ -155,9 +95,9 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
                         item_ids=items, n_simil=self.n_unfilt, results_format='flat', **params)
                 for rec, params in zip(self.recommenders, self._get_similarity_func_params())]
 
-            simil_df = CombinedRankEnsemble.calc_dfs_and_combine_scores(
+            simil_df = calc_dfs_and_combine_scores(
                 calc_funcs=calc_funcs,
-                combine_func=CombinedRankEnsemble.rank_combination_function(self.combination_mode),
+                combine_func=self.combination_mode,
                 fill_val=self.n_unfilt + 1,
                 groupby_col=self._item_col_simil,
                 item_col=self._item_col,

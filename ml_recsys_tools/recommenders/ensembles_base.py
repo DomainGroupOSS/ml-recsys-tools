@@ -1,13 +1,76 @@
 import warnings
 from abc import abstractmethod, ABC
+from functools import partial
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
 
 import numpy as np
 import pandas as pd
+import scipy.stats
 
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
 from ml_recsys_tools.utils.parallelism import N_CPUS
+
+
+RANK_COMBINATION_FUNCS = {
+    'mean': np.mean,
+    'max': np.max,
+    'min': np.min,
+    'gmean': scipy.stats.gmean,
+    'hmean': scipy.stats.hmean
+}
+
+
+def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
+                                fill_val, combine_func='hmean', multithreaded=True):
+    """
+    combine multiple dataframes by voting on prediction rank
+
+    :param calc_funcs: functions that return the dataframes to be combined
+    :param combine_func: defaults 'hmean', the functions that is used to combine the predictions
+        (can be callable line np.mean or a string that is assumed to be
+        a key in rank_combination_functions mapping
+    :param fill_val: rank to be assigned to NaN prediction values
+        (items appearing in some dataframes but not in others)
+    :param groupby_col: the column of the entities for which the ranking is calculated (e.g. users)
+    :param item_col: the column of the entities to be ranked (items)
+    :param scores_col: the column of the scores to be ranked (predictions)
+    :param multithreaded: whether to calculated concurrently or sequentially
+    :return: a combined dataframe of the same format as the dataframes created by the calc_funcs
+    """
+
+    with ThreadPool(len(calc_funcs)) as pool:
+        dfs = pool.map(lambda f: f(), calc_funcs) if multithreaded else []
+
+    merged_df = None
+    rank_cols = []
+
+    for i, func in enumerate(calc_funcs):
+        df = dfs[i] if dfs else func()
+
+        rank_cols.append('rank_' + str(i))
+
+        df[rank_cols[-1]] = df.reset_index().\
+            groupby(groupby_col)[scores_col].rank(ascending=False)  # resetting index due to pandas bug
+
+        df.drop(scores_col, axis=1, inplace=True)
+
+        if merged_df is None:
+            merged_df = df
+        else:
+            merged_df = pd.merge(merged_df, df, on=[groupby_col, item_col], how='outer')
+
+    merged_df.fillna(fill_val, inplace=True)
+
+    # combine ranks
+    if not callable(combine_func):
+        combine_func = RANK_COMBINATION_FUNCS[combine_func]
+    merged_df[scores_col] = combine_func(1 / merged_df[rank_cols].values, axis=1)
+
+    # drop temp cols
+    merged_df.drop(rank_cols, axis=1, inplace=True)
+
+    return merged_df
 
 
 class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
@@ -16,11 +79,16 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                  n_models=1,
                  max_concurrent=4,
                  normalize_predictions=True,
-                 concurrency_backend='threads', **kwargs):
+                 concurrency_backend='threads',
+                 combination_mode='hmean',
+                 na_rank_fill=200,
+                 **kwargs):
         self.n_models = n_models
         self.max_concurrent = max_concurrent
         self.concurrency_backend = concurrency_backend
         self.normalize_predictions = normalize_predictions
+        self.combination_mode = combination_mode
+        self.na_rank_fill = na_rank_fill
         super().__init__(**kwargs)
         self.sub_class_type = None
         self._init_sub_models()
@@ -80,24 +148,43 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def _get_recommendations_flat(self, user_ids, item_ids, n_rec=100, **kwargs):
 
-        def _calc_recos_sub_model(i_model):
-            all_users = np.array(self.sub_models[i_model].all_users)
-            users = all_users[np.isin(all_users, user_ids)]
-            reco_df = pd.DataFrame()
-            if len(users):
-                reco_df = self.sub_models[i_model].get_recommendations(
-                    user_ids=users, item_ids=item_ids,
-                    n_rec=n_rec, results_format='flat', **kwargs)
-                if self.normalize_predictions:
-                    reco_df[self._prediction_col] /= reco_df[self._prediction_col].median()
-            return reco_df
+        # def _calc_recos_sub_model(i_model):
+        #     all_users = np.array(self.sub_models[i_model].all_users)
+        #     users = all_users[np.isin(all_users, user_ids)]
+        #     reco_df = pd.DataFrame(columns=[self._user_col, self._item_col, self._prediction_col])
+        #     if len(users):
+        #         reco_df = self.sub_models[i_model].get_recommendations(
+        #             user_ids=user_ids, item_ids=item_ids,
+        #             n_rec=n_rec, results_format='flat', **kwargs)
+        #         if self.normalize_predictions:
+        #             reco_df[self._prediction_col] /= reco_df[self._prediction_col].median()
+        #     return reco_df
 
-        with self.get_workers_pool('threads') as pool:
-            reco_dfs = pool.map(_calc_recos_sub_model, np.arange(len(self.sub_models)))
+        # with self.get_workers_pool('threads') as pool:
+        #     reco_dfs = pool.map(_calc_recos_sub_model, np.arange(len(self.sub_models)))
+        #
+        # recos_flat = pd.concat(reco_dfs, axis=0). \
+        #     sort_values(self._prediction_col, ascending=False). \
+        #     drop_duplicates(subset=[self._user_col, self._item_col], keep='first')
 
-        recos_flat = pd.concat(reco_dfs, axis=0). \
-            sort_values(self._prediction_col, ascending=False). \
-            drop_duplicates(subset=[self._user_col, self._item_col], keep='first')
+        # calc_funcs = [partial(_calc_recos_sub_model, i_model)
+        #               for i_model in range(len(self.sub_models))]
+
+        calc_funcs = [
+            partial(
+                self.sub_models[i_model].get_recommendations,
+                user_ids=user_ids, item_ids=item_ids,
+                n_rec=n_rec, results_format='flat', **kwargs)
+            for i_model in range(len(self.sub_models))]
+
+        recos_flat = calc_dfs_and_combine_scores(
+            calc_funcs=calc_funcs,
+            combine_func=self.combination_mode,
+            fill_val=self.na_rank_fill,
+            groupby_col=self._user_col,
+            item_col=self._item_col,
+            scores_col=self._prediction_col
+        )
 
         return recos_flat
 
@@ -105,29 +192,74 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                           remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', **kwargs):
 
-        def _calc_simils_sub_model(i_model):
-            all_items = np.array(self.sub_models[i_model].all_items)
-            items = all_items[np.isin(all_items, item_ids)]
-            simil_df = pd.DataFrame()
-            if len(items):
-                simil_df = self.sub_models[i_model].get_similar_items(
-                    item_ids=items, target_item_ids=target_item_ids,
-                    n_simil=n_simil, remove_self=remove_self,
-                    embeddings_mode=embeddings_mode, simil_mode=simil_mode,
-                    results_format='flat', pbar=None)
-                if self.normalize_predictions:
-                    simil_df[self._prediction_col] /= simil_df[self._prediction_col].median()
-            return simil_df
+        # def _calc_simils_sub_model(i_model):
+        #     all_items = np.array(self.sub_models[i_model].all_items)
+        #     items = all_items[np.isin(all_items, item_ids)]
+        #     simil_df = pd.DataFrame(columns=[self._item_col_simil, self._item_col, self._prediction_col])
+        #     if len(items):
+        #         simil_df = self.sub_models[i_model].get_similar_items(
+        #             item_ids=item_ids, target_item_ids=target_item_ids,
+        #             n_simil=n_simil, remove_self=remove_self,
+        #             embeddings_mode=embeddings_mode, simil_mode=simil_mode,
+        #             results_format='flat', pbar=None)
+        #         if self.normalize_predictions:
+        #             simil_df[self._prediction_col] /= simil_df[self._prediction_col].median()
+        #     return simil_df
 
-        with self.get_workers_pool('threads') as pool:
-            simil_dfs = pool.map(_calc_simils_sub_model, np.arange(len(self.sub_models)))
+        # with self.get_workers_pool('threads') as pool:
+        #     simil_dfs = pool.map(_calc_simils_sub_model, np.arange(len(self.sub_models)))
+        #
+        # simil_all = pd.concat(simil_dfs, axis=0). \
+        #     sort_values(self._prediction_col, ascending=False). \
+        #     drop_duplicates(subset=[self._item_col_simil, self._item_col], keep='first')
 
-        simil_all = pd.concat(simil_dfs, axis=0). \
-            sort_values(self._prediction_col, ascending=False). \
-            drop_duplicates(subset=[self._item_col_simil, self._item_col], keep='first')
+
+        # calc_funcs = [partial( _calc_simils_sub_model, i_model)
+        #               for i_model in range(len(self.sub_models))]
+        calc_funcs = [
+            partial(
+                self.sub_models[i_model].get_similar_items,
+                item_ids=item_ids, target_item_ids=target_item_ids,
+                n_simil=n_simil, remove_self=remove_self,
+                embeddings_mode=embeddings_mode, simil_mode=simil_mode,
+                results_format='flat', pbar=None)
+            for i_model in range(len(self.sub_models))]
+
+        simil_all = calc_dfs_and_combine_scores(
+            calc_funcs=calc_funcs,
+            combine_func=self.combination_mode,
+            fill_val=self.na_rank_fill,
+            groupby_col=self._item_col_simil,
+            item_col=self._item_col,
+            scores_col=self._prediction_col
+        )
 
         return simil_all if results_format == 'flat' \
             else self._simil_flat_to_lists(simil_all, n_cutoff=n_simil)
+
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True, sort=True):
+
+        calc_funcs = [
+            partial(
+                self.sub_models[i_model].predict_for_user,
+                user_id=user_id,
+                item_ids=item_ids,
+                rank_training_last=rank_training_last)
+            for i_model in range(len(self.sub_models))]
+
+        df = calc_dfs_and_combine_scores(
+            calc_funcs=calc_funcs,
+            combine_func=self.combination_mode,
+            fill_val=len(item_ids),
+            groupby_col=self._user_col,
+            item_col=self._item_col,
+            scores_col=self._prediction_col
+        )
+
+        if sort:
+            df.sort_values(self._prediction_col, ascending=False, inplace=True)
+
+        return df
 
     # def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
     #     stats = []
@@ -159,3 +291,4 @@ class CombinationEnsembleBase(BaseDFSparseRecommender):
 
     def fit(self, *args, **kwargs):
         warnings.warn('Fit is not supported, recommenders should already be fitted.')
+

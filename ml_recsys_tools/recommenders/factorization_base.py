@@ -386,8 +386,8 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
         """
 
         df = pd.DataFrame()
-        df[self.sparse_mat_builder.iid_source_col] = item_ids  # assigning first because determines length
-        df[self.sparse_mat_builder.uid_source_col] = user_id
+        df[self._item_col] = item_ids  # assigning first because determines length
+        df[self._user_col] = user_id
         df[self._prediction_col] = None
 
         new_users_mask = self.sparse_mat_builder.uid_encoder.find_new_labels([user_id])
@@ -406,7 +406,5 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
         if sort:
             df.sort_values(self._prediction_col, ascending=False, inplace=True)
 
-        return df[[self.sparse_mat_builder.uid_source_col,
-                   self.sparse_mat_builder.iid_source_col,
-                   self._prediction_col ]]  # reordering
+        return df[[self._user_col, self._item_col, self._prediction_col ]]  # reordering
 
