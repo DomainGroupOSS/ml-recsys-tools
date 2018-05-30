@@ -1,5 +1,6 @@
 import warnings
 from abc import abstractmethod, ABC
+from collections import deque
 from functools import partial
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
@@ -22,7 +23,7 @@ RANK_COMBINATION_FUNCS = {
 
 
 def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
-                                fill_val, combine_func='hmean', multithreaded=True):
+                                fill_val, combine_func='hmean'):
     """
     combine multiple dataframes by voting on prediction rank
 
@@ -39,26 +40,34 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     :return: a combined dataframe of the same format as the dataframes created by the calc_funcs
     """
 
-    with ThreadPool(len(calc_funcs)) as pool:
-        dfs = pool.map(lambda f: f(), calc_funcs) if multithreaded else []
+    def _calc_and_add_rank_score(i):
+        df = calc_funcs[i]()
 
-    merged_df = None
-    rank_cols = []
+        # another pandas bug workaround
+        df[groupby_col] = df[groupby_col].astype(str, copy=False)
+        df[item_col] = df[item_col].astype(str, copy=False)
+        df[scores_col] = df[scores_col].astype(float, copy=False)
 
-    for i, func in enumerate(calc_funcs):
-        df = dfs[i] if dfs else func()
-
-        rank_cols.append('rank_' + str(i))
-
-        df[rank_cols[-1]] = df.reset_index().\
+        df['rank_' + str(i)] = df.reset_index(). \
             groupby(groupby_col)[scores_col].rank(ascending=False)  # resetting index due to pandas bug
 
         df.drop(scores_col, axis=1, inplace=True)
 
-        if merged_df is None:
-            merged_df = df
-        else:
-            merged_df = pd.merge(merged_df, df, on=[groupby_col, item_col], how='outer')
+        df.set_index([groupby_col, item_col], inplace=True)
+
+        return df
+
+    with ThreadPool(len(calc_funcs)) as pool:
+        dfs = pool.map(_calc_and_add_rank_score, range(len(calc_funcs)))
+
+    rank_cols = ['rank_' + str(i) for i in range(len(calc_funcs))]
+
+    dfs = deque(dfs)
+    while len(dfs) > 1:  # reduce-merges the dataframes to one another, faster than joining one by one
+        dfs.append(dfs.popleft().join(dfs.popleft(), how='outer'))
+        # dfs.append(pd.merge(dfs.popleft(), dfs.popleft(), how='outer'))
+
+    merged_df = dfs.pop()
 
     merged_df.fillna(fill_val, inplace=True)
 
@@ -70,7 +79,7 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     # drop temp cols
     merged_df.drop(rank_cols, axis=1, inplace=True)
 
-    return merged_df
+    return merged_df.reset_index()
 
 
 class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
