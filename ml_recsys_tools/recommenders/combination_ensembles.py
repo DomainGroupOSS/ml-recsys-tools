@@ -9,10 +9,10 @@ from ml_recsys_tools.recommenders.ensembles_base import CombinationEnsembleBase,
 class CombinedRankEnsemble(CombinationEnsembleBase):
 
     def __init__(self, recommenders, fill_na_val=None,
-                 rank_combination_mode='hmean', **kwargs):
+                 combination_mode='hmean', **kwargs):
         super().__init__(recommenders=recommenders, **kwargs)
         self.fill_na_val = fill_na_val
-        self.rank_combination_mode = rank_combination_mode
+        self.combination_mode = combination_mode
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclude_training=True, pbar=None, **kwargs):
@@ -24,7 +24,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
                       for rec in self.recommenders]
         return calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
-            combine_func=self.rank_combination_mode,
+            combine_func=self.combination_mode,
             fill_val=self.fill_na_val if self.fill_na_val else (n_rec + 1),
             groupby_col=self._user_col,
             item_col=self._item_col,
@@ -40,7 +40,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
 
         combined_simil_df = calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
-            combine_func=self.rank_combination_mode,
+            combine_func=self.combination_mode,
             fill_val=self.fill_na_val if self.fill_na_val else (n_unfilt + 1),
             groupby_col=self._item_col_simil,
             item_col=self._item_col,

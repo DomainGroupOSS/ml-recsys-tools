@@ -87,7 +87,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def __init__(self,
                  n_models=1,
                  max_concurrent=4,
-                 normalize_predictions=True,
                  concurrency_backend='threads',
                  combination_mode='hmean',
                  na_rank_fill=200,
@@ -95,7 +94,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         self.n_models = n_models
         self.max_concurrent = max_concurrent
         self.concurrency_backend = concurrency_backend
-        self.normalize_predictions = normalize_predictions
         self.combination_mode = combination_mode
         self.na_rank_fill = na_rank_fill
         super().__init__(**kwargs)
@@ -125,7 +123,8 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def set_params(self, **params):
         params = self._pop_set_params(
-            params, ['n_models'])
+            params, ['n_models', 'combination_mode',
+                     'na_rank_fill'])
         # set on self
         super().set_params(**params.copy())
         # init sub models to make sure they're the right object already
@@ -157,28 +156,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def _get_recommendations_flat(self, user_ids, item_ids, n_rec=100, **kwargs):
 
-        # def _calc_recos_sub_model(i_model):
-        #     all_users = np.array(self.sub_models[i_model].all_users)
-        #     users = all_users[np.isin(all_users, user_ids)]
-        #     reco_df = pd.DataFrame(columns=[self._user_col, self._item_col, self._prediction_col])
-        #     if len(users):
-        #         reco_df = self.sub_models[i_model].get_recommendations(
-        #             user_ids=user_ids, item_ids=item_ids,
-        #             n_rec=n_rec, results_format='flat', **kwargs)
-        #         if self.normalize_predictions:
-        #             reco_df[self._prediction_col] /= reco_df[self._prediction_col].median()
-        #     return reco_df
-
-        # with self.get_workers_pool('threads') as pool:
-        #     reco_dfs = pool.map(_calc_recos_sub_model, np.arange(len(self.sub_models)))
-        #
-        # recos_flat = pd.concat(reco_dfs, axis=0). \
-        #     sort_values(self._prediction_col, ascending=False). \
-        #     drop_duplicates(subset=[self._user_col, self._item_col], keep='first')
-
-        # calc_funcs = [partial(_calc_recos_sub_model, i_model)
-        #               for i_model in range(len(self.sub_models))]
-
         calc_funcs = [
             partial(
                 self.sub_models[i_model].get_recommendations,
@@ -201,30 +178,6 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                           remove_self=True, embeddings_mode=None,
                           simil_mode='cosine', results_format='lists', **kwargs):
 
-        # def _calc_simils_sub_model(i_model):
-        #     all_items = np.array(self.sub_models[i_model].all_items)
-        #     items = all_items[np.isin(all_items, item_ids)]
-        #     simil_df = pd.DataFrame(columns=[self._item_col_simil, self._item_col, self._prediction_col])
-        #     if len(items):
-        #         simil_df = self.sub_models[i_model].get_similar_items(
-        #             item_ids=item_ids, target_item_ids=target_item_ids,
-        #             n_simil=n_simil, remove_self=remove_self,
-        #             embeddings_mode=embeddings_mode, simil_mode=simil_mode,
-        #             results_format='flat', pbar=None)
-        #         if self.normalize_predictions:
-        #             simil_df[self._prediction_col] /= simil_df[self._prediction_col].median()
-        #     return simil_df
-
-        # with self.get_workers_pool('threads') as pool:
-        #     simil_dfs = pool.map(_calc_simils_sub_model, np.arange(len(self.sub_models)))
-        #
-        # simil_all = pd.concat(simil_dfs, axis=0). \
-        #     sort_values(self._prediction_col, ascending=False). \
-        #     drop_duplicates(subset=[self._item_col_simil, self._item_col], keep='first')
-
-
-        # calc_funcs = [partial( _calc_simils_sub_model, i_model)
-        #               for i_model in range(len(self.sub_models))]
         calc_funcs = [
             partial(
                 self.sub_models[i_model].get_similar_items,
