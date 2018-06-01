@@ -205,7 +205,8 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             fill_val=self.na_rank_fill,
             groupby_col=self._user_col,
             item_col=self._item_col,
-            scores_col=self._prediction_col
+            scores_col=self._prediction_col,
+            n_threads=self.n_concurrent()
         )
 
         return recos_flat
@@ -229,7 +230,8 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             fill_val=self.na_rank_fill,
             groupby_col=self._item_col_simil,
             item_col=self._item_col,
-            scores_col=self._prediction_col
+            scores_col=self._prediction_col,
+            n_threads=self.n_concurrent()
         )
 
         return simil_all if results_format == 'flat' \

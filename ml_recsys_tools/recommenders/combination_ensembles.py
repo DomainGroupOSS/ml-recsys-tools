@@ -28,7 +28,8 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
             fill_val=self.fill_na_val if self.fill_na_val else (n_rec + 1),
             groupby_col=self._user_col,
             item_col=self._item_col,
-            scores_col=self._prediction_col)
+            scores_col=self._prediction_col,
+        )
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
                           n_unfilt=100, results_format='lists', **kwargs):
