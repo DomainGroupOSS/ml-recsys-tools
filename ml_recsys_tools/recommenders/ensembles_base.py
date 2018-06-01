@@ -66,7 +66,7 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
             groupby(groupby_col)[scores_col].\
             rank(ascending=False)  # resetting index due to pandas bug
 
-        df = df.drop(scores_col, axis=1).set_index([groupby_col, item_col]).drop_duplicates()
+        df = df.drop(scores_col, axis=1).set_index([groupby_col, item_col])
 
         q_out.put((len(df) + jitter(), df))
 
