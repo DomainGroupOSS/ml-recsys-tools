@@ -184,15 +184,14 @@ class GrayCodesNumericBinarizer(sklearn.preprocessing.LabelBinarizer):
                [1., 0., 1.],
                [0., 0., 1.]])
     """
-    def __init__(self, n_bins=64, **kwargs):
+    def __init__(self, n_bins=64, nan_policy='min', **kwargs):
         """
         :param n_bins: number of bins
+        :param nan_policy: what values to replace nans with, can be 'min' or a number
         """
         super().__init__(**kwargs)
-        self._binner = NumericBinningEncoder(n_bins=n_bins)
-        self._codes = self.gray_codes_matrix(np.ceil(np.log2(n_bins)))  # next power of two
-        if self.sparse_output:
-            self._codes = sp.csr_matrix(self._codes)
+        self._nan_policy = nan_policy
+        self._n_bins = n_bins
 
     @staticmethod
     def gray_codes_matrix(n):
@@ -206,13 +205,28 @@ class GrayCodesNumericBinarizer(sklearn.preprocessing.LabelBinarizer):
         return codes
 
     def fit(self, y):
-        self._binner.fit(y)
+        self._n_bins = min(self._n_bins, len(np.unique(y)))
+        self._binner = NumericBinningEncoder(n_bins=self._n_bins)
+        self._codes = self.gray_codes_matrix(np.ceil(np.log2(self._n_bins)))  # next power of two
+        if self.sparse_output:
+            self._codes = sp.csr_matrix(self._codes)
+        self._binner.fit(self._replace_nans(y))
         super().fit(range(len(self._binner.bins)))
         return self
 
+    def _replace_nans(self, y):
+        y_no_nans = y.copy()
+        if isinstance(self._nan_policy, (np.int_, np.float_, int, float)):
+            pass
+        elif self._nan_policy=='min':
+            self._nan_policy = np.nanmin(y)
+        else:
+            raise NotImplementedError()
+        y_no_nans[np.isnan(y)] = self._nan_policy
+        return y_no_nans
+
     def transform(self, y):
-        y_binned = self._binner.transform(y)
-        return self._codes[y_binned]
+        return self._codes[self._binner.transform(self._replace_nans(y))]
 
     def inverse_transform(self, Y, **kwargs):
         raise NotImplementedError()

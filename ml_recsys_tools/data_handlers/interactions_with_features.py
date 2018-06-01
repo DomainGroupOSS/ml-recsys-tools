@@ -20,12 +20,16 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
     handles external items features and feature engineering
     """
 
+    _numeric_duplicate_suffix = '_num'
+
     def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None, verbose=True):
         super().__init__(verbose)
         self.feat_df = feat_df.copy()
         self.id_col = id_col
         self.num_cols = num_cols
         self.cat_cols = cat_cols
+        self._numeric_duplicate_cols = None
+        self._feat_weight = None
         self.df_transformer = None
         if self.num_cols is None and self.cat_cols is None:
             self.infer_categorical_numerical_columns()
@@ -66,20 +70,20 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         return self
 
     def _check_intersecting_num_and_cat_columns(self):
-        intersecting_cols = set(self.cat_cols).intersection(set(self.num_cols))
-        if len(intersecting_cols):
-            for col in intersecting_cols:
-                alt_name = col + '_num'
+        self._numeric_duplicate_cols = list(set(self.cat_cols).intersection(set(self.num_cols)))
+        if len(self._numeric_duplicate_cols):
+            for col in self._numeric_duplicate_cols:
+                alt_name = col + self._numeric_duplicate_suffix
                 self.feat_df[alt_name] = self.feat_df[col].copy()
                 self.num_cols.remove(col)
                 self.num_cols.append(alt_name)
 
-    def create_items_features_matrix(self,
-                                     items_encoder,
-                                     normalize_output=False,
-                                     add_identity_mat=True,
-                                     numeric_n_bins=128,
-                                     feat_weight=1.0):
+    def fit_transform_df_to_mat(self,
+                                items_encoder,
+                                normalize_output=False,
+                                add_identity_mat=True,
+                                numeric_n_bins=128,
+                                feat_weight=1.0):
         """
         creates a sparse feature matrix from item features
 
@@ -131,15 +135,8 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                 numeric_n_bins=numeric_n_bins)
 
             # weight the features before adding the identity mat
-            if np.isscalar(feat_weight):
-                feat_mat = feat_mat.astype(np.float32) * feat_weight
-            elif isinstance(feat_weight, dict):
-                for col, weight in feat_weight.items():
-                    cols_mask = np.core.defchararray.startswith(
-                        self.df_transformer.transformed_names_, col)
-                    feat_mat[:, cols_mask] *= weight
-            else:
-                raise ValueError('Uknown feature weight format.')
+            self._feat_weight = feat_weight
+            feat_mat = self._apply_weights_to_matrix(feat_mat)
 
             # normalize each row
             if normalize_output:
@@ -160,6 +157,26 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         else:
             return None
 
+    def transform_df_to_mat(self, feat_df):
+        if self._numeric_duplicate_cols is not None:
+            for col in self._numeric_duplicate_cols:
+                feat_df[col + self._numeric_duplicate_suffix] = feat_df[col].copy()
+        feat_df[self.cat_cols] = feat_df[self.cat_cols].astype(str)
+        trans_mat = self.df_transformer.transform(feat_df)
+        return self._apply_weights_to_matrix(trans_mat)
+
+    def _apply_weights_to_matrix(self, feat_mat):
+        if np.isscalar(self._feat_weight):
+            feat_mat = feat_mat.astype(np.float32) * self._feat_weight
+        elif isinstance(self._feat_weight, dict):
+            for col, weight in self._feat_weight.items():
+                cols_mask = np.core.defchararray.startswith(
+                    self.df_transformer.transformed_names_, col)
+                feat_mat[:, cols_mask] *= weight
+        else:
+            raise ValueError('Uknown feature weight format.')
+        return feat_mat
+
     @staticmethod
     def concatenate_csc_matrices_by_columns(matrix1, matrix2):
         # https://stackoverflow.com/a/33259578/6485667
@@ -179,8 +196,8 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
               LabelBinarizer(sparse_output=True))
              for cat_col in categorical_feat_cols] +
             [(num_col,
-              # FloatBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
-              GrayCodesNumericBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+              NumericBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+              # GrayCodesNumericBinarizer(n_bins=numeric_n_bins, sparse_output=True))
              for num_col in numeric_feat_cols],
             sparse=True
         )
