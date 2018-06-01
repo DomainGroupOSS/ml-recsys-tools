@@ -368,7 +368,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             # get only those users that are present in the evaluation dataframes
             all_test_users = []
             [all_test_users.extend(df[self._user_col].unique().tolist()) for df in test_dfs]
-            all_test_users = np.array(all_test_users)
+            all_test_users = np.unique(all_test_users)
             return all_test_users
 
         if isinstance(test_dfs, pd.DataFrame):

@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 from functools import partial
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
-from queue import Queue
+from queue import Queue, PriorityQueue
 from threading import Thread
 
 import numpy as np
@@ -43,15 +43,18 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     # set up
     _END = 'END'
     q_in = Queue()
-    q_out = Queue()
+    q_out = PriorityQueue()
     rank_cols = ['rank_' + str(i) for i in range(len(calc_funcs))]
     n_jobs = len(calc_funcs)
     n_workers = min(n_threads, n_jobs)
     if not callable(combine_func):
         combine_func = RANK_COMBINATION_FUNCS[combine_func]
 
+    jitter = lambda: np.random.rand()
+
     def _calc_df_and_add_rank_score(i):
         df = calc_funcs[i]()
+        df = df.drop_duplicates()
 
         # another pandas bug workaround
         df[groupby_col] = df[groupby_col].astype(str, copy=False)
@@ -63,20 +66,21 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
             groupby(groupby_col)[scores_col].\
             rank(ascending=False)  # resetting index due to pandas bug
 
-        q_out.put(df.
-                  drop(scores_col, axis=1).
-                  set_index([groupby_col, item_col]))
+        df = df.drop(scores_col, axis=1).set_index([groupby_col, item_col]).drop_duplicates()
+
+        q_out.put((len(df) + jitter(), df))
 
     def _joiner():
         while True:
-            df1 = q_out.get()
+            _, df1 = q_out.get()
             if isinstance(df1, str) and df1 == _END:
                 break
-            df2 = q_out.get()
+            _, df2 = q_out.get()
             if isinstance(df2, str) and df2 == _END:
-                q_out.put(df1)  # put it back
+                q_out.put((len(df1) + jitter(), df1))  # put it back
                 break
-            q_out.put(df1.join(df2, how='outer'))
+            df_joined = df2.join(df1, how='outer')
+            q_out.put((len(df_joined) + jitter(), df_joined))
 
     def _worker():
         i = q_in.get()
@@ -93,14 +97,17 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     [j.join() for j in workers]
 
     # stop joiner after workers are done by putting END token
-    q_out.put(_END)
+    q_out.put((0, _END))
     joiner.join()
 
     # final reduce (faster to join in couples rather one by one)
     while q_out.qsize() > 1:
-        q_out.put(q_out.get().join(q_out.get(), how='outer'))
+        _, df1 = q_out.get()
+        _, df2 = q_out.get()
+        df_joined = df2.join(df1, how='outer')
+        q_out.put((len(df_joined), df_joined))
     # get final result
-    merged_df = q_out.get()
+    _, merged_df = q_out.get()
     merged_df.fillna(fill_val, inplace=True)
     # combine ranks
     merged_df[scores_col] = combine_func(1 / merged_df[rank_cols].values, axis=1)
