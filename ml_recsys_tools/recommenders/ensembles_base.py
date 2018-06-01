@@ -1,9 +1,10 @@
 import warnings
 from abc import abstractmethod, ABC
-from collections import deque
 from functools import partial
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
+from queue import Queue
+from threading import Thread
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,7 @@ RANK_COMBINATION_FUNCS = {
 
 
 def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
-                                fill_val, combine_func='hmean'):
+                                fill_val, combine_func='hmean', n_threads=1):
     """
     combine multiple dataframes by voting on prediction rank
 
@@ -39,8 +40,17 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     :param multithreaded: whether to calculated concurrently or sequentially
     :return: a combined dataframe of the same format as the dataframes created by the calc_funcs
     """
+    # set up
+    _END = 'END'
+    q_in = Queue()
+    q_out = Queue()
+    rank_cols = ['rank_' + str(i) for i in range(len(calc_funcs))]
+    n_jobs = len(calc_funcs)
+    n_workers = min(n_threads, n_jobs)
+    if not callable(combine_func):
+        combine_func = RANK_COMBINATION_FUNCS[combine_func]
 
-    def _calc_and_add_rank_score(i):
+    def _calc_df_and_add_rank_score(i):
         df = calc_funcs[i]()
 
         # another pandas bug workaround
@@ -48,32 +58,51 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
         df[item_col] = df[item_col].astype(str, copy=False)
         df[scores_col] = df[scores_col].astype(float, copy=False)
 
-        df['rank_' + str(i)] = df.reset_index(). \
-            groupby(groupby_col)[scores_col].rank(ascending=False)  # resetting index due to pandas bug
+        df[rank_cols[i]] = df. \
+            reset_index(). \
+            groupby(groupby_col)[scores_col].\
+            rank(ascending=False)  # resetting index due to pandas bug
 
-        df.drop(scores_col, axis=1, inplace=True)
+        q_out.put(df.
+                  drop(scores_col, axis=1).
+                  set_index([groupby_col, item_col]))
 
-        df.set_index([groupby_col, item_col], inplace=True)
+    def _joiner():
+        while True:
+            df1 = q_out.get()
+            if isinstance(df1, str) and df1 == _END:
+                break
+            df2 = q_out.get()
+            if isinstance(df2, str) and df2 == _END:
+                q_out.put(df1)  # put it back
+                break
+            q_out.put(df1.join(df2, how='outer'))
 
-        return df
+    def _worker():
+        i = q_in.get()
+        while i != _END:
+            _calc_df_and_add_rank_score(i)
+            i = q_in.get()
 
-    with ThreadPool(len(calc_funcs)) as pool:
-        dfs = pool.map(_calc_and_add_rank_score, range(len(calc_funcs)))
+    workers = [Thread(target=_worker) for _ in range(n_workers)]
+    joiner = Thread(target=_joiner)
 
-    rank_cols = ['rank_' + str(i) for i in range(len(calc_funcs))]
+    # submit and start jobs
+    [q_in.put(i) for i in range(n_jobs)] + [q_in.put(_END) for _ in range(n_workers)]
+    [j.start() for j in workers + [joiner]]
+    [j.join() for j in workers]
 
-    dfs = deque(dfs)
-    while len(dfs) > 1:  # reduce-merges the dataframes to one another, faster than joining one by one
-        dfs.append(dfs.popleft().join(dfs.popleft(), how='outer'))
-        # dfs.append(pd.merge(dfs.popleft(), dfs.popleft(), how='outer'))
+    # stop joiner after workers are done by putting END token
+    q_out.put(_END)
+    joiner.join()
 
-    merged_df = dfs.pop()
-
+    # final reduce (faster to join in couples rather one by one)
+    while q_out.qsize() > 1:
+        q_out.put(q_out.get().join(q_out.get(), how='outer'))
+    # get final result
+    merged_df = q_out.get()
     merged_df.fillna(fill_val, inplace=True)
-
     # combine ranks
-    if not callable(combine_func):
-        combine_func = RANK_COMBINATION_FUNCS[combine_func]
     merged_df[scores_col] = combine_func(1 / merged_df[rank_cols].values, axis=1)
 
     # drop temp cols
@@ -215,7 +244,8 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             fill_val=len(item_ids),
             groupby_col=self._user_col,
             item_col=self._item_col,
-            scores_col=self._prediction_col
+            scores_col=self._prediction_col,
+            n_threads=N_CPUS
         )
 
         if sort:
