@@ -1,21 +1,18 @@
-import os
 from abc import abstractmethod
 from copy import deepcopy
-from functools import partial
 
 import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
-from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
+from ml_recsys_tools.recommenders.recommender_base import BasePredictorRecommender
 from ml_recsys_tools.utils.automl import early_stopping_runner
 from ml_recsys_tools.utils.logger import simple_logger
-from ml_recsys_tools.utils.parallelism import map_batches_multiproc
-from ml_recsys_tools.utils.similarity import most_similar, top_N_sorted
+from ml_recsys_tools.utils.similarity import most_similar
 
 
-class BaseFactorizationRecommender(BaseDFSparseRecommender):
+class BaseFactorizationRecommender(BasePredictorRecommender):
 
     @abstractmethod
     def _get_item_factors(self, mode=None):
@@ -37,13 +34,17 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
     def _set_epochs(self, epochs):
         pass
 
-    @abstractmethod
-    def _predict(self, user_ids, item_ids):
-        pass
+    def _factors_to_dataframe(self, factor_func, include_biases=False):
+        b, f = factor_func()
+        return pd.DataFrame(
+            index=np.arange(f.shape[0]),
+            data=np.concatenate([b, f], axis=1) if include_biases else f)
 
-    @abstractmethod
-    def _predict_rank(self, test_mat, train_mat=None):
-        pass
+    def user_factors_dataframe(self, include_biases=False):
+        return self._factors_to_dataframe(self._get_user_factors, include_biases=include_biases)
+
+    def item_factors_dataframe(self, include_biases=False):
+        return self._factors_to_dataframe(self._get_item_factors, include_biases=include_biases)
 
     def fit_with_early_stop(self, train_obs, valid_ratio=0.04, refit_on_all=False, metric='AUC',
                             epochs_start=0, epochs_max=200, epochs_step=10, stop_patience=10,
@@ -104,7 +105,6 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
             self.model, self.model_checkpoint = self.model_checkpoint, None
 
         return self
-
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
                           remove_self=True, embeddings_mode=None,
@@ -223,109 +223,6 @@ class BaseFactorizationRecommender(BaseDFSparseRecommender):
         return self._format_results_df(
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
-
-    def predict_on_df(self, df, exclude_training=True, user_col=None, item_col=None):
-        if user_col is not None and user_col!=self.sparse_mat_builder.uid_source_col:
-            df[self.sparse_mat_builder.uid_source_col] = df[user_col]
-        if item_col is not None and item_col!=self.sparse_mat_builder.iid_source_col:
-            df[self.sparse_mat_builder.iid_source_col] = df[item_col]
-
-        mat_builder = self.sparse_mat_builder
-        df = mat_builder.remove_unseen_labels(df)
-        df = mat_builder.add_encoded_cols(df, parallel=False)
-        df[self._prediction_col] = self._predict(
-            df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
-
-        if exclude_training:
-            exclude_mat_sp_coo = \
-                self.train_mat[df[mat_builder.uid_col].values, :] \
-                    [:, df[mat_builder.iid_col].values].tocoo()
-            df[df[mat_builder.uid_col].isin(exclude_mat_sp_coo.row) &
-               df[mat_builder.iid_col].isin(exclude_mat_sp_coo.col)][self._prediction_col] = -np.inf
-
-        df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
-        return df
-
-    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',),
-                                      prefix='lfm ', include_train=True, k=10):
-
-        @self.logging_decorator
-        def _get_training_ranks():
-            ranks_mat = self._predict_rank(self.train_mat)
-            return ranks_mat, self.train_mat
-
-        @self.logging_decorator
-        def _get_test_ranks(test_df):
-            test_sparse = self.sparse_mat_builder.build_sparse_interaction_matrix(test_df)
-            ranks_mat = self.model.predict_rank(test_sparse, self.train_mat)
-            return ranks_mat, test_sparse
-
-        return self._eval_on_test_by_ranking_LFM(
-            train_ranks_func=_get_training_ranks,
-            test_tanks_func=_get_test_ranks,
-            test_dfs=test_dfs,
-            test_names=test_names,
-            prefix=prefix,
-            include_train=include_train,
-            k=k)
-
-    def get_recommendations_exact(
-            self, user_ids, item_ids=None, n_rec=10, exclude_training=True, chunksize=200, results_format='lists'):
-
-        calc_func = partial(
-            self._get_recommendations_exact,
-            n_rec=n_rec,
-            item_ids=item_ids,
-            exclude_training=exclude_training,
-            results_format=results_format)
-
-        chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
-
-        ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
-        return pd.concat(ret, axis=0)
-
-    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
-                                   results_format='lists'):
-
-        full_pred_mat = self._predict_for_users_dense(user_ids, item_ids, exclude_training=exclude_training)
-
-        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
-
-        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
-
-        return self._format_results_df(
-            source_vec=user_ids, target_ids_mat=best_ids,
-            scores_mat=top_scores, results_format='recommendations_' + results_format)
-
-    def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
-        """
-        method for calculating prediction for a grid of users and items.
-        this method uses the _predict() method that the subclasses should implement.
-
-        :param user_ids: users ids
-        :param item_ids: item ids, when None - all known items are used
-        :param exclude_training: when True sets prediction on training examples to -np.inf
-        :return: a matrix of predictions (n_users, n_items)
-        """
-
-        if item_ids is None:
-            item_ids = self.sparse_mat_builder.iid_encoder.classes_
-
-        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
-
-        n_users = len(user_inds)
-        n_items = len(item_inds)
-        user_inds_mat = user_inds.repeat(n_items)
-        item_inds_mat = np.tile(item_inds, n_users)
-
-        full_pred_mat = self._predict(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
-
-        if exclude_training:
-            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
-            full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
-
-        return full_pred_mat
 
     def _predict_for_users_dense_direct(self, user_ids, item_ids=None, exclude_training=True):
         """
