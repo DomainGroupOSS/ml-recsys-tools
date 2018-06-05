@@ -57,7 +57,8 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
     @staticmethod
     def _dict_update(d, u):
         d = d.copy()
-        if u: d.update(u)
+        if u:
+            d.update(u)
         return d
 
     @staticmethod

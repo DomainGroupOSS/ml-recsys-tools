@@ -2,7 +2,7 @@ from abc import abstractmethod
 
 import pandas as pd
 import numpy as np
-from sklearn.base import BaseEstimator
+from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
@@ -14,37 +14,85 @@ from ml_recsys_tools.recommenders.recommender_base import BasePredictorRecommend
 
 class BaseFactorsRegressor(BasePredictorRecommender):
 
-    def __init__(self, stacking_split=0.5, **kwargs):
+    default_regressor_params = {}
+    default_factorizer_params = {}
+
+    factorizer_class = BaseFactorizationRecommender
+    regressor_class = RandomForestRegressor  # placeholder for generic regressor
+
+    def __init__(self,
+                 stacking_split=0.5,
+                 factors_prediction=True,
+                 user_factors=True,
+                 item_factors=True,
+                 target_transform='log',
+                 regressor_params=None,
+                 factorizer_params=None,
+                 **kwargs):
         super().__init__(**kwargs)
         self.stacking_split = stacking_split
+        self.factors_prediction = factors_prediction
+        self.user_factors = user_factors
+        self.item_factors = item_factors
+        self.target_transform_func = target_transform
+        self.regressor_params = self._dict_update(
+            self.default_regressor_params, regressor_params)
+        self.factorizer_params = self._dict_update(
+            self.default_factorizer_params, factorizer_params)
+
+    def set_params(self, **params):
+        params = self._pop_set_params(
+            params, ['stacking_split', 'factors_prediction',
+                     'user_factors', 'item_factors', 'target_transform'])
+        params = self._pop_set_dict(
+            self.regressor_params, params, self.default_regressor_params.keys())
+        params = self._pop_set_dict(
+            self.factorizer_params, params, self.default_factorizer_params.keys())
+        super().set_params(**params)
 
     @abstractmethod
-    def _init_regressor(self, **kwargs):
-        self._regressor = BaseEstimator()
-        return self
+    def _init_regressor(self):
+        self._regressor = self.regressor_class(**self.regressor_params)
 
     @abstractmethod
-    def _init_factorizer(self, **kwargs):
-        self._factorizer = BaseFactorizationRecommender()
-        return self
+    def _init_factorizer(self):
+        self._factorizer = self.factorizer_class(**self.factorizer_params)
+
+    def _transform_targets(self, targets):
+        if self.target_transform_func == 'log':
+            return np.log(1 + np.min(targets))
+        elif self.target_transform_func in [None, 'none']:
+            return targets
+        else:
+            return NotImplementedError('Uknown target transform function')
 
     def _make_features_df(self, df_inds, with_targets=True):
-        cols = [self._uid_col, self._iid_col] + ([self._rating_col] if with_targets else [])
-        df_inds = df_inds[cols]
+        cols = [self._uid_col, self._iid_col] + \
+               ([self._rating_col] if with_targets else [])
+        df_feat = df_inds[cols].copy()
 
-        df_inds[self._prediction_col] = self._factorizer._predict(
-            df_inds[self._uid_col].values, df_inds[self._iid_col].values)
+        if with_targets:
+            df_feat[self._rating_col] = self._transform_targets(df_feat[self._rating_col].values)
 
-        df_feat_u = pd.merge(
-            df_inds[cols], self.df_user_factors.reset_index(),
-            left_on=self._uid_col, right_on='index', how='left'). \
-            drop([self._uid_col, 'index'], axis=1)
+        if self.factors_prediction:
+            df_feat[self._prediction_col] = self._factorizer._predict(
+                df_feat[self._uid_col].values, df_feat[self._iid_col].values)
 
-        df_fit_ui = pd.merge(
-            df_feat_u, self.df_item_factors.reset_index(),
-            left_on=self._iid_col, right_on='index', how='left'). \
-            drop([self._iid_col, 'index'], axis=1)
-        return df_fit_ui
+        if self.user_factors:
+            df_feat = pd.merge(
+                df_feat[cols], self.df_user_factors.reset_index(),
+                left_on=self._uid_col, right_on='index', how='left'). \
+                drop('index', axis=1)
+
+        if self.item_factors:
+            df_feat = pd.merge(
+                df_feat, self.df_item_factors.reset_index(),
+                left_on=self._iid_col, right_on='index', how='left'). \
+                drop('index', axis=1)
+
+        df_feat.drop([self._uid_col, self._iid_col], axis=1, inplace=True)
+
+        return df_feat
 
     def _df_ids_to_df_inds(self, df):
         df = self._factorizer.sparse_mat_builder.remove_unseen_labels(df)
@@ -81,8 +129,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
     def _fit_regressor(self, reg_obs):
         df_train_reg = self._make_pos_neg_feat_df(reg_obs.df_obs)
         self._init_regressor()
-        self._regressor.fit(df_train_reg.drop('rating', axis=1).values,
-                            df_train_reg['rating'].values)
+        self._regressor.fit(df_train_reg.drop(self._rating_col, axis=1).values,
+                            df_train_reg[self._rating_col].values)
 
     def _predict(self, user_inds, item_inds):
         df_inds = pd.DataFrame({
@@ -96,8 +144,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         for test_df in test_dfs:
             df_test_ref = self._make_pos_neg_feat_df(test_df)
             if df_test_ref is not None:
-                y_true = df_test_ref['rating'].values
-                y_pred = self._regressor.predict(df_test_ref.drop('rating', axis=1).values)
+                y_true = df_test_ref[self._rating_col].values
+                y_pred = self._regressor.predict(df_test_ref.drop(self._rating_col, axis=1).values)
                 score = r2_score(y_true, y_pred)
             else:
                 score = None
@@ -123,14 +171,41 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         raise NotImplementedError
 
 
-class RFLFMRegRec(BaseFactorsRegressor):
+class BaseLFMRegRec(BaseFactorsRegressor):
+    default_factorizer_params = LightFMRecommender.default_model_params
+    factorizer_class = LightFMRecommender
 
-    def _init_regressor(self, **kwargs):
-        self._regressor = RandomForestRegressor(n_estimators=100)
-        return self
 
-    def _init_factorizer(self, **kwargs):
-        self._factorizer = LightFMRecommender()
-        self._factorizer.set_params(**dict(no_components=20, epochs=20))
-        return self
+class BaseRFRegRec(BaseFactorsRegressor):
+    default_regressor_params = dict(n_estimators=100)
+    regressor_class = RandomForestRegressor
 
+
+class BaseLGBMRecReg(BaseFactorsRegressor):
+    default_regressor_params = dict(
+        boosting_type="gbdt",
+        num_leaves=31,
+        max_depth=-1,
+        learning_rate=0.1,
+        n_estimators=100,
+        subsample_for_bin=200000,
+        objective=None,
+        class_weight=None,
+        min_split_gain=0.,
+        min_child_weight=1e-3,
+        min_child_samples=20,
+        subsample=1.,
+        subsample_freq=1,
+        colsample_bytree=1.,
+        reg_alpha=0.,
+        reg_lambda=0.
+    )
+    regressor_class = LGBMRegressor
+
+
+class RFonLFMRegRec(BaseLFMRegRec, BaseRFRegRec):
+    pass
+
+
+class LGBMonLFMRegRec(BaseLFMRegRec, BaseLGBMRecReg):
+    pass
