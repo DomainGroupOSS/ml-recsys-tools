@@ -35,10 +35,16 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         self.user_factors = user_factors
         self.item_factors = item_factors
         self.target_transform_func = target_transform
+        self._check_param_keys_conflicts()
         self.regressor_params = self._dict_update(
             self.default_regressor_params, regressor_params)
         self.factorizer_params = self._dict_update(
             self.default_factorizer_params, factorizer_params)
+
+    def _check_param_keys_conflicts(self):
+        assert len(
+            set(self.default_regressor_params.keys()).intersection(
+            set(self.default_factorizer_params.keys()))) == 0
 
     def set_params(self, **params):
         params = self._pop_set_params(
@@ -50,13 +56,12 @@ class BaseFactorsRegressor(BasePredictorRecommender):
             self.factorizer_params, params, self.default_factorizer_params.keys())
         super().set_params(**params)
 
-    @abstractmethod
     def _init_regressor(self):
         self._regressor = self.regressor_class(**self.regressor_params)
 
-    @abstractmethod
     def _init_factorizer(self):
-        self._factorizer = self.factorizer_class(**self.factorizer_params)
+        self._factorizer = self.factorizer_class()
+        self._factorizer.set_params(**self.factorizer_params)
 
     def _transform_targets(self, targets):
         if self.target_transform_func == 'log':
@@ -72,7 +77,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         df_feat = df_inds[cols].copy()
 
         if with_targets:
-            df_feat[self._rating_col] = self._transform_targets(df_feat[self._rating_col].values)
+            df_feat[self._rating_col] = self._transform_targets(
+                df_feat[self._rating_col].values)
 
         if self.factors_prediction:
             df_feat[self._prediction_col] = self._factorizer._predict(
@@ -172,7 +178,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
 
 
 class BaseLFMRegRec(BaseFactorsRegressor):
-    default_factorizer_params = LightFMRecommender.default_model_params
+    default_factorizer_params = dict(**LightFMRecommender.default_model_params,
+                                     **{'epochs': 20})
     factorizer_class = LightFMRecommender
 
 
