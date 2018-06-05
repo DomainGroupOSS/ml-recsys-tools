@@ -453,7 +453,7 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
 
         mat_builder = self.sparse_mat_builder
         df = mat_builder.remove_unseen_labels(df)
-        df = mat_builder.add_encoded_cols(df, parallel=False)
+        df = mat_builder.add_encoded_cols(df)
         df[self._prediction_col] = self._predict(
             df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
 

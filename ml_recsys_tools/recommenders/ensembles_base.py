@@ -160,7 +160,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def set_params(self, **params):
         params = self._pop_set_params(
             params, ['n_models', 'combination_mode',
-                     'na_rank_fill'])
+                     'na_rank_fill', 'max_concurrent'])
         # set on self
         super().set_params(**params.copy())
         # init sub models to make sure they're the right object already
