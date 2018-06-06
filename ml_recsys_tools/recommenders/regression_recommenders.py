@@ -191,7 +191,7 @@ class BaseRFRegRec(BaseFactorsRegressor):
 class BaseLGBMRecReg(BaseFactorsRegressor):
     default_regressor_params = dict(
         boosting_type="gbdt",
-        num_leaves=31,
+        num_leaves=-1,
         max_depth=-1,
         learning_rate=0.1,
         n_estimators=100,
