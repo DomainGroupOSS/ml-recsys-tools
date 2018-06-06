@@ -32,6 +32,7 @@ def console_logger():
 
 class NegativeFilter(logging.Filter):
     def __init__(self, match_string):
+        super().__init__()
         self._match_string = match_string
 
     def filter(self, record):
