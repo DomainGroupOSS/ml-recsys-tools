@@ -1,38 +1,8 @@
 import logging.config
 import os
 
-"""
-Logging configuration
-"""
-LOGGING_CONFIG = {
-    'version': 1,
-    'disable_existing_loggers': False,
+import sys
 
-    'formatters': {
-        'standard': {
-            'format': '[%(asctime)s][%(levelname)s](%(filename)s:%(lineno)s).%(funcName)s - %(message)s'
-        }
-    },
-    'handlers': {
-        'stream_handler': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard'
-        }
-    },
-    'loggers': {
-        'image-floorplan': {
-            'level': 'DEBUG',
-            'handlers': ['stream_handler', ]
-        },
-        'default': {
-            'level': 'DEBUG',
-            'handlers': ['stream_handler', ]
-        }
-    }
-}
-
-logging.config.dictConfig(LOGGING_CONFIG)
 LOGGER = logging.getLogger('ml-logger')
 short_time_fmt = logging.Formatter('[%(asctime)s:%(levelname)s] %(message)s', datefmt='%H:%M')
 
@@ -52,12 +22,20 @@ def console_logger():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
     handler.setFormatter(short_time_fmt)
     logger.addHandler(handler)
 
     return logger
+
+
+class NegativeFilter(logging.Filter):
+    def __init__(self, match_string):
+        self._match_string = match_string
+
+    def filter(self, record):
+        return not (self._match_string in record.getMessage())
 
 
 simple_logger = console_logger()
