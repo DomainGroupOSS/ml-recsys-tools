@@ -6,7 +6,6 @@ from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
-from ml_recsys_tools.utils.logger import simple_logger as logger, NegativeFilter
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
 from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
@@ -202,16 +201,12 @@ class BaseLGBMRecReg(BaseFactorsRegressor):
         subsample_freq=1,
         colsample_bytree=1.,
         reg_alpha=0.,
-        reg_lambda=0.
+        reg_lambda=0.,
+        silent=True,
+        verbose=-1,
     )
     regressor_class = LGBMRegressor
 
-    [handler.addFilter(NegativeFilter(match_string='[LightGBM] [Warning]'))
-     for handler in logger.handlers]
-
-    def _fit_regressor(self, reg_obs, **fit_params):
-        return super()._fit_regressor(
-            reg_obs=reg_obs, verbose=-1, **fit_params)
 
 class RFonLFMRegRec(BaseLFMRegRec, BaseRFRegRec):
     pass
