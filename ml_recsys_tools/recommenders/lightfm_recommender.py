@@ -36,13 +36,17 @@ class LightFMRecommender(BaseFactorizationRecommender):
         'verbose': True,
     }
 
+    default_external_features_params = dict(add_identity_mat=True)
+
     def __init__(self,
                  use_sample_weight=False,
                  external_features=None,
                  external_features_params=None, **kwargs):
         self.use_sample_weight = use_sample_weight
         self.external_features = external_features
-        self.external_features_params = external_features_params or {}
+        self.external_features_params = external_features_params or \
+                                        self.default_external_features_params.copy()
+
         super().__init__(**kwargs)
 
     def _prep_for_fit(self, train_obs, **fit_params):
@@ -59,7 +63,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
     def _add_external_features(self):
         if self.external_features is not None:
             self.external_features_mat = self.external_features.\
-                fit_transform_df_to_mat(
+                fit_transform_ids_df_to_mat(
                     items_encoder=self.sparse_mat_builder.iid_encoder,
                     **self.external_features_params)
             simple_logger.info('External item features matrix: %s' %

@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.cluster import MiniBatchKMeans
 import scipy.sparse as sp
 
-from sklearn.preprocessing import LabelBinarizer, normalize
+from sklearn.preprocessing import LabelBinarizer, normalize, LabelEncoder
 from sklearn_pandas import DataFrameMapper
 from ml_recsys_tools.utils.sklearn_extenstions import NumericBinningBinarizer, GrayCodesNumericBinarizer
 
@@ -78,17 +78,22 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                 self.num_cols.remove(col)
                 self.num_cols.append(alt_name)
 
-    def fit_transform_df_to_mat(self,
-                                items_encoder,
-                                normalize_output=False,
-                                add_identity_mat=True,
-                                numeric_n_bins=128,
-                                feat_weight=1.0):
+    def fit_transform_ids_df_to_mat(self,
+                                    items_encoder,
+                                    mode='binarize',
+                                    normalize_output=False,
+                                    add_identity_mat=False,
+                                    numeric_n_bins=128,
+                                    feat_weight=1.0):
         """
         creates a sparse feature matrix from item features
 
         :param items_encoder: the encoder that is used to filter and
             align the features dataframe to the sparse matrices
+        :param mode: 'binarize' or 'encode'.
+            'binarize' (default) - creates a binary matrix by label binarizing
+            categorical and numeric feature.
+            'encode' - only encodes the categorical features to integers and leaves numeric as is
         :param add_identity_mat: indicator whether to add a sparse identity matrix
             (as used when no features are used), as per LightFM's docs suggestion
         :param normalize_output:
@@ -128,11 +133,16 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
             full_feat_df[self.cat_cols].astype(str)
 
         if len(full_feat_df):
-            feat_mat, self.df_transformer = self.ohe_hot_encode_features_df(
-                full_feat_df,
+            self.df_transformer = self.init_df_transformer(
+                mode=mode,
                 categorical_feat_cols=self.cat_cols,
                 numeric_feat_cols=self.num_cols,
                 numeric_n_bins=numeric_n_bins)
+
+            feat_mat = self.df_transformer.fit_transform(full_feat_df)
+
+            if sp.issparse(feat_mat):
+                feat_mat.eliminate_zeros()
 
             # weight the features before adding the identity mat
             self._feat_weight = feat_weight
@@ -146,6 +156,8 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
             if add_identity_mat:
                 # identity mat
                 id_mat = sp.identity(n_items, dtype=np.float32, format='csr')
+
+                assert sp.issparse(feat_mat), 'Trying to add identity mat to non-sparse matrix'
 
                 full_feat_mat = self.concatenate_csc_matrices_by_columns(
                     feat_mat.tocsc(), id_mat.tocsc()).tocsr()
@@ -189,21 +201,29 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         return sp.csc_matrix((new_data, new_indices, new_ind_ptr), dtype=np.float32)
 
     @staticmethod
-    def ohe_hot_encode_features_df(full_feat_df, categorical_feat_cols, numeric_feat_cols,
-                                   numeric_n_bins=64):
-        feat_mapper = DataFrameMapper(
-            [(cat_col,
-              LabelBinarizer(sparse_output=True))
-             for cat_col in categorical_feat_cols] +
-            [(num_col,
-              NumericBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
-              # GrayCodesNumericBinarizer(n_bins=numeric_n_bins, sparse_output=True))
-             for num_col in numeric_feat_cols],
-            sparse=True
-        )
-        feat_mat = feat_mapper.fit_transform(full_feat_df)
-        feat_mat.eliminate_zeros()
-        return feat_mat, feat_mapper
+    def init_df_transformer(mode, categorical_feat_cols, numeric_feat_cols,
+                            numeric_n_bins=64):
+        if mode=='binarize':
+            feat_mapper = DataFrameMapper(
+                [(cat_col,
+                  LabelBinarizer(sparse_output=True))
+                 for cat_col in categorical_feat_cols] +
+                [(num_col,
+                  NumericBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+                  # GrayCodesNumericBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+                 for num_col in numeric_feat_cols],
+                sparse=True
+            )
+        elif mode=='encode':
+            feat_mapper = DataFrameMapper(
+                [(cat_col,
+                  LabelEncoder())
+                 for cat_col in categorical_feat_cols],
+                default = None  # pass other columns as is
+            )
+        else:
+            raise NotImplementedError('Unknown transform mode')
+        return feat_mapper
 
 
 class ObsWithFeatures(ObservationsDF):

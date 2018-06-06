@@ -25,8 +25,10 @@ class BaseFactorsRegressor(BasePredictorRecommender):
                  factors_prediction=True,
                  user_factors=True,
                  item_factors=True,
+                 item_features=True,
                  target_transform='log',
                  regressor_params=None,
+                 item_features_params=None,
                  factorizer_params=None,
                  **kwargs):
         super().__init__(**kwargs)
@@ -34,8 +36,11 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         self.factors_prediction = factors_prediction
         self.user_factors = user_factors
         self.item_factors = item_factors
+        self.item_features = item_features
         self.target_transform_func = target_transform
         self._check_param_keys_conflicts()
+        self.item_features_params = item_features_params \
+            if item_features_params is not None else {}
         self.regressor_params = self._dict_update(
             self.default_regressor_params, regressor_params)
         self.factorizer_params = self._dict_update(
@@ -80,13 +85,19 @@ class BaseFactorsRegressor(BasePredictorRecommender):
             df_feat[self._rating_col] = self._transform_targets(
                 df_feat[self._rating_col].values)
 
+        if self.item_features:
+            df_feat = pd.merge(
+                df_feat, self.df_item_features.reset_index(),
+                left_on=self._iid_col, right_on='index', how='left'). \
+                drop('index', axis=1)
+
         if self.factors_prediction:
             df_feat[self._prediction_col] = self._factorizer._predict(
                 df_feat[self._uid_col].values, df_feat[self._iid_col].values)
 
         if self.user_factors:
             df_feat = pd.merge(
-                df_feat[cols], self.df_user_factors.reset_index(),
+                df_feat, self.df_user_factors.reset_index(),
                 left_on=self._uid_col, right_on='index', how='left'). \
                 drop('index', axis=1)
 
@@ -117,8 +128,21 @@ class BaseFactorsRegressor(BasePredictorRecommender):
 
             return pd.concat([df_pos, df_neg], axis=0)
 
+    def _set_item_features_df(self, train_obs):
+        if hasattr(train_obs, 'df_items'):
+            ext_feat = train_obs.get_item_features_for_obs(**self.item_features_params)
+            mat_builder = train_obs.get_sparse_matrix_helper()
+            feat_mat = ext_feat.fit_transform_ids_df_to_mat(
+                mat_builder.iid_encoder, mode='encode')
+            self.df_item_features = pd.DataFrame(
+                index=np.arange(feat_mat.shape[0]),
+                data=feat_mat)
+        else:
+            raise ValueError('df_items not present in training ObservationHandler')
+
     def fit(self, train_obs: ObservationsDF, *args, **kwargs):
         factors_obs, reg_obs = train_obs.split_train_test(ratio=self.stacking_split)
+        self._set_item_features_df(train_obs)
         self._set_data(factors_obs)
         self._fit_factorizer(factors_obs)
         self._fit_regressor(reg_obs)
