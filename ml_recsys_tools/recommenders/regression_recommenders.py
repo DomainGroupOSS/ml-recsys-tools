@@ -123,20 +123,20 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         self._fit_factorizer(factors_obs)
         self._fit_regressor(reg_obs)
 
-    def _fit_factorizer(self, factors_obs):
+    def _fit_factorizer(self, factors_obs, **fit_params):
         self._init_factorizer()
-        self._factorizer.fit(factors_obs)
+        self._factorizer.fit(factors_obs, **fit_params)
         self._rating_col = self.sparse_mat_builder.rating_source_col
         self._uid_col = self.sparse_mat_builder.uid_col
         self._iid_col = self.sparse_mat_builder.iid_col
         self.df_user_factors = self._factorizer.user_factors_dataframe()
         self.df_item_factors = self._factorizer.item_factors_dataframe()
 
-    def _fit_regressor(self, reg_obs):
+    def _fit_regressor(self, reg_obs, **fit_params):
         df_train_reg = self._make_pos_neg_feat_df(reg_obs.df_obs)
         self._init_regressor()
         self._regressor.fit(df_train_reg.drop(self._rating_col, axis=1).values,
-                            df_train_reg[self._rating_col].values)
+                            df_train_reg[self._rating_col].values, **fit_params)
 
     def _predict(self, user_inds, item_inds):
         df_inds = pd.DataFrame({
@@ -184,7 +184,7 @@ class BaseLFMRegRec(BaseFactorsRegressor):
 
 
 class BaseRFRegRec(BaseFactorsRegressor):
-    default_regressor_params = dict(n_estimators=100)
+    default_regressor_params = dict(n_estimators=100, n_jobs=-1)
     regressor_class = RandomForestRegressor
 
 
@@ -195,12 +195,8 @@ class BaseLGBMRecReg(BaseFactorsRegressor):
         max_depth=-1,
         learning_rate=0.1,
         n_estimators=100,
-        subsample_for_bin=200000,
-        objective=None,
-        class_weight=None,
-        min_split_gain=0.,
-        min_child_weight=1e-3,
-        min_child_samples=20,
+        min_child_weight=1e-3,  # what's the right setting for this case?
+        min_child_samples=20,  # what's the right setting for this case?
         subsample=1.,
         subsample_freq=1,
         colsample_bytree=1.,
@@ -208,7 +204,9 @@ class BaseLGBMRecReg(BaseFactorsRegressor):
         reg_lambda=0.
     )
     regressor_class = LGBMRegressor
-
+    def _fit_regressor(self, reg_obs, **fit_params):
+        return super()._fit_regressor(
+            reg_obs=reg_obs, verbose=-1, **fit_params)
 
 class RFonLFMRegRec(BaseLFMRegRec, BaseRFRegRec):
     pass

@@ -312,10 +312,12 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         for feat in self.search_space.keys():
             vec = self.all_metrics[feat].values.reshape(-1, 1)
             try:
-                mutual_info[feat] = mutual_info_regression(vec, target)[0]
+                mutual_info[feat] = \
+                    mutual_info_regression(vec, target)[0]
             except ValueError:  # categorical feature (string)
                 mutual_info[feat] = mutual_info_regression(
-                    LabelEncoder().fit_transform(vec).reshape(-1, 1), target)[0]
+                    LabelEncoder().fit_transform(
+                        vec.astype(str)).reshape(-1, 1), target)[0]
         return pd.DataFrame([mutual_info])
 
 
