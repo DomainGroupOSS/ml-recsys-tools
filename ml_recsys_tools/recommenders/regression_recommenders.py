@@ -86,7 +86,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
 
         if self.user_factors:
             df_feat = pd.merge(
-                df_feat[cols], self.df_user_factors.reset_index(),
+                df_feat, self.df_user_factors.reset_index(),
                 left_on=self._uid_col, right_on='index', how='left'). \
                 drop('index', axis=1)
 
