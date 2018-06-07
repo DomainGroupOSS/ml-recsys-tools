@@ -2,8 +2,9 @@ import warnings
 from abc import abstractmethod, ABC
 from functools import partial
 from itertools import repeat
+from multiprocessing import Process, Queue
 from multiprocessing.pool import ThreadPool, Pool
-from queue import Queue, PriorityQueue
+from queue import PriorityQueue
 from threading import Thread
 
 import numpy as np
@@ -24,7 +25,8 @@ RANK_COMBINATION_FUNCS = {
 
 
 def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
-                                fill_val, combine_func='hmean', n_threads=1):
+                                fill_val, combine_func='hmean', n_threads=1,
+                                parallelism='process'):
     """
     combine multiple dataframes by voting on prediction rank
 
@@ -37,13 +39,15 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     :param groupby_col: the column of the entities for which the ranking is calculated (e.g. users)
     :param item_col: the column of the entities to be ranked (items)
     :param scores_col: the column of the scores to be ranked (predictions)
-    :param multithreaded: whether to calculated concurrently or sequentially
+    :param n_threads: number of calculation threads
+    :param parallelism: type of parallelism (processes or threads)
     :return: a combined dataframe of the same format as the dataframes created by the calc_funcs
     """
     # set up
+    multiproc = 'process' in parallelism
     _END = 'END'
     q_in = Queue()
-    q_out = PriorityQueue()
+    q_out = Queue() if multiproc else PriorityQueue()
     rank_cols = ['rank_' + str(i) for i in range(len(calc_funcs))]
     n_jobs = len(calc_funcs)
     n_workers = min(n_threads, n_jobs)
@@ -88,7 +92,11 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
             _calc_df_and_add_rank_score(i)
             i = q_in.get()
 
-    workers = [Thread(target=_worker) for _ in range(n_workers)]
+    if multiproc:
+        workers = [Process(target=_worker) for _ in range(n_workers)]
+    else:
+        workers = [Thread(target=_worker) for _ in range(n_workers)]
+
     joiner = Thread(target=_joiner)
 
     # submit and start jobs
@@ -254,7 +262,8 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
             groupby_col=self._user_col,
             item_col=self._item_col,
             scores_col=self._prediction_col,
-            n_threads=N_CPUS
+            n_threads=N_CPUS,
+            parallelism='thread'
         )
 
         if sort:
