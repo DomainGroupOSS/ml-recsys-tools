@@ -122,13 +122,13 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def __init__(self,
                  n_models=1,
-                 max_concurrent=4,
+                 concurrence_ratio=0.5,
                  concurrency_backend='threads',
                  combination_mode='hmean',
                  na_rank_fill=200,
                  **kwargs):
         self.n_models = n_models
-        self.max_concurrent = max_concurrent
+        self.concurrence_ratio = concurrence_ratio
         self.concurrency_backend = concurrency_backend
         self.combination_mode = combination_mode
         self.na_rank_fill = na_rank_fill
@@ -149,7 +149,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                            for _ in range(self.n_models)]
 
     def n_concurrent(self):
-        return min(self.n_models, self.max_concurrent, N_CPUS)
+        return int(min(np.ceil(self.n_models * self.concurrence_ratio), N_CPUS))
 
     def _broadcast(self, var):
         if isinstance(var, list) and len(var) == self.n_models:
@@ -160,7 +160,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     def set_params(self, **params):
         params = self._pop_set_params(
             params, ['n_models', 'combination_mode',
-                     'na_rank_fill', 'max_concurrent'])
+                     'na_rank_fill', 'concurrence_ratio'])
         # set on self
         super().set_params(**params.copy())
         # init sub models to make sure they're the right object already
