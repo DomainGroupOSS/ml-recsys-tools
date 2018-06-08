@@ -54,7 +54,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
     def set_params(self, **params):
         params = self._pop_set_params(
             params, ['stacking_split', 'factors_prediction',
-                     'user_factors', 'item_factors', 'target_transform'])
+                     'user_factors', 'item_factors',
+                     'target_transform', 'item_features'])
         params = self._pop_set_dict(
             self.regressor_params, params, self.default_regressor_params.keys())
         params = self._pop_set_dict(
@@ -215,6 +216,7 @@ class BaseRFRegRec(BaseFactorsRegressor):
 class BaseLGBMRecReg(BaseFactorsRegressor):
     default_regressor_params = dict(
         boosting_type="gbdt",
+        objective='regression',
         num_leaves=31,
         max_depth=-1,
         learning_rate=0.1,
