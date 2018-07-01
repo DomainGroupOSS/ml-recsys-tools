@@ -130,7 +130,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
     def __init__(self,
                  n_models=1,
-                 concurrence_ratio=0.5,
+                 concurrence_ratio=0.3,
                  concurrency_backend='threads',
                  combination_mode='hmean',
                  na_rank_fill=200,
