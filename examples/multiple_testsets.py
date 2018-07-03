@@ -4,7 +4,7 @@ using multiple test sets
 
 # dataset: download and prepare dataframes
 import pandas as pd
-from examples.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()

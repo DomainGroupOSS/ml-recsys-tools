@@ -1,5 +1,5 @@
 """
-This is a basic example on movielens-1M demonstrating:
+This is a basic example on datasets-1M demonstrating:
     - basic data ingestion without any item/user features
     - LightFM recommender
     - basic evaluation
@@ -8,7 +8,7 @@ This is a basic example on movielens-1M demonstrating:
 """
 
 # dataset: download and prepare dataframes
-from examples.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
 

@@ -1,9 +1,9 @@
 """
-This is an example on movielens-1M demonstrating:
+This is an example on datasets-1M demonstrating:
     - More advanced fitting features: fit, evaluation, early stopping, hyper-param search
 """
 
-from examples.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 import pandas as pd
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender

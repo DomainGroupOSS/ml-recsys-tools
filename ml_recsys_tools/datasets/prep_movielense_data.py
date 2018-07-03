@@ -45,6 +45,8 @@ def download_raw_data(dir_path):
         print('downloading and unzipping raw data..')
         z = zipfile.ZipFile(io.BytesIO(r.content))
         z.extractall(dir_path)
+    else:
+        raise ConnectionError('Failed downloading dataset from %s' % MOVIE_LENS_1M_URL)
 
 
 def prep_readable_csvs(out_dir):

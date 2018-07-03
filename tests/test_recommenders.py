@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 
-from examples.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 
 from ml_recsys_tools.utils.testing import TestCaseWithState
 from test_movielens_data import movielens_dir

@@ -1,8 +1,8 @@
 """
-This is an example on movielens-1M demonstrating how to combine recommender using ensemble recommenders
+This is an example on datasets-1M demonstrating how to combine recommender using ensemble recommenders
 """
 
-from examples.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 import pandas as pd
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 

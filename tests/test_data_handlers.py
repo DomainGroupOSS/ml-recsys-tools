@@ -1,7 +1,5 @@
 import pandas as pd
-import numpy as np
-from copy import deepcopy
-from examples.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 from ml_recsys_tools.utils.testing import TestCaseWithState
 from test_movielens_data import movielens_dir
 

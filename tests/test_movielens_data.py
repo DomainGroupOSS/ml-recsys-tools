@@ -6,7 +6,7 @@ movielens_dir = os.path.join(os.path.dirname(__file__), '../examples/out')
 
 class TestMovieLens(unittest.TestCase):
     def test_data(self):
-        from examples.prep_movielense_data import get_and_prep_data
+        from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
         rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
 
         ratings_df = pd.read_csv(rating_csv_path)
