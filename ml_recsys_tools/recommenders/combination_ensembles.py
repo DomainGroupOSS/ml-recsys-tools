@@ -15,7 +15,7 @@ class CombinedRankEnsemble(CombinationEnsembleBase):
         self.combination_mode = combination_mode
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, pbar=None, **kwargs):
+                                  exclude_training=True, **kwargs):
 
         calc_funcs = [partial(rec.get_recommendations,
                               user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
@@ -131,7 +131,7 @@ class CascadeEnsemble(CombinationEnsembleBase):
             'no "predict_on_df" for second recommender'
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, pbar=None, **kwargs):
+                                  exclude_training=True, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
             exclude_training=exclude_training,

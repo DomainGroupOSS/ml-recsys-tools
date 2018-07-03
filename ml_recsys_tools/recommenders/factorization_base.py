@@ -108,7 +108,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
                           remove_self=True, embeddings_mode=None,
-                          simil_mode='cosine', results_format='lists', pbar=None):
+                          simil_mode='cosine', results_format='lists'):
         """
         uses learned embeddings to get N most similar items
 
@@ -128,7 +128,6 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         :param results_format:
             'flat' for dataframe of triplets (source_item, similar_item, similarity)
             'lists' for dataframe of lists (source_item, list of similar items, list of similarity scores)
-        :param pbar: name of tqdm progress bar (None means no tqdm)
 
         :return: a matrix of most similar IDs [n_ids, N], a matrix of score of those similarities [n_ids, N]
         """
@@ -145,7 +144,6 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             source_biases=biases,
             n=n_simil+1 if remove_self else n_simil,
             simil_mode=simil_mode,
-            pbar=pbar
         )
 
         simil_df = self._format_results_df(
@@ -162,7 +160,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         return simil_df
 
     def get_similar_users(self, user_ids=None, target_user_ids=None, n_simil=10, remove_self=True,
-                          simil_mode='cosine', pbar=None):
+                          simil_mode='cosine'):
         """
         same as get_similar_items but for users
         """
@@ -178,7 +176,6 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             source_biases=user_biases,
             n=n_simil,
             simil_mode=simil_mode,
-            pbar=pbar
         )
 
         simil_df = self._format_results_df(
@@ -197,7 +194,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
     def _get_recommendations_flat(
             self, user_ids, n_rec, item_ids=None, exclude_training=True,
-            pbar=None, item_features_mode=None, use_biases=True):
+            item_features_mode=None, use_biases=True):
 
         user_biases, user_representations = self._get_user_factors()
         item_biases, item_representations = self._get_item_factors(mode=item_features_mode)
@@ -217,7 +214,6 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             exclude_mat_sp=self.train_mat if exclude_training else None,
             n=n_rec,
             simil_mode='dot',
-            pbar=pbar
         )
 
         return self._format_results_df(

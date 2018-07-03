@@ -229,7 +229,7 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
                 item_ids=item_ids, target_item_ids=target_item_ids,
                 n_simil=n_simil, remove_self=remove_self,
                 embeddings_mode=embeddings_mode, simil_mode=simil_mode,
-                results_format='flat', pbar=None)
+                results_format='flat')
             for i_model in range(len(self.sub_models))]
 
         simil_all = calc_dfs_and_combine_scores(

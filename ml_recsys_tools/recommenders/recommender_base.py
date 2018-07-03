@@ -325,13 +325,13 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     @abstractmethod
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, pbar=None, **kwargs):
+                                  exclude_training=True, **kwargs):
         return pd.DataFrame()
 
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
-            exclude_training=True, pbar=None,
-            results_format='lists'):
+            exclude_training=True, results_format='lists',
+            **kwargs):
 
         if user_ids is not None:
             user_ids = self.remove_unseen_users(user_ids, message_prefix='get_recommendations: ')
@@ -343,7 +343,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         recos_flat = self._get_recommendations_flat(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-            exclude_training=exclude_training, pbar=pbar)
+            exclude_training=exclude_training)
 
         if results_format == 'flat':
             return recos_flat

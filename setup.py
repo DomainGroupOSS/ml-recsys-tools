@@ -24,8 +24,8 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
     ],
-    keywords='recommendations machine learning',  # Optional
-    packages=find_packages(exclude=['tests', 'examples']),  # Required
-    install_requires=['requests', 'scipy', 'numpy', 'pandas', 'scikit_learn', 'lightfm',
+    keywords='recommendations machine learning',
+    packages=find_packages(exclude=['tests', 'examples']),
+    install_requires=['requests', 'scipy', 'numpy', 'pandas', 'scikit_learn', 'lightfm', 'psutil'
                       'scikit_optimize', 'gmaps', 'boto3', 'redis', 'sklearn_pandas', 'matplotlib'],
 )

@@ -96,7 +96,7 @@ def _top_N_similar(source_inds, source_mat, target_mat, n,
 def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
                  target_ids=None, target_encoder=None, target_mat=None, target_biases=None,
                  exclude_mat_sp=None,
-                 chunksize=1000, simil_mode='cosine', pbar=None):
+                 chunksize=1000, simil_mode='cosine'):
     """
     multithreaded batched version of _top_N_similar() that works with IDs instead of indices
     for each row in specified IDS in source_mat calculates top N similar items in target_mat
@@ -118,7 +118,6 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
         'cosine' dot product of normalized matrices (each row sums to 1), without biases
         'dot' regular dot product, without normalization, with added biases if supplied
         'euclidean' inverse of euclidean distance
-    :param pbar: name of tqdm progress bar (None means no tqdm)
     :return:
         best_ids - matrix (n_ids, N) of N top items from target_mat for each item in IDS of source_mat
         best_scores - similarity scores for best_ids (n_ids, N)
@@ -152,7 +151,6 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
 
     ret = map_batches_multiproc(calc_func, source_inds,
                                 chunksize=chunksize,
-                                pbar=pbar,
                                 threads_per_cpu=2)
     sub_mat_best_inds = np.concatenate([r[0] for r in ret], axis=0)
     best_scores = np.concatenate([r[1] for r in ret], axis=0)
@@ -167,7 +165,7 @@ def most_similar(source_ids, n, source_encoder, source_mat, source_biases=None,
 @log_time_and_shape
 def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
                               sparse_mat, row_func, exclude_mat_sp=None,
-                              target_ids=None, chunksize=10000, pbar=None):
+                              target_ids=None, chunksize=10000):
     source_inds = source_encoder.transform(np.array(source_ids, dtype=str))
 
     if target_ids is None:
@@ -197,7 +195,7 @@ def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
         return np.array(np.stack(inds_list)), np.array(np.stack(vals_list))
 
     batch_res = map_batches_multiproc(
-        top_n_inds_batch, np.arange(sub_mat_ll.shape[0]), chunksize=chunksize, pbar=pbar)
+        top_n_inds_batch, np.arange(sub_mat_ll.shape[0]), chunksize=chunksize)
 
     sub_mat_best_inds = np.concatenate([r[0] for r in batch_res])
     best_scores = np.concatenate([r[1] for r in batch_res])
@@ -211,7 +209,7 @@ def custom_row_func_on_sparse(source_ids, source_encoder, target_encoder,
 
 @log_time_and_shape
 def top_N_sorted_on_sparse(source_ids, target_ids, encoder, sparse_mat,
-                           n_top=10, chunksize=10000, pbar=None):
+                           n_top=10, chunksize=10000):
     def _pad_k_zeros(vec, k):
         return np.pad(vec, (0, k), 'constant', constant_values=0)
 
@@ -239,5 +237,4 @@ def top_N_sorted_on_sparse(source_ids, target_ids, encoder, sparse_mat,
         target_encoder=encoder,
         sparse_mat=sparse_mat,
         chunksize=chunksize,
-        pbar=pbar
     )

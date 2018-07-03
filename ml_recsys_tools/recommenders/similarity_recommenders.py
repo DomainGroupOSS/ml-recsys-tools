@@ -104,7 +104,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
     def _get_recommendations_flat(
             self, user_ids, item_ids=None, exclude_training=True,
-            n_rec=100, pbar=None, **kwargs):
+            n_rec=100, **kwargs):
 
         self._check_no_negatives()
 
@@ -141,7 +141,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             results_format='recommendations_flat')
 
     def get_similar_items(self, item_ids=None, target_item_ids=None,
-                          n_simil=10, results_format='lists', pbar=None, **kwargs):
+                          n_simil=10, results_format='lists', **kwargs):
 
         item_ids, target_item_ids = \
             self._check_item_ids_args(item_ids, target_item_ids)
@@ -154,7 +154,6 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
             encoder=self.sparse_mat_builder.iid_encoder,
             sparse_mat=self.similarity_mat,
             n_top=n_simil,
-            pbar=pbar
         )
 
         simil_df = self._format_results_df(
@@ -191,7 +190,7 @@ class UserCoocRecommender(ItemCoocRecommender):
 
     def _get_recommendations_flat(
             self, user_ids, item_ids=None, exclude_training=True,
-            n_rec=100, pbar=None, **kwargs):
+            n_rec=100, **kwargs):
 
         self._check_no_negatives()
 
@@ -228,7 +227,7 @@ class UserCoocRecommender(ItemCoocRecommender):
             results_format='recommendations_flat')
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
-                          results_format='lists', pbar=None, **kwargs):
+                          results_format='lists', **kwargs):
         raise NotImplementedError
 
 

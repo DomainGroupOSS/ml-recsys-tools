@@ -192,7 +192,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
                           remove_self=True, embeddings_mode=None,
-                          simil_mode='cosine', results_format='lists', pbar=None):
+                          simil_mode='cosine', results_format='lists'):
         raise NotImplementedError
 
     def predict_for_user(self, user_id, item_ids, rank_training_last=True, sort=True):

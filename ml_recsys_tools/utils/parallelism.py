@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from itertools import islice
 import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
@@ -26,8 +25,7 @@ def batch_generator(iterable, n=1):
         raise ValueError('Iterable is not iterable?')
 
 
-def map_batches_multiproc(func, iterable, chunksize,
-                          pbar=None, multiproc_mode='threads',
+def map_batches_multiproc(func, iterable, chunksize, multiproc_mode='threads',
                           n_threads=None, threads_per_cpu=1.0):
     if n_threads is None:
         n_threads = int(threads_per_cpu * N_CPUS)
@@ -37,17 +35,7 @@ def map_batches_multiproc(func, iterable, chunksize,
 
     with pool_type(multiproc_mode)(n_threads) as pool:
         batches = batch_generator(iterable, n=chunksize)
-
-        if pbar is None:
-            return list(pool.imap(func, batches))
-        else:
-            return list(tqdm(
-                pool.imap(func, batch_generator(iterable, n=chunksize)),
-                total=int(len(iterable) / chunksize),
-                desc=pbar,
-                mininterval=10.0,
-                maxinterval=100.0,
-                ascii=True))
+        return list(pool.imap(func, batches))
 
 
 def pool_type(parallelism_type):
