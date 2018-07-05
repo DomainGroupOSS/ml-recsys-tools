@@ -12,7 +12,6 @@ Docker: recent docker image location of a pip install: `artdgn/ml_recsys_tools:l
 Run in a docker: `docker run -it --rm artdgn/ml_recsys_tools:latest python`
 
 #### Basic example:
-```python
     # dataset: download and prepare dataframes
     from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
     rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data()
@@ -41,7 +40,6 @@ Run in a docker: `docker run -it --rm artdgn/ml_recsys_tools:latest python`
     simils = lfm_rec.get_similar_items(lfm_rec.all_items, n_simil=5)
     print(simils.sample(10))
 
-```
 
 ## Recommender models and tools:
 
