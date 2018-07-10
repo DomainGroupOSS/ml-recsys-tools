@@ -1,4 +1,3 @@
-# from https://github.com/lyst/lightfm/blob/master/setup.py
 from setuptools import setup, find_packages
 from os import path
 
@@ -10,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ml_recsys_tools',
-    version='0.5.2.3',
+    version='0.5.2.4',
     description='Tools for recommendation systems development',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -26,6 +25,10 @@ setup(
     ],
     keywords='recommendations machine learning',
     packages=find_packages(exclude=['tests', 'examples']),
-    install_requires=['requests', 'scipy', 'numpy', 'pandas', 'scikit_learn', 'lightfm', 'psutil',
-                      'scikit_optimize', 'gmaps', 'boto3', 'redis', 'sklearn_pandas', 'matplotlib'],
+    install_requires=['requests', 'scipy', 'numpy', 'pandas',
+                      'scikit_learn', 'lightfm', 'implicit', 'psutil',
+                      'scikit_optimize', 'gmaps', 'boto3', 'redis',
+                      'sklearn_pandas', 'matplotlib'],
 )
+
+## rm -rf dist && python3 setup.py sdist bdist_wheel && twine upload dist/*
