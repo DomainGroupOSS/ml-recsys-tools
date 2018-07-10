@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ml_recsys_tools',
-    version='0.5.2.4',
+    version='0.5.2.5',
     description='Tools for recommendation systems development',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -25,7 +25,7 @@ setup(
     ],
     keywords='recommendations machine learning',
     packages=find_packages(exclude=['tests', 'examples']),
-    install_requires=['requests', 'scipy', 'numpy', 'pandas',
+    install_requires=['requests', 'numpy', 'scipy', 'pandas',
                       'scikit_learn', 'lightfm', 'implicit', 'psutil',
                       'scikit_optimize', 'gmaps', 'boto3', 'redis',
                       'sklearn_pandas', 'matplotlib'],
