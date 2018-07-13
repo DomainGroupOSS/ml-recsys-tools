@@ -108,10 +108,10 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
         self._check_no_negatives()
 
-        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
+        user_inds = self.user_inds(user_ids)
 
         if item_ids is not None:
-            item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+            item_inds = self.item_inds(item_ids)
             item_inds.sort()
         else:
             item_inds = None
@@ -194,10 +194,10 @@ class UserCoocRecommender(ItemCoocRecommender):
 
         self._check_no_negatives()
 
-        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
+        user_inds = self.user_inds(user_ids)
 
         if item_ids is not None:
-            item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+            item_inds = self.item_inds(item_ids)
             item_inds.sort()
         else:
             item_inds = None

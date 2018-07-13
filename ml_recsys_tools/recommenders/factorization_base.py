@@ -4,6 +4,7 @@ from copy import deepcopy
 import pandas as pd
 import numpy as np
 import scipy.sparse as sp
+from scipy.stats import rankdata
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.recommenders.recommender_base import BasePredictorRecommender
@@ -235,8 +236,8 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         if item_ids is None:
             item_ids = self.sparse_mat_builder.iid_encoder.classes_
 
-        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+        user_inds = self.user_inds(user_ids)
+        item_inds = self.item_inds(item_ids)
 
         user_biases, user_factors = self._get_user_factors()
         item_biases, item_factors = self._get_item_factors()
@@ -262,7 +263,8 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
         return full_pred_mat
 
-    def predict_for_user(self, user_id, item_ids, rank_training_last=True, sort=True):
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True,
+                         sort=True, combine_original_order=True):
         """
         method for predicting for one user for a small subset of items.
         optimized for minimal latency for use in real-time ranking
@@ -272,16 +274,19 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         :param item_ids: a subset of item IDs, may have unknown items (prediction for those will be None)
         :param rank_training_last:  if set to True predictions for interactions seen during training
             seen during will be ranked last by being set to -np.inf
+        :param combine_original_order: whether tohead() combine predictions with original
+            order of the items (if they were already ordered in a meaningful way)
         :param sort: whether to sort the result in decreasing order of prediction (best first)
         :return: a pandas DataFrame of userid | itemid | prediction,
             sorted in decresing order of prediction (if sort=True),
             with Nones for unknown users or items
         """
 
+
         df = pd.DataFrame()
         df[self._item_col] = item_ids  # assigning first because determines length
         df[self._user_col] = user_id
-        df[self._prediction_col] = None
+        df[self._prediction_col] = np.nan
 
         new_users_mask = self.sparse_mat_builder.uid_encoder.find_new_labels([user_id])
         if np.any(new_users_mask):
@@ -295,6 +300,11 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             exclude_training=rank_training_last)
 
         df[self._prediction_col].values[~new_items_mask] = preds.ravel()
+
+        if combine_original_order:
+            orig_score = len(item_ids) - np.arange(len(item_ids))
+            preds_score = df[self._prediction_col].values
+            df[self._prediction_col] = (rankdata(orig_score) + rankdata(preds_score)) / 2
 
         if sort:
             df.sort_values(self._prediction_col, ascending=False, inplace=True)

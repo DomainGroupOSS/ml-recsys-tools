@@ -220,6 +220,18 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         self.train_mat = None
         self.external_features_mat = None
 
+    def user_inds(self, user_ids):
+        return self.sparse_mat_builder.uid_encoder.transform(user_ids)
+
+    def user_ids(self, user_inds):
+        return self.sparse_mat_builder.uid_encoder.inverse_transform(user_inds)
+
+    def item_inds(self, item_ids):
+        return self.sparse_mat_builder.iid_encoder.transform(item_ids)
+
+    def item_ids(self, item_inds):
+        return self.sparse_mat_builder.iid_encoder.inverse_transform(item_inds)
+
     def _set_data(self, train_obs, calc_train_mat=True):
         train_df = train_obs.df_obs
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
@@ -534,8 +546,8 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         if item_ids is None:
             item_ids = self.sparse_mat_builder.iid_encoder.classes_
 
-        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
+        user_inds = self.user_inds(user_ids)
+        item_inds = self.item_inds(item_ids)
 
         n_users = len(user_inds)
         n_items = len(item_inds)

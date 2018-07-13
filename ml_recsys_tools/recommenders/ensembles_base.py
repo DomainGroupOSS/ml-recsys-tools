@@ -245,14 +245,17 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         return simil_all if results_format == 'flat' \
             else self._simil_flat_to_lists(simil_all, n_cutoff=n_simil)
 
-    def predict_for_user(self, user_id, item_ids, rank_training_last=True, sort=True):
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True,
+                         sort=True, combine_original_order=True):
 
         calc_funcs = [
             partial(
                 self.sub_models[i_model].predict_for_user,
                 user_id=user_id,
                 item_ids=item_ids,
-                rank_training_last=rank_training_last)
+                rank_training_last=rank_training_last,
+                combine_original_order=combine_original_order,
+            )
             for i_model in range(len(self.sub_models))]
 
         df = calc_dfs_and_combine_scores(

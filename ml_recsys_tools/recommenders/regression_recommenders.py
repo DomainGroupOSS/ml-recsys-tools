@@ -195,7 +195,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
                           simil_mode='cosine', results_format='lists'):
         raise NotImplementedError
 
-    def predict_for_user(self, user_id, item_ids, rank_training_last=True, sort=True):
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True,
+                         sort=True, combine_original_order=True):
         raise NotImplementedError
 
     def _predict_rank(self, test_mat, train_mat=None):

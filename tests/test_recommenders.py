@@ -34,6 +34,7 @@ class TestRecommendersBasic(TestCaseWithState):
         lfm_rec.fit(self.state.train_obs, epochs=10)
         self.assertEqual(lfm_rec.fit_params['epochs'], 10)
         self._check_recommendations_and_similarities(lfm_rec)
+        self._test_predict_for_user(lfm_rec)
         self.state.lfm_rec = lfm_rec
 
     def _check_recommendations(self, recs, users, n):
@@ -63,6 +64,57 @@ class TestRecommendersBasic(TestCaseWithState):
     def _check_recommendations_and_similarities(self, rec):
         self._check_recommendations(rec.get_recommendations(n_rec=self.n), rec.all_users, n=self.n)
         self._check_similarities(rec.get_similar_items(n_simil=self.n), rec.all_items, n=self.n)
+
+    def _test_predict_for_user(self, rec):
+        user = rec.all_users[0]
+        items = rec.all_items[:10]
+
+        preds_1 = rec.predict_for_user(
+            user_id=user, item_ids=items,
+            rank_training_last=True,
+            sort=True,
+            combine_original_order=True)
+        scores = preds_1[rec._prediction_col].tolist()
+
+        # test format
+        self.assertListEqual(preds_1.columns.tolist(),
+                             [rec._user_col, rec._item_col, rec._prediction_col])
+        self.assertEqual(len(preds_1), len(items))
+
+        # test sorted descending
+        self.assertTrue(scores[::-1] == sorted(scores))
+
+        # test combine original order
+        preds_2 = rec.predict_for_user(
+            user_id=user, item_ids=items,
+            sort=True,
+            combine_original_order=False)
+        self.assertGreaterEqual(np.argmax(preds_2[rec._item_col].values == items[0]),
+                                np.argmax(preds_1[rec._item_col].values == items[0]))
+
+        # test training is last
+        train_item = rec.item_ids([rec.train_mat[rec.user_inds([user])[0],:].indices[0]])
+        preds_3 = rec.predict_for_user(
+            user_id=user, item_ids=np.concatenate([items, train_item]),
+            rank_training_last=True,
+            combine_original_order=False)
+        train_preds = preds_3[preds_3[rec._item_col] == train_item[0]][rec._prediction_col]
+        self.assertTrue(all(train_preds == -np.inf))
+
+        # test unknown items are nans
+        new_items = 'new_item'
+        preds_4 = rec.predict_for_user(
+            user_id=user, item_ids=np.concatenate([items, [new_items]]),
+            combine_original_order=False)
+        new_preds = preds_4[preds_4[rec._item_col] == new_items][rec._prediction_col]
+        self.assertTrue(all(new_preds.isnull()))
+
+        # test for unknown user all are nans
+        preds_5 = rec.predict_for_user(
+            user_id='new_user', item_ids=items,
+            combine_original_order=False)
+        self.assertTrue(all(preds_5[rec._prediction_col].isnull()))
+
 
     def test_b_2_lfm_rec_evaluation(self):
         k = self.k

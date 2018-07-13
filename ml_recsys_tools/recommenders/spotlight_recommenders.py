@@ -151,8 +151,8 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
         if item_ids is None:
             item_ids = self.sparse_mat_builder.iid_encoder.classes_
 
-        item_inds = self.sparse_mat_builder.iid_encoder.transform(item_ids)
-        user_inds = self.sparse_mat_builder.uid_encoder.transform(user_ids)
+        item_inds = self.item_inds(item_ids)
+        user_inds = self.user_inds(user_ids)
 
         sequences = self.sequence_interactions.sequences
 
