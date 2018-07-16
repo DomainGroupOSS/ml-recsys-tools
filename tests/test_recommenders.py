@@ -67,7 +67,7 @@ class TestRecommendersBasic(TestCaseWithState):
 
     def _test_predict_for_user(self, rec):
         user = rec.all_users[0]
-        items = rec.all_items[:10]
+        items = rec.all_items[:50]
 
         preds_1 = rec.predict_for_user(
             user_id=user, item_ids=items,
@@ -77,22 +77,24 @@ class TestRecommendersBasic(TestCaseWithState):
         scores = preds_1[rec._prediction_col].tolist()
 
         # test format
+        # columns
         self.assertListEqual(preds_1.columns.tolist(),
                              [rec._user_col, rec._item_col, rec._prediction_col])
+        # length
         self.assertEqual(len(preds_1), len(items))
 
         # test sorted descending
         self.assertTrue(scores[::-1] == sorted(scores))
 
-        # test combine original order
+        # test combine with original order makes first item in original order higher in results
         preds_2 = rec.predict_for_user(
             user_id=user, item_ids=items,
             sort=True,
             combine_original_order=False)
-        self.assertGreaterEqual(np.argmax(preds_2[rec._item_col].values == items[0]),
+        self.assertGreater(np.argmax(preds_2[rec._item_col].values == items[0]),
                                 np.argmax(preds_1[rec._item_col].values == items[0]))
 
-        # test training is last
+        # test training items predictions are -inf
         train_item = rec.item_ids([rec.train_mat[rec.user_inds([user])[0],:].indices[0]])
         preds_3 = rec.predict_for_user(
             user_id=user, item_ids=np.concatenate([items, train_item]),
