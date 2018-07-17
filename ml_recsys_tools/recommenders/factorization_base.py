@@ -274,7 +274,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         :param item_ids: a subset of item IDs, may have unknown items (prediction for those will be None)
         :param rank_training_last:  if set to True predictions for interactions seen during training
             seen during will be ranked last by being set to -np.inf
-        :param combine_original_order: whether tohead() combine predictions with original
+        :param combine_original_order: whether to combine predictions with original
             order of the items (if they were already ordered in a meaningful way)
         :param sort: whether to sort the result in decreasing order of prediction (best first)
         :return: a pandas DataFrame of userid | itemid | prediction,
