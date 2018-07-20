@@ -123,8 +123,6 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             'cosine' (default) - cosine similarity bewtween representations (normalized dot product with no biases)
             'dot' - unnormalized dot product with addition of biases
             'euclidean' - inverse of euclidean distance
-            'cooccurance' - no usage of learned features - just cooccurence of items matrix
-                (number of 2nd degree connections in user-item graph)
         :param results_format:
             'flat' for dataframe of triplets (source_item, similar_item, similarity)
             'lists' for dataframe of lists (source_item, list of similar items, list of similarity scores)
