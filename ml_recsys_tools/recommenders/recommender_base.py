@@ -5,6 +5,8 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
+from scipy.stats import rankdata
+
 import pickle
 
 import time
@@ -340,6 +342,10 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                                   exclude_training=True, **kwargs):
         return pd.DataFrame()
 
+    @abstractmethod
+    def _predict_on_inds_dense(self, user_inds, item_inds):
+        return np.array([])
+
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
             exclude_training=True, results_format='lists',
@@ -447,16 +453,130 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         return report_df
 
+    def get_recommendations_exact(
+            self, user_ids, item_ids=None, n_rec=10,
+            exclude_training=True, chunksize=200, results_format='lists'):
+
+        calc_func = partial(
+            self._get_recommendations_exact,
+            n_rec=n_rec,
+            item_ids=item_ids,
+            exclude_training=exclude_training,
+            results_format=results_format)
+
+        chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
+
+        ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
+        return pd.concat(ret, axis=0)
+
+    def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
+        """
+        method for calculating prediction for a grid of users and items.
+        this method uses the _predict_on_inds() method that the subclasses should implement.
+
+        :param user_ids: users ids
+        :param item_ids: item ids, when None - all known items are used
+        :param exclude_training: when True sets prediction on training examples to -np.inf
+        :return: a matrix of predictions (n_users, n_items)
+        """
+
+        if item_ids is None:
+            item_ids = self.sparse_mat_builder.iid_encoder.classes_
+
+        user_inds = self.user_inds(user_ids)
+        item_inds = self.item_inds(item_ids)
+
+        full_pred_mat = self._predict_on_inds_dense(user_inds, item_inds)
+
+        if exclude_training:
+            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
+            full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
+
+        return full_pred_mat
+
+    _predict_for_users_dense_direct = _predict_for_users_dense
+
+    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
+                                   results_format='lists'):
+
+        full_pred_mat = self._predict_for_users_dense(user_ids, item_ids,
+                                                      exclude_training=exclude_training)
+
+        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
+
+        # best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
+        best_ids = item_ids[top_inds] if item_ids is not None else \
+            self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
+
+        return self._format_results_df(
+            source_vec=user_ids, target_ids_mat=best_ids,
+            scores_mat=top_scores, results_format='recommendations_' + results_format)
+
+    def predict_for_user(self, user_id, item_ids, rank_training_last=True,
+                         sort=True, combine_original_order=False):
+        """
+        method for predicting for one user for a small subset of items.
+        optimized for minimal latency for use in real-time ranking
+        will return -np.inf for combinations of unknown user / unknown items
+
+        :param user_id: a single user ID, may be an unknown users (all predictions will be None)
+        :param item_ids: a subset of item IDs, may have unknown items (prediction for those will be None)
+        :param rank_training_last:  if set to True predictions for interactions seen during training
+            seen during will be ranked last by being set to -np.inf
+        :param combine_original_order: whether to combine predictions with original
+            order of the items (if they were already ordered in a meaningful way)
+        :param sort: whether to sort the result in decreasing order of prediction (best first)
+        :return: a pandas DataFrame of userid | itemid | prediction,
+            sorted in decresing order of prediction (if sort=True),
+            with Nones for unknown users or items
+        """
+
+
+        df = pd.DataFrame()
+        df[self._item_col] = item_ids  # assigning first because determines length
+        df[self._user_col] = user_id
+        df[self._prediction_col] = -np.inf
+
+        new_users_mask = self.sparse_mat_builder.uid_encoder.find_new_labels([user_id])
+        if np.any(new_users_mask):
+            return df
+
+        new_items_mask = self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
+
+        preds = self._predict_for_users_dense_direct(
+            user_ids=[user_id],
+            item_ids=np.array(item_ids)[~new_items_mask],
+            exclude_training=rank_training_last)
+
+        df[self._prediction_col].values[~new_items_mask] = preds.ravel()
+
+        if combine_original_order:
+            orig_score = len(item_ids) - np.arange(len(item_ids))
+            preds_score = df[self._prediction_col].values
+            df[self._prediction_col] = (rankdata(orig_score) + rankdata(preds_score)) / 2
+
+        if sort:
+            df.sort_values(self._prediction_col, ascending=False, inplace=True)
+
+        return df[[self._user_col, self._item_col, self._prediction_col ]]  # reordering
+
 
 class BasePredictorRecommender(BaseDFSparseRecommender):
 
     @abstractmethod
-    def _predict(self, user_ids, item_ids):
+    def _predict_on_inds(self, user_inds, item_inds):
         pass
 
     @abstractmethod
     def _predict_rank(self, test_mat, train_mat=None):
         pass
+
+    def _predict_on_inds_dense(self, user_inds, item_inds):
+        n_users = len(user_inds)
+        n_items = len(item_inds)
+        user_inds_mat = user_inds.repeat(n_items)
+        item_inds_mat = np.tile(item_inds, n_users)
+        return self._predict_on_inds(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
 
     def predict_on_df(self, df, exclude_training=True, user_col=None, item_col=None):
         if user_col is not None and user_col != self.sparse_mat_builder.uid_source_col:
@@ -467,7 +587,7 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         mat_builder = self.sparse_mat_builder
         df = mat_builder.remove_unseen_labels(df)
         df = mat_builder.add_encoded_cols(df)
-        df[self._prediction_col] = self._predict(
+        df[self._prediction_col] = self._predict_on_inds(
             df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
 
         if exclude_training:
@@ -502,65 +622,6 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
             prefix=prefix,
             include_train=include_train,
             k=k)
-
-    def get_recommendations_exact(
-            self, user_ids, item_ids=None, n_rec=10,
-            exclude_training=True, chunksize=200, results_format='lists'):
-
-        calc_func = partial(
-            self._get_recommendations_exact,
-            n_rec=n_rec,
-            item_ids=item_ids,
-            exclude_training=exclude_training,
-            results_format=results_format)
-
-        chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
-
-        ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
-        return pd.concat(ret, axis=0)
-
-    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
-                                   results_format='lists'):
-
-        full_pred_mat = self._predict_for_users_dense(user_ids, item_ids, exclude_training=exclude_training)
-
-        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
-
-        best_ids = self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
-
-        return self._format_results_df(
-            source_vec=user_ids, target_ids_mat=best_ids,
-            scores_mat=top_scores, results_format='recommendations_' + results_format)
-
-    def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
-        """
-        method for calculating prediction for a grid of users and items.
-        this method uses the _predict() method that the subclasses should implement.
-
-        :param user_ids: users ids
-        :param item_ids: item ids, when None - all known items are used
-        :param exclude_training: when True sets prediction on training examples to -np.inf
-        :return: a matrix of predictions (n_users, n_items)
-        """
-
-        if item_ids is None:
-            item_ids = self.sparse_mat_builder.iid_encoder.classes_
-
-        user_inds = self.user_inds(user_ids)
-        item_inds = self.item_inds(item_ids)
-
-        n_users = len(user_inds)
-        n_items = len(item_inds)
-        user_inds_mat = user_inds.repeat(n_items)
-        item_inds_mat = np.tile(item_inds, n_users)
-
-        full_pred_mat = self._predict(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
-
-        if exclude_training:
-            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
-            full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
-
-        return full_pred_mat
 
 
 class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):

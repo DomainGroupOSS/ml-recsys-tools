@@ -147,8 +147,8 @@ class LightFMRecommender(BaseFactorizationRecommender):
     def _get_user_factors(self, mode=None):
         return self.model.get_user_representations()
 
-    def _predict(self, user_ids, item_ids):
-        return self.model.predict(user_ids, item_ids,
+    def _predict_on_inds(self, user_inds, item_inds):
+        return self.model.predict(user_inds, item_inds,
                                   item_features=self.fit_params['item_features'],
                                   num_threads=self.fit_params['num_threads'])
 

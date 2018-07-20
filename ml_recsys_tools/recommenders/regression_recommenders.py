@@ -93,7 +93,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
                 drop('index', axis=1)
 
         if self.factors_prediction:
-            df_feat[self._prediction_col] = self._factorizer._predict(
+            df_feat[self._prediction_col] = self._factorizer._predict_on_inds(
                 df_feat[self._uid_col].values, df_feat[self._iid_col].values)
 
         if self.user_factors:
@@ -163,7 +163,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         self._regressor.fit(df_train_reg.drop(self._rating_col, axis=1).values,
                             df_train_reg[self._rating_col].values, **fit_params)
 
-    def _predict(self, user_inds, item_inds):
+    def _predict_on_inds(self, user_inds, item_inds):
         df_inds = pd.DataFrame({
             self._uid_col: np.array(user_inds).ravel(),
             self._iid_col: np.array(item_inds).ravel()})
@@ -196,7 +196,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         raise NotImplementedError
 
     def predict_for_user(self, user_id, item_ids, rank_training_last=True,
-                         sort=True, combine_original_order=True):
+                         sort=True, combine_original_order=False):
         raise NotImplementedError
 
     def _predict_rank(self, test_mat, train_mat=None):

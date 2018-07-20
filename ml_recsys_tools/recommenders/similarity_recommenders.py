@@ -102,6 +102,10 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         if len(self.similarity_mat.data) and np.min(self.similarity_mat.data) < 0.01:
             self.similarity_mat.data += np.abs(np.min(self.similarity_mat.data) - 0.01)
 
+    def _predict_on_inds_dense(self, user_inds, item_inds):
+        user_pred_mat = self.train_mat[user_inds, :] * self.similarity_mat
+        return user_pred_mat[:, item_inds].toarray()
+
     def _get_recommendations_flat(
             self, user_ids, item_ids=None, exclude_training=True,
             n_rec=100, **kwargs):
@@ -187,6 +191,10 @@ class UserCoocRecommender(ItemCoocRecommender):
         self._prep_for_fit(train_obs, **fit_params)
         self.similarity_mat = interactions_mat_to_cooccurrence_mat(
             self.train_mat.T, **self.fit_params)
+
+    def _predict_on_inds_dense(self, user_inds, item_inds):
+        user_pred_mat = self.similarity_mat[user_inds, :] * self.train_mat
+        return user_pred_mat[:, item_inds].toarray()
 
     def _get_recommendations_flat(
             self, user_ids, item_ids=None, exclude_training=True,

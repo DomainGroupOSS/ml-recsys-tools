@@ -64,11 +64,11 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
         df[groupby_col] = df[groupby_col].astype(str, copy=False)
         df[item_col] = df[item_col].astype(str, copy=False)
         df[scores_col] = df[scores_col].astype(float, copy=False)
+        df = df.reset_index(drop=True) # resetting index due to pandas bug
 
         df[rank_cols[i]] = df. \
-            reset_index(). \
             groupby(groupby_col)[scores_col].\
-            rank(ascending=False)  # resetting index due to pandas bug
+            rank(ascending=False)
 
         df = df.drop(scores_col, axis=1).set_index([groupby_col, item_col])
 
@@ -126,91 +126,39 @@ def calc_dfs_and_combine_scores(calc_funcs, groupby_col, item_col, scores_col,
     return merged_df.reset_index()
 
 
-class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
+class EnsembleBase(BaseDFSparseRecommender):
 
     def __init__(self,
-                 n_models=1,
-                 concurrence_ratio=0.3,
-                 concurrency_backend='threads',
                  combination_mode='hmean',
-                 na_rank_fill=200,
+                 na_rank_fill=None,
                  **kwargs):
-        self.n_models = n_models
-        self.concurrence_ratio = concurrence_ratio
-        self.concurrency_backend = concurrency_backend
         self.combination_mode = combination_mode
         self.na_rank_fill = na_rank_fill
+        self.recommenders = []
+        self.n_recommenders = len(self.recommenders)
         super().__init__(**kwargs)
-        self.sub_class_type = None
-        self._init_sub_models()
-
-    def get_workers_pool(self, concurrency_backend=None):
-        if concurrency_backend is None:
-            concurrency_backend = self.concurrency_backend
-        if 'thread' in concurrency_backend:
-            return ThreadPool(self.n_concurrent())
-        elif 'proc' in concurrency_backend:
-            return Pool(self.n_concurrent(), maxtasksperchild=3)
-
-    def _init_sub_models(self, **params):
-        self.sub_models = [self.sub_class_type(**params.copy())
-                           for _ in range(self.n_models)]
 
     def n_concurrent(self):
-        return int(min(np.ceil(self.n_models * self.concurrence_ratio), N_CPUS))
-
-    def _broadcast(self, var):
-        if isinstance(var, list) and len(var) == self.n_models:
-            return var
-        else:
-            return [var] * self.n_models
+        return N_CPUS
 
     def set_params(self, **params):
-        params = self._pop_set_params(
-            params, ['n_models', 'combination_mode',
-                     'na_rank_fill', 'concurrence_ratio'])
+        params = self._pop_set_params(params, ['combination_mode', 'na_rank_fill'])
         # set on self
         super().set_params(**params.copy())
-        # init sub models to make sure they're the right object already
-        self._init_sub_models()
-        # set for each sub_model
-        for model in self.sub_models:
-            model.set_params(**params.copy())
-
-    @abstractmethod
-    def _generate_sub_model_train_data(self, train_obs):
-        pass
-
-    @abstractmethod
-    def _fit_sub_model(self, args):
-        pass
-
-    def fit(self, train_obs, **fit_params):
-        self._set_data(train_obs)
-
-        sub_model_train_data_generator = self._generate_sub_model_train_data(train_obs)
-
-        with self.get_workers_pool() as pool:
-            self.sub_models = list(
-                pool.imap(self._fit_sub_model,
-                          zip(range(self.n_models),
-                              sub_model_train_data_generator,
-                              repeat(fit_params, self.n_models))))
-        return self
 
     def _get_recommendations_flat(self, user_ids, item_ids, n_rec=100, **kwargs):
 
         calc_funcs = [
             partial(
-                self.sub_models[i_model].get_recommendations,
+                rec.get_recommendations,
                 user_ids=user_ids, item_ids=item_ids,
                 n_rec=n_rec, results_format='flat', **kwargs)
-            for i_model in range(len(self.sub_models))]
+            for rec in self.recommenders]
 
         recos_flat = calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
             combine_func=self.combination_mode,
-            fill_val=self.na_rank_fill,
+            fill_val=self.na_rank_fill if self.na_rank_fill else (n_rec + 1),
             groupby_col=self._user_col,
             item_col=self._item_col,
             scores_col=self._prediction_col,
@@ -220,43 +168,39 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
         return recos_flat
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
-                          remove_self=True, embeddings_mode=None,
-                          simil_mode='cosine', results_format='lists', **kwargs):
+                          n_unfilt=100, results_format='lists', **kwargs):
 
-        calc_funcs = [
-            partial(
-                self.sub_models[i_model].get_similar_items,
-                item_ids=item_ids, target_item_ids=target_item_ids,
-                n_simil=n_simil, remove_self=remove_self,
-                embeddings_mode=embeddings_mode, simil_mode=simil_mode,
-                results_format='flat')
-            for i_model in range(len(self.sub_models))]
+        calc_funcs = [partial(rec.get_similar_items,
+                              item_ids=item_ids, target_item_ids=target_item_ids,
+                              n_simil=n_unfilt, results_format='flat', **kwargs)
+                      for rec in self.recommenders]
 
-        simil_all = calc_dfs_and_combine_scores(
+        combined_simil_df = calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
             combine_func=self.combination_mode,
-            fill_val=self.na_rank_fill,
+            fill_val=self.na_rank_fill if self.na_rank_fill else (n_unfilt + 1),
             groupby_col=self._item_col_simil,
             item_col=self._item_col,
-            scores_col=self._prediction_col,
-            n_threads=self.n_concurrent()
-        )
+            scores_col=self._prediction_col)
 
-        return simil_all if results_format == 'flat' \
-            else self._simil_flat_to_lists(simil_all, n_cutoff=n_simil)
+        return combined_simil_df if results_format == 'flat' \
+            else self._simil_flat_to_lists(combined_simil_df, n_cutoff=n_simil)
+
+    def _predict_on_inds_dense(self, user_inds, item_inds):
+        raise NotImplementedError()
 
     def predict_for_user(self, user_id, item_ids, rank_training_last=True,
-                         sort=True, combine_original_order=True):
+                         sort=True, combine_original_order=False):
 
         calc_funcs = [
             partial(
-                self.sub_models[i_model].predict_for_user,
+                rec.predict_for_user,
                 user_id=user_id,
                 item_ids=item_ids,
                 rank_training_last=rank_training_last,
                 combine_original_order=combine_original_order,
             )
-            for i_model in range(len(self.sub_models))]
+            for rec in self.recommenders]
 
         df = calc_dfs_and_combine_scores(
             calc_funcs=calc_funcs,
@@ -274,10 +218,78 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
 
         return df
 
+
+class SubdivisionEnsembleBase(EnsembleBase):
+
+    def __init__(self,
+                 n_models=1,
+                 concurrence_ratio=0.3,
+                 concurrency_backend='threads',
+                 **kwargs):
+        self.n_recommenders = n_models
+        self.concurrence_ratio = concurrence_ratio
+        self.concurrency_backend = concurrency_backend
+        super().__init__(**kwargs)
+        self.sub_class_type = None
+        self._init_recommenders()
+
+    def get_workers_pool(self, concurrency_backend=None):
+        if concurrency_backend is None:
+            concurrency_backend = self.concurrency_backend
+        if 'thread' in concurrency_backend:
+            return ThreadPool(self.n_concurrent())
+        elif 'proc' in concurrency_backend:
+            return Pool(self.n_concurrent(), maxtasksperchild=3)
+
+    def _init_recommenders(self, **params):
+        self.recommenders = [self.sub_class_type(**params.copy())
+                             for _ in range(self.n_recommenders)]
+
+    def n_concurrent(self):
+        return int(min(np.ceil(self.n_recommenders * self.concurrence_ratio), N_CPUS))
+
+    # def _broadcast(self, var):
+    #     if isinstance(var, list) and len(var) == self.n_models:
+    #         return var
+    #     else:
+    #         return [var] * self.n_models
+
+    def set_params(self, **params):
+        params = self._pop_set_params(
+            params, ['n_models', 'concurrence_ratio'])
+        # set on self
+        super().set_params(**params.copy())
+        # init sub models to make sure they're the right object already
+        self._init_recommenders()
+        # set for each sub_model
+        for model in self.recommenders:
+            model.set_params(**params.copy())
+
+    @abstractmethod
+    def _generate_sub_model_train_data(self, train_obs):
+        pass
+
+    @abstractmethod
+    def _fit_sub_model(self, args):
+        pass
+
+    def fit(self, train_obs, **fit_params):
+        self._set_data(train_obs)
+
+        sub_model_train_data_generator = self._generate_sub_model_train_data(train_obs)
+
+        with self.get_workers_pool() as pool:
+            self.recommenders = list(
+                pool.imap(self._fit_sub_model,
+                          zip(range(self.n_recommenders),
+                              sub_model_train_data_generator,
+                              repeat(fit_params, self.n_recommenders))))
+        return self
+
     # def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
     #     stats = []
     #     reports = []
-    #     for m in self.sub_models:
+    #     for m in self.recommenders:
     #         users = m.train_df[self.train_obs.uid_col].unique()
     #         items = m.train_df[self.train_obs.iid_col].unique()
     #         sub_test_dfs = [df[df[self.train_obs.uid_col].isin(users) &
@@ -294,12 +306,12 @@ class SubdivisionEnsembleBase(BaseDFSparseRecommender, ABC):
     #     return stats, reports
 
 
-class CombinationEnsembleBase(BaseDFSparseRecommender):
+class CombinationEnsembleBase(EnsembleBase):
 
     def __init__(self, recommenders, **kwargs):
+        super().__init__(**kwargs)
         self.recommenders = recommenders
         self.n_recommenders = len(self.recommenders)
-        super().__init__(**kwargs)
         self._reuse_data(self.recommenders[0])
 
     def fit(self, *args, **kwargs):

@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from copy import deepcopy
 
+import time
+
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 
 from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
@@ -33,8 +35,8 @@ class TestRecommendersBasic(TestCaseWithState):
         lfm_rec = LightFMRecommender()
         lfm_rec.fit(self.state.train_obs, epochs=10)
         self.assertEqual(lfm_rec.fit_params['epochs'], 10)
-        self._check_recommendations_and_similarities(lfm_rec)
-        self._test_predict_for_user(lfm_rec)
+        self._test_recommender(lfm_rec)
+        # self._test_predict_for_user(lfm_rec)
         self.state.lfm_rec = lfm_rec
 
     def _check_recommendations(self, recs, users, n):
@@ -61,19 +63,18 @@ class TestRecommendersBasic(TestCaseWithState):
         for i in np.random.choice(np.arange(len(simils)), min(100, len(simils))):
             self.assertListEqual(list(simils['prediction'][i]), sorted(simils['prediction'][i], reverse=True))
 
-    def _check_recommendations_and_similarities(self, rec):
+    def _test_recommender(self, rec):
         self._check_recommendations(rec.get_recommendations(n_rec=self.n), rec.all_users, n=self.n)
         self._check_similarities(rec.get_similar_items(n_simil=self.n), rec.all_items, n=self.n)
+        self._test_predict_for_user(rec)
 
     def _test_predict_for_user(self, rec):
         user = rec.all_users[0]
         items = rec.all_items[:50]
 
-        preds_1 = rec.predict_for_user(
-            user_id=user, item_ids=items,
-            rank_training_last=True,
-            sort=True,
-            combine_original_order=True)
+        ts = time.time()
+        preds_1 = rec.predict_for_user(user_id=user, item_ids=items)
+        elapsed = time.time() - ts
         scores = preds_1[rec._prediction_col].tolist()
 
         # test format
@@ -86,36 +87,33 @@ class TestRecommendersBasic(TestCaseWithState):
         # test sorted descending
         self.assertTrue(scores[::-1] == sorted(scores))
 
+        # test doesn't take more than 0.05 second
+        print('predict_for_user for %s took %.3f seconds.' %(rec, elapsed))
+        self.assertGreater(0.05, elapsed)
+
         # test combine with original order makes first item in original order higher in results
-        preds_2 = rec.predict_for_user(
-            user_id=user, item_ids=items,
-            sort=True,
-            combine_original_order=False)
-        self.assertGreater(np.argmax(preds_2[rec._item_col].values == items[0]),
-                                np.argmax(preds_1[rec._item_col].values == items[0]))
+        preds_2 = rec.predict_for_user(user_id=user, item_ids=items, combine_original_order=True)
+        ind_item = lambda item, preds: np.argmax(preds[rec._item_col].values == item)
+        ind_diffs = np.array([ind_item(item, preds_1) - ind_item(item, preds_2)
+                              for item in items])
+        self.assertEqual(ind_diffs.sum(), 0)
+        self.assertGreater(ind_diffs[:(len(ind_diffs) // 2)].sum(), 0)  # first items rank higher
 
-        # test training items predictions are -inf
+        # test training items predictions are last
         train_item = rec.item_ids([rec.train_mat[rec.user_inds([user])[0],:].indices[0]])
-        preds_3 = rec.predict_for_user(
-            user_id=user, item_ids=np.concatenate([items, train_item]),
-            rank_training_last=True,
-            combine_original_order=False)
+        preds_3 = rec.predict_for_user(user_id=user, item_ids=np.concatenate([items, train_item]))
         train_preds = preds_3[preds_3[rec._item_col] == train_item[0]][rec._prediction_col]
-        self.assertTrue(all(train_preds == -np.inf))
+        self.assertTrue(all(train_preds == preds_3[rec._prediction_col].min()))
 
-        # test unknown items are nans
+        # test unknown items are last
         new_items = 'new_item'
-        preds_4 = rec.predict_for_user(
-            user_id=user, item_ids=np.concatenate([items, [new_items]]),
-            combine_original_order=False)
+        preds_4 = rec.predict_for_user(user_id=user, item_ids=np.concatenate([items, [new_items]]))
         new_preds = preds_4[preds_4[rec._item_col] == new_items][rec._prediction_col]
-        self.assertTrue(all(new_preds.isnull()))
+        self.assertTrue(all(new_preds == preds_4[rec._prediction_col].min()))
 
-        # test for unknown user all are nans
-        preds_5 = rec.predict_for_user(
-            user_id='new_user', item_ids=items,
-            combine_original_order=False)
-        self.assertTrue(all(preds_5[rec._prediction_col].isnull()))
+        # test for unknown user all predictions are the same
+        preds_5 = rec.predict_for_user(user_id='new_user', item_ids=items)
+        self.assertEqual(preds_5[rec._prediction_col].min(), preds_5[rec._prediction_col].max())
 
 
     def test_b_2_lfm_rec_evaluation(self):
@@ -174,7 +172,7 @@ class TestRecommendersBasic(TestCaseWithState):
         )
 
         # check that best model works
-        self._check_recommendations_and_similarities(hp_results.best_model)
+        self._test_recommender(hp_results.best_model)
 
         # check that hp space and params have same keys
         best_params = hp_results.best_params
@@ -195,7 +193,7 @@ class TestRecommendersBasic(TestCaseWithState):
         item_cooc_rec.fit(self.state.train_obs)
         item_cooc_rep = item_cooc_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='item cooccurrence ')
         print(item_cooc_rep)
-        self._check_recommendations_and_similarities(item_cooc_rec)
+        self._test_recommender(item_cooc_rec)
         self.state.item_cooc_rec = item_cooc_rec
 
     def test_c_als_recommender(self):
@@ -205,7 +203,7 @@ class TestRecommendersBasic(TestCaseWithState):
         als_rec.fit(self.state.train_obs)
         als_rep = als_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='als ')
         print(als_rep)
-        self._check_recommendations_and_similarities(als_rec)
+        self._test_recommender(als_rec)
 
     def test_c_spotlight_implicit_recommender(self):
         from ml_recsys_tools.recommenders.spotlight_recommenders import EmbeddingFactorsRecommender
@@ -214,7 +212,7 @@ class TestRecommendersBasic(TestCaseWithState):
         rec.fit(self.state.train_obs)
         report = rec.eval_on_test_by_ranking(self.state.test_obs, prefix='spot ')
         print(report)
-        self._check_recommendations_and_similarities(rec)
+        self._test_recommender(rec)
 
     def test_d_comb_rank_ens(self):
         from ml_recsys_tools.recommenders.combination_ensembles import CombinedRankEnsemble
@@ -223,7 +221,7 @@ class TestRecommendersBasic(TestCaseWithState):
             recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
         comb_rank_rep = comb_ranks_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined ranks ')
         print(comb_rank_rep)
-        self._check_recommendations_and_similarities(comb_ranks_rec)
+        self._test_recommender(comb_ranks_rec)
 
     def test_d_comb_simil_ens(self):
         from ml_recsys_tools.recommenders.combination_ensembles import CombinedSimilRecoEns
@@ -233,6 +231,6 @@ class TestRecommendersBasic(TestCaseWithState):
         comb_simil_rec.fit(self.state.train_obs)
         comb_simil_rep = comb_simil_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined simils ')
         print(comb_simil_rep)
-        self._check_recommendations_and_similarities(comb_simil_rec)
+        self._test_recommender(comb_simil_rec)
 
 

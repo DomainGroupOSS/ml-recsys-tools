@@ -81,7 +81,7 @@ class ALSRecommender(BaseFactorizationRecommender):
         if self.model is not None:
             self.model.iterations = epochs
 
-    def _predict(self, user_ids, item_ids):
+    def _predict_on_inds(self, user_inds, item_inds):
         raise NotImplementedError()
 
     def _predict_rank(self, test_mat, train_mat=None):

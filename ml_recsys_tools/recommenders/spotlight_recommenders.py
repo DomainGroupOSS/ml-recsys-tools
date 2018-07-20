@@ -56,8 +56,8 @@ class EmbeddingFactorsRecommender(BaseFactorizationRecommender):
     def _set_epochs(self, epochs):
         self.set_params(n_iter=epochs)
 
-    def _predict(self, user_ids, item_ids):
-        return self.model.predict(user_ids, item_ids)
+    def _predict_on_inds(self, user_inds, item_inds):
+        return self.model.predict(user_inds, item_inds)
 
     def _get_item_factors(self, mode=None):
         return self.model._net.item_biases.weight.data.numpy().ravel(), \
@@ -118,7 +118,8 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
         # self.toggle_mkl_blas_1_thread(False)
         self._set_data(train_obs)
         self._set_fit_params(fit_params)
-        self.sequence_interactions = self._interactions_sequence_from_obs(train_obs, **self.fit_params)
+        self.sequence_interactions = \
+            self._interactions_sequence_from_obs(train_obs, **self.fit_params)
 
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
@@ -132,42 +133,17 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
             exclude_training=exclude_training, results_format='flat')
 
-    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
-                                   results_format='lists'):
-
-        full_pred_mat = self._predict_dense(user_ids, item_ids, exclude_training=exclude_training)
-
-        top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
-
-        best_ids = item_ids[top_inds] if item_ids is not None else \
-            self.sparse_mat_builder.iid_encoder.inverse_transform(top_inds)
-
-        return self._format_results_df(
-            source_vec=user_ids, target_ids_mat=best_ids,
-            scores_mat=top_scores, results_format='recommendations_' + results_format)
-
-    def _predict_dense(self, user_ids, item_ids=None, exclude_training=True):
-
-        if item_ids is None:
-            item_ids = self.sparse_mat_builder.iid_encoder.classes_
-
-        item_inds = self.item_inds(item_ids)
-        user_inds = self.user_inds(user_ids)
-
+    def _predict_on_inds_dense(self, user_inds, item_inds):
         sequences = self.sequence_interactions.sequences
 
         pred_mat = np.zeros((len(user_inds), len(item_inds)))
 
-        #TODO: very SLOW, try multiproc (batched from caller)
+        # TODO: very SLOW, try multiproc (batched from caller)
 
         item_inds_spot = item_inds.reshape(-1, 1) + 1
 
         for i_row, user_ind in enumerate(user_inds):
             pred_mat[i_row, :] = self.model.predict(sequences[user_ind], item_ids=item_inds_spot)
-
-        if exclude_training:
-            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
-            pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
         return pred_mat
 

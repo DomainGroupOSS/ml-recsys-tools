@@ -66,9 +66,9 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
         self.item_features_params = item_features_params
         super().__init__(**kwargs)
 
-    def _init_sub_models(self):
+    def _init_recommenders(self):
         self.sub_class_type = LightFMRecommender
-        super()._init_sub_models(**{'use_sample_weight': self.use_sample_weight,
+        super()._init_recommenders(**{'use_sample_weight': self.use_sample_weight,
                                     # 'sparse_mat_builder': self.sparse_mat_builder,
                                     'model_params': self.model_params,
                                     'fit_params': self.fit_params
@@ -92,9 +92,9 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
             fit_params['external_features'] = \
                 obs.get_item_features_for_obs(**self.item_features_params)
 
-        # self.sub_models[i_m] = sub_model_fit_func(self.sub_models[i_m], obs)
-        self.sub_models[i_m].fit(obs, **fit_params)
-        return self.sub_models[i_m]
+        # self.recommenders[i_m] = sub_model_fit_func(self.recommenders[i_m], obs)
+        self.recommenders[i_m].fit(obs, **fit_params)
+        return self.recommenders[i_m]
 
     fit = SubdivisionEnsembleBase.fit
     get_similar_items = SubdivisionEnsembleBase.get_similar_items
@@ -109,7 +109,7 @@ class LFMGeoGridEnsemble(GeoGridEnsembleBase, LFMEnsembleBase):
 class GeoClusteringEnsembleBase(SubdivisionEnsembleBase):
 
     def _generate_sub_model_train_data(self, train_obs: ObsWithGeoFeatures):
-        train_obs.geo_cluster_items(n_clusters=self.n_models)
+        train_obs.geo_cluster_items(n_clusters=self.n_recommenders)
 
         labels = train_obs.df_items[train_obs.cluster_label_col].unique()
 
@@ -124,16 +124,16 @@ class LFMGeoClusteringEnsemble(GeoClusteringEnsembleBase, LFMEnsembleBase):
 
 class CoocEnsembleBase(SubdivisionEnsembleBase, ItemCoocRecommender):
 
-    def _init_sub_models(self, params=None):
+    def _init_recommenders(self, params=None):
         self.sub_class_type = ItemCoocRecommender
-        super()._init_sub_models(fit_params=self.fit_params)
+        super()._init_recommenders(fit_params=self.fit_params)
 
     def _fit_sub_model(self, args):
         i_m, obs, fit_params = args
 
-        # self.sub_models[i_m] = sub_model_fit_func(self.sub_models[i_m], obs)
-        self.sub_models[i_m].fit(obs, **fit_params)
-        return self.sub_models[i_m]
+        # self.recommenders[i_m] = sub_model_fit_func(self.recommenders[i_m], obs)
+        self.recommenders[i_m].fit(obs, **fit_params)
+        return self.recommenders[i_m]
 
 
 class CoocGeoGridEnsemble(CoocEnsembleBase, GeoGridEnsembleBase):

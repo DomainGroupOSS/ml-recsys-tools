@@ -7,49 +7,7 @@ from ml_recsys_tools.recommenders.ensembles_base import CombinationEnsembleBase,
 
 
 class CombinedRankEnsemble(CombinationEnsembleBase):
-
-    def __init__(self, recommenders, fill_na_val=None,
-                 combination_mode='hmean', **kwargs):
-        super().__init__(recommenders=recommenders, **kwargs)
-        self.fill_na_val = fill_na_val
-        self.combination_mode = combination_mode
-
-    def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, **kwargs):
-
-        calc_funcs = [partial(rec.get_recommendations,
-                              user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-                              exclude_training=exclude_training,
-                              results_format='flat', **kwargs)
-                      for rec in self.recommenders]
-        return calc_dfs_and_combine_scores(
-            calc_funcs=calc_funcs,
-            combine_func=self.combination_mode,
-            fill_val=self.fill_na_val if self.fill_na_val else (n_rec + 1),
-            groupby_col=self._user_col,
-            item_col=self._item_col,
-            scores_col=self._prediction_col,
-        )
-
-    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
-                          n_unfilt=100, results_format='lists', **kwargs):
-
-        calc_funcs = [partial(rec.get_similar_items,
-                              item_ids=item_ids, target_item_ids=target_item_ids,
-                              n_simil=n_unfilt, results_format='flat', **kwargs)
-                      for rec in self.recommenders]
-
-        combined_simil_df = calc_dfs_and_combine_scores(
-            calc_funcs=calc_funcs,
-            combine_func=self.combination_mode,
-            fill_val=self.fill_na_val if self.fill_na_val else (n_unfilt + 1),
-            groupby_col=self._item_col_simil,
-            item_col=self._item_col,
-            scores_col=self._prediction_col)
-
-        return combined_simil_df if results_format == 'flat' \
-            else self._simil_flat_to_lists(combined_simil_df, n_cutoff=n_simil)
-
+    pass
 
 class CombinedSimilRecoEns(SimilarityDFRecommender):
 
@@ -59,7 +17,7 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
                  n_unfilt=100,
                  numeric_n_bins=32,
                  combination_mode='hmean',
-                 *args, **kwargs):
+                 **kwargs):
         self.recommenders = recommenders
         self.similarity_func_params = similarity_func_params
         self.n_unfilt = n_unfilt
@@ -141,3 +99,8 @@ class CascadeEnsemble(CombinationEnsembleBase):
             recos_df,
             user_col=pred_mat_builder.uid_source_col,
             item_col=pred_mat_builder.iid_source_col)
+
+    def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
+                          n_unfilt=100, results_format='lists', **kwargs):
+        raise NotImplementedError()
+
