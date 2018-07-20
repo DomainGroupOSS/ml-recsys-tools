@@ -98,13 +98,16 @@ class ObservationsDF(LogCallsTimeAndOutput):
                             method='random',
                             min_user_hist=0,
                             min_item_hist=0,
+                            users_to_keep=(),
+                            items_to_keep=(),
                             random_state=None):
         """
         :param n_users: number of users to sample
         :param n_items: number of listings to sample
         :param method: either 'random' or 'top' (sample the top users and top items by views)
         :param min_user_hist: minimal number of unique items viewed by a user
-        :param min_item_hist: minimal number of unique users who viewed a item
+        :param users_to_keep: specific users that have to be kept
+        :param items_to_keep: specific items that have to be kept
         :return: dataframe
         """
         if method == 'top' or min_user_hist or min_item_hist:
@@ -121,8 +124,8 @@ class ObservationsDF(LogCallsTimeAndOutput):
             item_filt = users_per_items[self.iid_col].values
 
         else:
-            users_filt = self.df_obs[self.uid_col].unique()
-            item_filt = self.df_obs[self.iid_col].unique()
+            users_filt = self.df_obs[self.uid_col].unique().astype(str)
+            item_filt = self.df_obs[self.iid_col].unique().astype(str)
 
         if n_users is None:
             users_sample = users_filt
@@ -145,6 +148,12 @@ class ObservationsDF(LogCallsTimeAndOutput):
             item_sample = item_filt[:n_items]
         else:
             raise ValueError('Uknown sampling method')
+
+        if len(users_to_keep):
+            users_sample = np.concatenate([users_sample, np.array(users_to_keep)])
+
+        if len(items_to_keep):
+            item_sample = np.concatenate([item_sample, np.array(items_to_keep)])
 
         sample_df = self.df_obs[(self.df_obs[self.iid_col].isin(item_sample)) &
                                 (self.df_obs[self.uid_col].isin(users_sample))]

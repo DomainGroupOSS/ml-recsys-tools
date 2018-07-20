@@ -19,7 +19,7 @@ class GeoGridEnsembleBase(SubdivisionEnsembleBase):
         self.n_long = n_long
         self.min_interactions = min_interactions
         self.overlap_margin = overlap_margin
-        kwargs['n_models'] = self.n_lat * self.n_long
+        kwargs['n_recommenders'] = self.n_lat * self.n_long
         super().__init__(**kwargs)
 
     def set_params(self, **params):
@@ -28,8 +28,6 @@ class GeoGridEnsembleBase(SubdivisionEnsembleBase):
         """
         params = self._pop_set_params(
             params, ['n_lat', 'n_long', 'overlap_margin', 'min_interactions'])
-
-        self.n_models = self.n_lat * self.n_long
 
         super().set_params(**params.copy())
 
@@ -66,21 +64,20 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
         self.item_features_params = item_features_params
         super().__init__(**kwargs)
 
-    def _init_recommenders(self):
+    def _init_recommenders(self, **params):
         self.sub_class_type = LightFMRecommender
         super()._init_recommenders(**{'use_sample_weight': self.use_sample_weight,
                                     # 'sparse_mat_builder': self.sparse_mat_builder,
                                     'model_params': self.model_params,
                                     'fit_params': self.fit_params
-                                    })
+                                    }, **params)
         # self._set_sub_model_params()
 
     def set_params(self, **params):
         """
         this is for skopt / sklearn compatibility
         """
-        params = self._pop_set_params(
-            params, ['use_item_features'])
+        params = self._pop_set_params(params, ['use_item_features'])
 
         super().set_params(**params.copy())
 
@@ -109,7 +106,7 @@ class LFMGeoGridEnsemble(GeoGridEnsembleBase, LFMEnsembleBase):
 class GeoClusteringEnsembleBase(SubdivisionEnsembleBase):
 
     def _generate_sub_model_train_data(self, train_obs: ObsWithGeoFeatures):
-        train_obs.geo_cluster_items(n_clusters=self.n_recommenders)
+        train_obs.geo_cluster_items(n_clusters=len(self.recommenders))
 
         labels = train_obs.df_items[train_obs.cluster_label_col].unique()
 
@@ -124,9 +121,9 @@ class LFMGeoClusteringEnsemble(GeoClusteringEnsembleBase, LFMEnsembleBase):
 
 class CoocEnsembleBase(SubdivisionEnsembleBase, ItemCoocRecommender):
 
-    def _init_recommenders(self, params=None):
+    def _init_recommenders(self, **params):
         self.sub_class_type = ItemCoocRecommender
-        super()._init_recommenders(fit_params=self.fit_params)
+        super()._init_recommenders(fit_params=self.fit_params, **params)
 
     def _fit_sub_model(self, args):
         i_m, obs, fit_params = args

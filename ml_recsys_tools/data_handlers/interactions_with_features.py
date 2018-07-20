@@ -233,7 +233,7 @@ class ObsWithFeatures(ObservationsDF):
         self.item_id_col = items_id_col
         self.cluster_label_col = 'cluster_label'
         self.df_items = self._preprocess_items_df(df_items)
-        self._filter_relevant_obs_and_items()
+        self._filter_relevant_obs_and_items(stage='init')
 
     def __add__(self, other):
         super().__add__(other)
@@ -250,23 +250,30 @@ class ObsWithFeatures(ObservationsDF):
         df_items.drop_duplicates(self.item_id_col, inplace=True)
         return df_items
 
-    def _filter_relevant_obs_and_items(self):
-        items_ids = self.df_items[self.item_id_col].unique()
-        obs_ids = self.df_obs[self.iid_col].unique()
-        self.df_obs = self.df_obs[self.df_obs[self.iid_col].isin(items_ids)].copy()
-        self.df_items = self.df_items[self.df_items[self.item_id_col].isin(obs_ids)].copy()
+    def _filter_relevant_obs_and_items(self, stage=''):
+        items_ids = self.df_items[self.item_id_col].unique().astype(str)
+        obs_ids = self.df_obs[self.iid_col].unique().astype(str)
+        obs_filt = self.df_obs[self.iid_col].isin(items_ids)
+        self.df_obs = self.df_obs[obs_filt].copy()
+        item_filt = self.df_items[self.item_id_col].isin(obs_ids)
+        self.df_items = self.df_items[item_filt].copy()
+        n_dropped_obs = (~obs_filt).sum()
+        n_dropped_items = (~item_filt).sum()
+        if n_dropped_obs + n_dropped_items:
+            logger.info('ObsWithFeatures:_filter_relevant_obs_and_items:%s '
+                        'dropped %d observations, %d items' % (stage, n_dropped_obs, n_dropped_items))
 
     def filter_by_cluster_label(self, label):
         assert self.cluster_label_col in self.df_items.columns
         other = copy.deepcopy(self)
         other.df_items = self.df_items[self.df_items[self.cluster_label_col] == label].copy()
-        other._filter_relevant_obs_and_items()
+        other._filter_relevant_obs_and_items(stage='filter_by_cluster_label')
         return other
 
     def _apply_filter(self, mask_filter):
         other = copy.deepcopy(self)
         other.df_items = self.df_items[mask_filter].copy()
-        other._filter_relevant_obs_and_items()
+        other._filter_relevant_obs_and_items(stage='_apply_filter')
         return other
 
     def sample_observations(self,
@@ -275,16 +282,20 @@ class ObsWithFeatures(ObservationsDF):
                             method='random',
                             min_user_hist=0,
                             min_item_hist=0,
+                            users_to_keep=(),
+                            items_to_keep=(),
                             random_state=None):
         sample_df = super().sample_observations(n_users=n_users,
                                                 n_items=n_items,
                                                 method=method,
                                                 min_user_hist=min_user_hist,
                                                 min_item_hist=min_item_hist,
+                                                users_to_keep=users_to_keep,
+                                                items_to_keep=items_to_keep,
                                                 random_state=random_state)
         other = copy.deepcopy(self)
         other.df_obs = sample_df.df_obs
-        other._filter_relevant_obs_and_items()
+        other._filter_relevant_obs_and_items(stage='sample_observations')
         return other
 
     def filter_columns_by_df(self, other_df_obs):
@@ -294,12 +305,12 @@ class ObsWithFeatures(ObservationsDF):
         :return: new observation handler
         """
         other = super().filter_columns_by_df(other_df_obs)
-        other._filter_relevant_obs_and_items()
+        other._filter_relevant_obs_and_items(stage='filter_columns_by_df')
         return other
 
     def remove_interactions_by_df(self, other_df_obs):
         other = super().remove_interactions_by_df(other_df_obs)
-        other._filter_relevant_obs_and_items()
+        other._filter_relevant_obs_and_items(stage='remove_interactions_by_df')
         return other
 
     def items_filtered_by_ids(self, item_ids):

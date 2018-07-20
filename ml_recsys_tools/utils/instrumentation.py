@@ -145,9 +145,10 @@ class ResourceMonitor:
 
 def get_stack_depth():
     try:
-        return len(inspect.stack())
-    except IndexError as e:
+        return len(inspect.stack(context=0))
+    except (IndexError, RuntimeError) as e:
         # there is a bug in inspect module: https://github.com/ipython/ipython/issues/1456/
+        # another one: https://bugs.python.org/issue13487
         return 0
 
 

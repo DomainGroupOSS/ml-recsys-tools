@@ -27,7 +27,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
 
     def __init__(self, user_col='userid', item_col='itemid',
                  rating_col='rating', prediction_col='prediction',
-                 model_params=None, fit_params=None, verbose=True):
+                 model_params=None, fit_params=None, verbose=True, **kwargs):
         super().__init__(verbose)
         self._user_col = user_col
         self._item_col = item_col
@@ -37,6 +37,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         self.model_params = self.default_model_params.copy()
         self.fit_params = self.default_fit_params.copy()
         self._set_model_params(model_params)
+        self._set_model_params(kwargs)
         self._set_fit_params(fit_params)
         # self.train_df = None
         self.model = None

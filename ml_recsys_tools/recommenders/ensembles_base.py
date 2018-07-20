@@ -135,7 +135,6 @@ class EnsembleBase(BaseDFSparseRecommender):
         self.combination_mode = combination_mode
         self.na_rank_fill = na_rank_fill
         self.recommenders = []
-        self.n_recommenders = len(self.recommenders)
         super().__init__(**kwargs)
 
     def n_concurrent(self):
@@ -222,11 +221,11 @@ class EnsembleBase(BaseDFSparseRecommender):
 class SubdivisionEnsembleBase(EnsembleBase):
 
     def __init__(self,
-                 n_models=1,
+                 n_recommenders=1,
                  concurrence_ratio=0.3,
                  concurrency_backend='threads',
                  **kwargs):
-        self.n_recommenders = n_models
+        self.n_recommenders = n_recommenders
         self.concurrence_ratio = concurrence_ratio
         self.concurrency_backend = concurrency_backend
         super().__init__(**kwargs)
@@ -246,24 +245,19 @@ class SubdivisionEnsembleBase(EnsembleBase):
                              for _ in range(self.n_recommenders)]
 
     def n_concurrent(self):
-        return int(min(np.ceil(self.n_recommenders * self.concurrence_ratio), N_CPUS))
-
-    # def _broadcast(self, var):
-    #     if isinstance(var, list) and len(var) == self.n_models:
-    #         return var
-    #     else:
-    #         return [var] * self.n_models
+        return int(min(np.ceil(len(self.recommenders) * self.concurrence_ratio), N_CPUS))
 
     def set_params(self, **params):
         params = self._pop_set_params(
-            params, ['n_models', 'concurrence_ratio'])
+            params, ['n_recommenders', 'concurrence_ratio'])
         # set on self
         super().set_params(**params.copy())
         # init sub models to make sure they're the right object already
-        self._init_recommenders()
-        # set for each sub_model
-        for model in self.recommenders:
-            model.set_params(**params.copy())
+        self._init_recommenders(**self.model_params)
+        # # set for each sub_model
+        # for model in self.recommenders:
+        #     # model.set_params(**params.copy())
+        #     model.set_params()
 
     @abstractmethod
     def _generate_sub_model_train_data(self, train_obs):
@@ -278,12 +272,14 @@ class SubdivisionEnsembleBase(EnsembleBase):
 
         sub_model_train_data_generator = self._generate_sub_model_train_data(train_obs)
 
+        n_recommenders = len(self.recommenders)
+
         with self.get_workers_pool() as pool:
             self.recommenders = list(
                 pool.imap(self._fit_sub_model,
-                          zip(range(self.n_recommenders),
+                          zip(range(n_recommenders),
                               sub_model_train_data_generator,
-                              repeat(fit_params, self.n_recommenders))))
+                              repeat(fit_params, n_recommenders))))
         return self
 
     # def sub_model_evaluations(self, test_dfs, test_names, include_train=True):
@@ -311,7 +307,6 @@ class CombinationEnsembleBase(EnsembleBase):
     def __init__(self, recommenders, **kwargs):
         super().__init__(**kwargs)
         self.recommenders = recommenders
-        self.n_recommenders = len(self.recommenders)
         self._reuse_data(self.recommenders[0])
 
     def fit(self, *args, **kwargs):
