@@ -5,11 +5,13 @@
 #### Main purpose is to provide a single wrapper for various recommender packages to train, tune, evaluate and get data in and recommendations / similarities out.
 
 #### Installation:
-Pip: includes only basic dependecies + lightfm for now: `pip install ml_recsys_tools`
+Pip: includes only basic dependecies + lightfm/implicit for now: `pip install ml_recsys_tools`
 
-Docker: recent docker image location of a pip install: `artdgn/ml_recsys_tools:latest`
-
-Run in a docker: `docker run -it --rm artdgn/ml_recsys_tools:latest python`
+Docker (build and run interactively): 
+```
+docker build -t ml_recsys_tools:local .
+docker run -it --rm ml_recsys_tools:local python
+```     
 
 #### Basic example:
     # dataset: download and prepare dataframes
@@ -103,7 +105,6 @@ Run in a docker: `docker run -it --rm artdgn/ml_recsys_tools:latest python`
         * Two combination ensembles (Ranks and Simils)
 
 * #### Still to add:
-    * add example in README.MD
     * add and reorganize examples 
     * much more comments and docstrings
     * more tests

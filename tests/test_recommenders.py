@@ -39,21 +39,25 @@ class TestRecommendersBasic(TestCaseWithState):
         # self._test_predict_for_user(lfm_rec)
         self.state.lfm_rec = lfm_rec
 
-    def _check_recommendations(self, recs, users, n):
+    def _test_get_recommendations(self, rec):
         # check format
+        users = rec.all_users
+        recs = rec.get_recommendations(n_rec=self.n)
         self.assertEqual(len(recs), len(users))
         self.assertListEqual(list(recs.columns), ['userid', 'itemid', 'prediction'])
-        self.assertTrue(all(recs['itemid'].apply(len).values == n))
+        self.assertTrue(all(recs['itemid'].apply(len).values == self.n))
 
         # check predictions sorted
         for i in np.random.choice(np.arange(len(recs)), min(100, len(recs))):
             self.assertListEqual(recs['prediction'][i], sorted(recs['prediction'][i], reverse=True))
 
-    def _check_similarities(self, simils, items, n):
+    def _test_get_similar_items(self, rec):
         # check format
+        items = rec.all_items
+        simils = rec.get_similar_items(n_simil=self.n)
         self.assertEqual(len(simils), len(items))
         self.assertListEqual(list(simils.columns), ['itemid_source', 'itemid', 'prediction'])
-        self.assertTrue(all(simils['itemid'].apply(len).values == n))
+        self.assertTrue(all(simils['itemid'].apply(len).values == self.n))
 
         # sample check no self-similarities returned
         for i in np.random.choice(np.arange(len(simils)), min(100, len(simils))):
@@ -64,8 +68,8 @@ class TestRecommendersBasic(TestCaseWithState):
             self.assertListEqual(list(simils['prediction'][i]), sorted(simils['prediction'][i], reverse=True))
 
     def _test_recommender(self, rec):
-        self._check_recommendations(rec.get_recommendations(n_rec=self.n), rec.all_users, n=self.n)
-        self._check_similarities(rec.get_similar_items(n_simil=self.n), rec.all_items, n=self.n)
+        self._test_get_recommendations(rec)
+        self._test_get_similar_items(rec)
         self._test_predict_for_user(rec)
 
     def _test_predict_for_user(self, rec):
