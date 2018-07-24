@@ -28,7 +28,7 @@ setup(
     install_requires=['requests', 'numpy', 'scipy', 'pandas',
                       'scikit_learn', 'lightfm', 'implicit', 'psutil',
                       'scikit_optimize', 'gmaps', 'boto3', 'redis',
-                      'sklearn_pandas', 'matplotlib'],
+                      'sklearn_pandas', 'matplotlib', 'flask'],
 )
 
 ## rm -rf dist && python3 setup.py sdist bdist_wheel && twine upload dist/*
