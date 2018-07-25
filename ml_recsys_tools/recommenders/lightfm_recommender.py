@@ -41,12 +41,14 @@ class LightFMRecommender(BaseFactorizationRecommender):
     def __init__(self,
                  use_sample_weight=False,
                  external_features=None,
-                 external_features_params=None, **kwargs):
+                 external_features_params=None,
+                 initialiser_model=None,
+                 **kwargs):
         self.use_sample_weight = use_sample_weight
         self.external_features = external_features
         self.external_features_params = external_features_params or \
                                         self.default_external_features_params.copy()
-
+        self.initialiser_model = initialiser_model
         super().__init__(**kwargs)
 
     def _prep_for_fit(self, train_obs, **fit_params):
@@ -59,6 +61,18 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self._add_external_features()
         # init model and set params
         self.model = LightFM(**self.model_params)
+        if self.initialiser_model is not None:
+            self._initialise_from_model(train_obs)
+
+    def _initialise_from_model(self, train_obs):
+        # have the internals initialised
+        self.model.fit_partial(self.train_mat, epochs=0)
+        # fit initialiser model (this is done here to prevent any data leaks from passing fitted models)
+        simple_logger.info('Training %s model to initialise LightFM model.' % str(self.initialiser_model))
+        self.initialiser_model.fit(train_obs)
+        # TODO: make sure users and items map right
+        self.model.item_embeddings = self.initialiser_model._get_item_factors()[1]
+        self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
 
     def _add_external_features(self):
         if self.external_features is not None:
@@ -77,7 +91,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
 
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
-        self.model.fit(self.train_mat, **self.fit_params)
+        self.model.fit_partial(self.train_mat, **self.fit_params)
         return self
 
     def fit_partial(self, train_obs, epochs=1):
