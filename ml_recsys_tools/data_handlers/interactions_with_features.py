@@ -253,10 +253,13 @@ class ObsWithFeatures(ObservationsDF):
     def _filter_relevant_obs_and_items(self, stage=''):
         items_ids = self.df_items[self.item_id_col].unique().astype(str)
         obs_ids = self.df_obs[self.iid_col].unique().astype(str)
-        obs_filt = self.df_obs[self.iid_col].isin(items_ids)
+
+        obs_filt = self.df_obs[self.iid_col].astype(str).isin(items_ids)
+        item_filt = self.df_items[self.item_id_col].astype(str).isin(obs_ids)
+
         self.df_obs = self.df_obs[obs_filt].copy()
-        item_filt = self.df_items[self.item_id_col].isin(obs_ids)
         self.df_items = self.df_items[item_filt].copy()
+
         n_dropped_obs = (~obs_filt).sum()
         n_dropped_items = (~item_filt).sum()
         if n_dropped_obs + n_dropped_items:
@@ -345,28 +348,31 @@ class ObsWithFeatures(ObservationsDF):
 
 class ObsWithGeoFeatures(ObsWithFeatures):
 
-    def __init__(self, df_obs, df_items, lat_col='lat', long_col='long', **kwargs):
+    def __init__(self, df_obs, df_items, lat_col='lat', long_col='long',
+                 remove_nans=False, **kwargs):
         super().__init__(df_obs=df_obs, df_items=df_items, **kwargs)
         self.lat_col = lat_col
         self.long_col = long_col
+        self.remove_nans = remove_nans
         self.df_items = self._preprocess_geo_cols(self.df_items)
 
     @property
     def geo_cols(self):
         return [self.lat_col, self.long_col]
 
-    def _preprocess_geo_cols(self, df_items):
-        # remove nans
-        filt_nan = df_items[self.lat_col].notnull() & \
-                   ~df_items[self.lat_col].isin(['None']) & \
-                   ~df_items[self.lat_col].isin(['nan'])
-        df_no_nans = df_items[filt_nan].copy()
+    def _preprocess_geo_cols(self, df):
+        if self.remove_nans:
+            # remove nans
+            filt_nan = df[self.lat_col].notnull() & \
+                       ~df[self.lat_col].isin(['None']) & \
+                       ~df[self.lat_col].isin(['nan'])
+            df = df[filt_nan].copy()
 
         # to float
-        df_no_nans[self.lat_col] = df_no_nans[self.lat_col].astype(float)
-        df_no_nans[self.long_col] = df_no_nans[self.long_col].astype(float)
+        df[self.lat_col] = df[self.lat_col].astype(float)
+        df[self.long_col] = df[self.long_col].astype(float)
 
-        return df_no_nans
+        return df
 
     def filter_by_location_range(self, min_lat, max_lat, min_long, max_long):
         """ e.g.

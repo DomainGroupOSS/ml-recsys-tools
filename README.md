@@ -93,7 +93,9 @@ docker run -it --rm ml_recsys_tools:local python
     * google maps util for displaying geographical data
     * logging, debug printouts decorators and other isntrumentation and inspection tools
     * pandas utils
-    * data helpers: redis, s3
+    * data helpers: redis, s3    
+    * basic rankings server that updates models from S3 
+ 
 
 * #### Examples:
     * a basic example on movielens 1M demonstrating:
