@@ -14,8 +14,7 @@ train_obs, test_obs = obs.split_train_test(ratio=0.2, time_split_column=obs.time
 
 
 from ml_recsys_tools.recommenders.spotlight_recommenders import EmbeddingFactorsRecommender
-emb_rec = EmbeddingFactorsRecommender(model_params=dict(loss='adaptive_hinge', n_iter=1),
-          fit_params=dict(max_sequence_length=200, timestamp_col='timestamp'))
+emb_rec = EmbeddingFactorsRecommender(model_params=dict(loss='adaptive_hinge', n_iter=1))
 # emb_rec.fit(train_obs)
 emb_rec.fit_with_early_stop(train_obs, epochs_max=5, epochs_step=1)
 print(emb_rec.eval_on_test_by_ranking(test_obs, prefix='implicit embeddings '))
