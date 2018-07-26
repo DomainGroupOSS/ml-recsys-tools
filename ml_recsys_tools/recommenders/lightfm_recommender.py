@@ -65,12 +65,12 @@ class LightFMRecommender(BaseFactorizationRecommender):
             self._initialise_from_model(train_obs)
 
     def _initialise_from_model(self, train_obs):
-        # have the internals initialised
-        self.model.fit_partial(self.train_mat, epochs=0)
         # fit initialiser model (this is done here to prevent any data leaks from passing fitted models)
         simple_logger.info('Training %s model to initialise LightFM model.' % str(self.initialiser_model))
         self.initialiser_model.fit(train_obs)
-        # TODO: make sure users and items map right
+        self._reuse_data(self.initialiser_model)
+        # have the internals initialised
+        self.model.fit_partial(self.train_mat, epochs=0)
         self.model.item_embeddings = self.initialiser_model._get_item_factors()[1]
         self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
 
