@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import pandas as pd
@@ -66,19 +67,23 @@ class RanksScorer(LogCallsTimeAndOutput):
 
     def scores_report(self):
         metrics = OrderedDict([
-            ('AUC', self.auc()),
-            ('reciprocal', self.reciprocal()),
-            ('n-MRR@%d' % self.k, self.n_mrr_at_k()),
-            ('n-MRR', self.n_mrr()),
-            ('n-DCG@%d' % self.k, self.n_dcg_at_k()),
-            ('n-precision@%d' % self.k, self.n_precision_at_k()),
-            ('precision@%d' % self.k, self.precision_at_k()),
-            ('recall@%d' % self.k, self.recall_at_k()),
-            ('n-recall@%d' % self.k, self.n_recall_at_k()),
-            ('n-i-gini@%d' % self.k, self.n_i_gini_at_k()),
-            ('n-diversity@%d' % self.k, self.n_diversity_at_k()),
+            ('AUC', self.auc),
+            ('reciprocal', self.reciprocal),
+            ('n-MRR@%d' % self.k, self.n_mrr_at_k),
+            ('n-MRR', self.n_mrr),
+            ('n-DCG@%d' % self.k, self.n_dcg_at_k),
+            ('n-precision@%d' % self.k, self.n_precision_at_k),
+            ('precision@%d' % self.k, self.precision_at_k),
+            ('recall@%d' % self.k, self.recall_at_k),
+            ('n-recall@%d' % self.k, self.n_recall_at_k),
+            ('n-i-gini@%d' % self.k, self.n_i_gini_at_k),
+            ('n-diversity@%d' % self.k, self.n_diversity_at_k),
         ])
 
+        with ThreadPool(len(metrics)) as pool:
+            res = [pool.apply_async(f) for f in metrics.values()]
+            for k, r in zip(metrics.keys(), res):
+                metrics[k] = r.get()
         return pd.DataFrame(metrics)[list(metrics.keys())]
 
     def auc(self):

@@ -2,6 +2,7 @@ import os
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import partial
+from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import pandas as pd
@@ -295,13 +296,13 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         return flat_df[flat_df[col1].values != flat_df[col2].values].copy()
 
     @staticmethod
-    def _eval_on_test_by_ranking_LFM(train_ranks_func, test_tanks_func,
+    def _eval_on_test_by_ranking_LFM(train_ranks_func, test_ranks_func,
                                      test_dfs, test_names=('',), prefix='',
                                      include_train=True, k=10):
         """
         this is just to avoid the same flow twice (or more)
         :param train_ranks_func: function that return the ranks and sparse mat of training set
-        :param test_tanks_func: function that return the ranks and sparse mat of a test set
+        :param test_ranks_func: function that return the ranks and sparse mat of a test set
         :param test_dfs: test dataframes
         :param test_names: test dataframes names
         :param prefix: prefix for this report
@@ -313,20 +314,21 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         if isinstance(test_dfs, pd.DataFrame):
             test_dfs = [test_dfs]
 
+        res = []
         report_dfs = []
+        with ThreadPool(len(test_dfs) + int(include_train)) as pool:
+            if include_train:
+                res.append(([prefix + 'train'], pool.apply_async(train_ranks_func)))
 
-        # train
-        if include_train:
-            ranks_mat, sp_mat = train_ranks_func()
-            report_dfs.append(mean_scores_report_on_ranks(
-                ranks_list=[ranks_mat], datasets=[sp_mat],
-                dataset_names=[prefix + 'train'], k=k))
+            for test_df, test_name in zip(test_dfs, test_names):
+                res.append(([prefix + test_name + 'test'],
+                            pool.apply_async(test_ranks_func, args=(test_df,))))
 
-        for test_df, test_name in zip(test_dfs, test_names):
-            ranks_mat, sp_mat = test_tanks_func(test_df)
-            report_dfs.append(mean_scores_report_on_ranks(
-                ranks_list=[ranks_mat], datasets=[sp_mat],
-                dataset_names=[prefix + test_name + 'test'], k=k))
+            for name, r in res:
+                ranks_mat, sp_mat = r.get()
+                report_dfs.append(mean_scores_report_on_ranks(
+                    ranks_list=[ranks_mat], datasets=[sp_mat],
+                    dataset_names=[name], k=k))
 
         report_df = pd.concat(report_dfs)
         return report_df
@@ -445,7 +447,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         report_df = self._eval_on_test_by_ranking_LFM(
             train_ranks_func=_get_training_ranks,
-            test_tanks_func=_get_test_ranks,
+            test_ranks_func=_get_test_ranks,
             test_dfs=test_dfs,
             test_names=test_names,
             prefix=prefix,
@@ -617,7 +619,7 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
 
         return self._eval_on_test_by_ranking_LFM(
             train_ranks_func=_get_training_ranks,
-            test_tanks_func=_get_test_ranks,
+            test_ranks_func=_get_test_ranks,
             test_dfs=test_dfs,
             test_names=test_names,
             prefix=prefix,
@@ -637,7 +639,7 @@ class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
         pipeline.fit(self.train_data)
         report_df = pipeline.eval_on_test_by_ranking(
             self.validation_data, include_train=False, prefix='', k=self.k)
-        loss = 1 - report_df.loc['test', self.metric]
+        loss = 1 - float(report_df.loc['test', self.metric])
         return loss, self._add_loss_and_time_to_report(
             loss, time.time() - start, report_df=report_df)
 

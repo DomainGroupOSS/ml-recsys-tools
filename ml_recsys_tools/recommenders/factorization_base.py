@@ -74,7 +74,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             self.fit_partial(train_obs_internal, epochs=step)
             lfm_report = self.eval_on_test_by_ranking(
                 valid_obs.df_obs, include_train=False, prefix='', k=k)
-            cur_score = lfm_report.loc['test', metric]
+            cur_score = float(lfm_report.loc['test', metric])
             update_full_metrics_df(cur_epoch, lfm_report)
             return cur_score
 

@@ -259,7 +259,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         # return res_bo, best_params, best_model
         return SimpleNamespace(**{
             'optimizer': self,
-            'report': self.best_results_summary(result, percentile=0),
+            'report': self.best_results_summary(),
             'mutual_info_loss': self.params_mutual_info(),
             'mutual_info_time': self.params_mutual_info(self.time_taken_col),
             'result': result,
@@ -298,10 +298,10 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         report_df = report_df.assign(**params_dict)
         self.all_metrics = self.all_metrics.append(report_df)
 
-    def best_results_summary(self, res_bo, percentile=95):
+    def best_results_summary(self):
         return self.all_metrics. \
             reset_index(). \
-            drop('index', axis=1). \
+            drop('level_0', axis=1). \
             sort_values(self.target_loss_col)
 
     def params_mutual_info(self, target_col=None):

@@ -92,8 +92,8 @@ class TestRecommendersBasic(TestCaseWithState):
         self.assertTrue(scores[::-1] == sorted(scores))
 
         # test doesn't take more than 0.05 second
-        print('predict_for_user for %s took %.3f seconds.' %(rec, elapsed))
-        self.assertGreater(0.05, elapsed)
+        print('predict_for_user for %s took %.3f seconds.' % (rec, elapsed))
+        self.assertGreater(0.06, elapsed)
 
         # test combine with original order makes first item in original order higher in results
         preds_2 = rec.predict_for_user(user_id=user, item_ids=items, combine_original_order=True)
@@ -155,7 +155,7 @@ class TestRecommendersBasic(TestCaseWithState):
         self.assertNotEqual(prev_epochs, sut_epochs)
 
         # check that in the report dataframe the maximum metric value is for our new epoch number
-        self.assertEqual(lfm_rec.early_stop_metrics_df[self.metric].idxmax(), sut_epochs)
+        self.assertEqual(lfm_rec.early_stop_metrics_df[self.metric].idxmax()[0], sut_epochs)
 
     def test_b_4_lfm_hp_search(self):
         lfm_rec = deepcopy(self.state.lfm_rec)

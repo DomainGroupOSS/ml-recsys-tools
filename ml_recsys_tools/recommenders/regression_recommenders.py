@@ -89,8 +89,8 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         if self.item_features:
             df_feat = pd.merge(
                 df_feat, self.df_item_features.reset_index(),
-                left_on=self._iid_col, right_on='index', how='left'). \
-                drop('index', axis=1)
+                left_on=self._iid_col, right_on='level_0', how='left'). \
+                drop('level_0', axis=1)
 
         if self.factors_prediction:
             df_feat[self._prediction_col] = self._factorizer._predict_on_inds(
@@ -99,14 +99,14 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         if self.user_factors:
             df_feat = pd.merge(
                 df_feat, self.df_user_factors.reset_index(),
-                left_on=self._uid_col, right_on='index', how='left'). \
-                drop('index', axis=1)
+                left_on=self._uid_col, right_on='level_0', how='left'). \
+                drop('level_0', axis=1)
 
         if self.item_factors:
             df_feat = pd.merge(
                 df_feat, self.df_item_factors.reset_index(),
-                left_on=self._iid_col, right_on='index', how='left'). \
-                drop('index', axis=1)
+                left_on=self._iid_col, right_on='level_0', how='left'). \
+                drop('level_0', axis=1)
 
         df_feat.drop([self._uid_col, self._iid_col], axis=1, inplace=True)
 
