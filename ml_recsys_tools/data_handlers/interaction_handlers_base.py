@@ -75,9 +75,9 @@ class ObservationsDF(LogCallsTimeAndOutput):
 
     def _user_and_item_counts(self, plot=False):
         if len(self.df_obs):
-            items_per_user = self.df_obs.groupby(self.uid_col).apply(len). \
+            items_per_user = self.df_obs[[self.uid_col]].groupby(self.uid_col).apply(len). \
                 sort_values(ascending=False).reset_index(name='items_per_user')
-            users_per_items = self.df_obs.groupby(self.iid_col).apply(len). \
+            users_per_items = self.df_obs[[self.iid_col]].groupby(self.iid_col).apply(len). \
                 sort_values(ascending=False).reset_index(name='users_per_items')
         else:
             raise ValueError('Observations dataframe is empty')
