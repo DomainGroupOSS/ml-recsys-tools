@@ -73,6 +73,8 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self.model.fit_partial(self.train_mat, epochs=0)
         self.model.item_embeddings = self.initialiser_model._get_item_factors()[1]
         self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
+        # self.model.item_embedding_gradients = self.model.item_embeddings
+        # self.model.user_embedding_gradients = self.model.user_embeddings
 
     def _add_external_features(self):
         if self.external_features is not None:
