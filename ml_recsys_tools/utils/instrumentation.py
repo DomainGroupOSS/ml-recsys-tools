@@ -230,6 +230,37 @@ def decorate_all_metaclass(decorator):
     return DecorateAll
 
 
+def override_defaults(defaults):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            params = inspect.signature(f).parameters
+
+            new_defaults = [defaults[p] for p in params
+                            if params[p].default is not params[p].empty and p in defaults]
+            old_defaults = [params[p].default for p in params
+                            if params[p].default is not params[p].empty and p in defaults]
+
+            assert f.__defaults__==tuple(old_defaults)
+
+            # Backup original function defaults.
+            original_defaults = f.__defaults__
+
+            # Set the new function defaults.
+            f.__defaults__ = tuple(new_defaults)
+
+            return_value = f(*args, **kwargs)
+
+            # Restore original defaults (required to keep this trick working.)
+            f.__defaults__ = original_defaults
+
+            return return_value
+
+        return wrapper
+
+    return decorator
+
+
 class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)):
 
     def __init__(self, verbose, **kwargs):
