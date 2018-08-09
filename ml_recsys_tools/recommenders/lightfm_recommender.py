@@ -1,3 +1,4 @@
+import numpy as np
 from lightfm import LightFM
 import lightfm.lightfm
 
@@ -73,6 +74,9 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self.model.fit_partial(self.train_mat, epochs=0)
         self.model.item_embeddings = self.initialiser_model._get_item_factors()[1]
         self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
+        # scale the factor to roughly suit the regularization so that gradients are not crazy
+        self.model.item_embeddings /= np.sum(self.model.item_embeddings**2) * self.model.item_alpha
+        self.model.user_embeddings /= np.sum(self.model.user_embeddings**2) * self.model.user_alpha
         # self.model.item_embedding_gradients = self.model.item_embeddings
         # self.model.user_embedding_gradients = self.model.user_embeddings
 
