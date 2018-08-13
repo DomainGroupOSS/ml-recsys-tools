@@ -13,6 +13,26 @@ def console_settings():
     pd.set_option('display.width', 1000)
 
 
+# def _split_json_field(df, field):
+#     split_lambda = lambda x: pd.Series(json.loads(x) if x else [])
+#     return pd.concat([df, df[field].astype(str).apply(split_lambda)], axis=1)
+
+def _split_json_field(df, field):
+    return pd.concat([df, pd.read_json('[%s]' % ','.join(df[field].tolist()))], axis=1)
+
+
+def split_json_field(df, field, remove_original=True, parallel=True):
+
+    if parallel:
+        df_out = parallelize_dataframe(df, partial(_split_json_field, field=field))
+    else:
+        df_out = _split_json_field(df, field=field)
+
+    if remove_original:
+        df_out.drop(field, axis=1, inplace=True)
+    return df_out
+
+
 def hist_by_groups(groups):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(3, 7)
