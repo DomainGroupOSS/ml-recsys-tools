@@ -1,7 +1,12 @@
 import gzip
 import io
 import json
+import os
 import pickle
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 import boto3
 import redis
 from ml_recsys_tools.utils.logger import simple_logger as logger
@@ -128,3 +133,52 @@ class S3FileIO:
         with open(local_path, 'wb') as local:
             local.write(self.read(remote_path))
 
+
+class Emailer:
+    def __init__(self, from_email='emailer@reporting'):
+        self.from_email = from_email
+
+    def _basic_message(self, to, subject='', body=''):
+        msg = MIMEMultipart()
+        msg['Subject'] = subject
+        msg['From'] = self.from_email
+        msg['To'] = to
+        msg.attach(MIMEText(body))
+        return msg
+
+    def _send_message(self, msg, to):
+        s = smtplib.SMTP('localhost')
+        to = [to] if isinstance(to, str) else to
+        s.sendmail(self.from_email, to, msg.as_string())
+        s.quit()
+
+    def _text_attachment(self, text_file):
+        with open(text_file) as fp:
+            attachment_msg = MIMEText(fp.read())
+        attachment_msg.add_header('Content-Disposition', 'attachment', filename=text_file)
+        return attachment_msg
+
+    @staticmethod
+    def _default_subject(file):
+        return os.path.split(file)[-1]
+
+    def send_text_file(self, to, text_file, subject=None, attach=True):
+        if subject is None:
+            subject = self._default_subject(text_file)
+
+        with open(text_file, 'rt') as f:
+            body = f.read()
+
+        if attach:
+            return self.send_text_file_attached(
+                to=to, text_file=text_file, subject=subject, body=body)
+        else:
+            msg = self._basic_message(to, subject=subject, body=body)
+            self._send_message(msg, to)
+
+    def send_text_file_attached(self, to, text_file, body='', subject=None):
+        if subject is None:
+            subject = self._default_subject(text_file)
+        msg = self._basic_message(to, subject=subject, body=body)
+        msg.attach(self._text_attachment(text_file))
+        self._send_message(msg, to)
