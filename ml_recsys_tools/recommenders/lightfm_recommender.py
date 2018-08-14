@@ -74,11 +74,20 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self.model.fit_partial(self.train_mat, epochs=0)
         self.model.item_embeddings = self.initialiser_model._get_item_factors()[1]
         self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
-        # scale the factor to roughly suit the regularization so that gradients are not crazy
-        self.model.item_embeddings /= np.sum(self.model.item_embeddings**2) * self.model.item_alpha
-        self.model.user_embeddings /= np.sum(self.model.user_embeddings**2) * self.model.user_alpha
-        # self.model.item_embedding_gradients = self.model.item_embeddings
-        # self.model.user_embedding_gradients = self.model.user_embeddings
+
+        # # scale the factor to roughly suit the regularization so that gradients are not crazy
+        # self.model.item_embeddings /= np.sum(self.model.item_embeddings**2) * self.model.item_alpha
+        # self.model.user_embeddings /= np.sum(self.model.user_embeddings**2) * self.model.user_alpha
+
+        # # scale the factors to be of similar scale
+        # scale = 1`
+        # self.model.item_embeddings *= scale / np.mean(np.abs(self.model.item_embeddings))
+        # self.model.user_embeddings *= scale / np.mean(np.abs(self.model.user_embeddings))
+
+        # scale the factors to be of similar scale
+        scale = 1e-6
+        self.model.item_embeddings *= np.sqrt(scale * np.sum(self.model.item_embeddings**2))
+        self.model.user_embeddings *= np.sqrt(scale * np.sum(self.model.user_embeddings**2))
 
     def _add_external_features(self):
         if self.external_features is not None:
