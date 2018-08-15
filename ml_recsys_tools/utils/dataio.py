@@ -9,6 +9,8 @@ from email.mime.text import MIMEText
 
 import boto3
 import redis
+
+from ml_recsys_tools.utils.instrumentation import log_errors
 from ml_recsys_tools.utils.logger import simple_logger as logger
 
 
@@ -75,45 +77,39 @@ class S3FileIO:
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
 
+    @log_errors(message='Failed writing to S3')
     def write_binary(self, data, remote_path, compress=True):
-        try:
-            client = boto3.client('s3')
-            if compress:
-                try:
-                    # https://stackoverflow.com/questions/33562394/gzip-raised-overflowerror-size-does-not-fit-in-an-unsigned-int
-                    data = gzip.compress(data, 1)
-                except OverflowError:
-                    pass
-            with io.BytesIO(data) as f:
-                client.upload_fileobj(
-                    Fileobj=f,
-                    Bucket=self.bucket_name,
-                    Key=remote_path)
-        except Exception as e:
-            logger.error('Failed writing to S3: %s' % str(e))
-            logger.exception(e)
-
-    def read(self, remote_path):
-        try:
-            client = boto3.client('s3')
-            ## for some reason this returns empty sometimes, but get_object works..
-            # with io.BytesIO() as f:
-            #     client.download_fileobj(
-            #         Bucket=self.bucket_name,
-            #         Key=remote_path,
-            #         Fileobj=f)
-            #     data = f.read()
-            data = client.get_object(
-                Bucket=self.bucket_name, Key=remote_path)['Body'].\
-                read()
+        client = boto3.client('s3')
+        if compress:
             try:
-                data = gzip.decompress(data)
-            except OSError:
+                # https://stackoverflow.com/questions/33562394/gzip-raised-overflowerror-size-does-not-fit-in-an-unsigned-int
+                data = gzip.compress(data, 1)
+            except OverflowError:
                 pass
-            return data
-        except Exception as e:
-            logger.error('Failed reading from S3: %s' % str(e))
-            logger.exception(e)
+        with io.BytesIO(data) as f:
+            client.upload_fileobj(
+                Fileobj=f,
+                Bucket=self.bucket_name,
+                Key=remote_path)
+
+    @log_errors(message='Failed reading from S3')
+    def read(self, remote_path):
+        client = boto3.client('s3')
+        ## for some reason this returns empty sometimes, but get_object works..
+        # with io.BytesIO() as f:
+        #     client.download_fileobj(
+        #         Bucket=self.bucket_name,
+        #         Key=remote_path,
+        #         Fileobj=f)
+        #     data = f.read()
+        data = client.get_object(
+            Bucket=self.bucket_name, Key=remote_path)['Body'].\
+            read()
+        try:
+            data = gzip.decompress(data)
+        except OSError:
+            pass
+        return data
 
     def pickle(self, obj, remote_path):
         logger.info('S3: pickling to %s' % remote_path)
@@ -162,6 +158,7 @@ class Emailer:
     def _default_subject(file):
         return os.path.split(file)[-1]
 
+    @log_errors()
     def send_text_file(self, to, text_file, subject=None, attach=True):
         if subject is None:
             subject = self._default_subject(text_file)
@@ -176,6 +173,7 @@ class Emailer:
             msg = self._basic_message(to, subject=subject, body=body)
             self._send_message(msg, to)
 
+    @log_errors()
     def send_text_file_attached(self, to, text_file, body='', subject=None):
         if subject is None:
             subject = self._default_subject(text_file)

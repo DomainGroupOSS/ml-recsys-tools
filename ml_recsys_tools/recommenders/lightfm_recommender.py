@@ -3,17 +3,14 @@ from lightfm import LightFM
 import lightfm.lightfm
 
 from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
-from ml_recsys_tools.utils.instrumentation import simple_logger
+from ml_recsys_tools.utils.instrumentation import simple_logger, log_errors
 from ml_recsys_tools.utils.parallelism import N_CPUS
 
 
 # monkey patch print function
+@log_errors()
 def _epoch_logger(s, print_each_n=20):
-    try:
-        if not int(s.replace('Epoch ', '')) % print_each_n:
-            simple_logger.info(s)
-    except Exception as e:
-        simple_logger.error('Failed in _epoch_logger: %s' % str(e))
+    if not int(s.replace('Epoch ', '')) % print_each_n:
         simple_logger.info(s)
 
 lightfm.lightfm.print = _epoch_logger
