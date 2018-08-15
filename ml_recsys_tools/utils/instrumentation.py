@@ -61,7 +61,7 @@ def log_time_and_shape(fn):
 
         stack_depth = get_stack_depth()
 
-        fn_str = class_name(fn) + fn.__name__
+        fn_str = function_name_with_class(fn)
 
         msg = ' ' * stack_depth + \
               '%s, elapsed: %s, returned: %s, sys %s' % \
@@ -152,10 +152,10 @@ def get_stack_depth():
         return 0
 
 
-def class_name(fn):
+def function_name_with_class(fn):
     cls = get_class_that_defined_method(fn)
     cls_str = cls.__name__ + '.' if cls else ''
-    return cls_str
+    return cls_str + fn.__name__
 
 
 def get_class_that_defined_method(meth):
@@ -264,3 +264,23 @@ class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)
         """
         setattr(f, 'decorate', False)
         return f
+
+
+def log_errors(logger=None, message=None, return_on_error=None):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def inner(*args, **kwargs):
+            nonlocal logger, message, return_on_error
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:
+                if logger is None:
+                    logger = simple_logger
+                logger.exception(e)
+                fn_str = function_name_with_class(fn)
+                msg_str = ', Message: %s' % message if message else ''
+                logger.error('Failed: %s, Error: %s %s' %(fn_str, str(e), msg_str))
+                return return_on_error
+        return inner
+    return decorator
+
