@@ -159,6 +159,11 @@ class Emailer:
         return os.path.split(file)[-1]
 
     @log_errors()
+    def send_simple_message(self, to, subject='', body=''):
+        msg = self._basic_message(to, subject=subject, body=body)
+        self._send_message(msg, to)
+
+    @log_errors()
     def send_text_file(self, to, text_file, subject=None, attach=True):
         if subject is None:
             subject = self._default_subject(text_file)
