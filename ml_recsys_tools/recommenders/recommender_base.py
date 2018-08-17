@@ -175,8 +175,8 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             n_rec = target_ids_mat.shape[1]
             return pd.DataFrame({
                 source_col: np.array(source_vec).repeat(n_rec),
-                target_col: np.concatenate(list(target_ids_mat)),
-                scores_col: np.concatenate(list(scores_mat)),
+                target_col: np.concatenate(list(target_ids_mat) if len(target_ids_mat) else [[]]),
+                scores_col: np.concatenate(list(scores_mat) if len(target_ids_mat) else [[]]),
             })[order]
 
         else:

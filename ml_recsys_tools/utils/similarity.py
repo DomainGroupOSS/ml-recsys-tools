@@ -59,6 +59,9 @@ def _top_N_similar(source_inds, source_mat, target_mat, n,
     :return:
     """
 
+    if not len(source_inds):
+        return np.array([[]]), np.array([[]])
+
     if simil_mode == 'cosine':
         scores = cosine_similarity(source_mat[source_inds, :], target_mat)
 

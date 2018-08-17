@@ -272,7 +272,7 @@ class SubdivisionEnsembleBase(EnsembleBase):
 
         sub_model_train_data_generator = self._generate_sub_model_train_data(train_obs)
 
-        n_recommenders = len(self.recommenders)
+        n_recommenders = self.n_recommenders
 
         with self.get_workers_pool() as pool:
             self.recommenders = list(

@@ -1,3 +1,5 @@
+import warnings
+
 from ml_recsys_tools.data_handlers.interactions_with_features import ObsWithGeoFeatures
 from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
 from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
@@ -19,8 +21,15 @@ class GeoGridEnsembleBase(SubdivisionEnsembleBase):
         self.n_long = n_long
         self.min_interactions = min_interactions
         self.overlap_margin = overlap_margin
-        kwargs['n_recommenders'] = self.n_lat * self.n_long
         super().__init__(**kwargs)
+
+    @property
+    def n_recommenders(self):
+        return self.n_lat * self.n_long
+
+    @n_recommenders.setter
+    def n_recommenders(self, n_recommenders):
+        warnings.warn('Cannot set n_recommenders for GeoGridEnsembleBase, set n_lat and n_long instead')
 
     def set_params(self, **params):
         """
