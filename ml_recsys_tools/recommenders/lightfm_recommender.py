@@ -41,12 +41,14 @@ class LightFMRecommender(BaseFactorizationRecommender):
                  external_features=None,
                  external_features_params=None,
                  initialiser_model=None,
+                 initialiser_scale=0.1,
                  **kwargs):
         self.use_sample_weight = use_sample_weight
         self.external_features = external_features
         self.external_features_params = external_features_params or \
                                         self.default_external_features_params.copy()
         self.initialiser_model = initialiser_model
+        self.initialiser_scale = initialiser_scale
         super().__init__(**kwargs)
 
     def _prep_for_fit(self, train_obs, **fit_params):
@@ -69,22 +71,16 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self._reuse_data(self.initialiser_model)
         # have the internals initialised
         self.model.fit_partial(self.train_mat, epochs=0)
+
+        # transplant factors from inititialiser model
         self.model.item_embeddings = self.initialiser_model._get_item_factors()[1]
         self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
 
-        # # scale the factor to roughly suit the regularization so that gradients are not crazy
-        # self.model.item_embeddings /= np.sum(self.model.item_embeddings**2) * self.model.item_alpha
-        # self.model.user_embeddings /= np.sum(self.model.user_embeddings**2) * self.model.user_alpha
-
-        # # scale the factors to be of similar scale
-        # scale = 1`
-        # self.model.item_embeddings *= scale / np.mean(np.abs(self.model.item_embeddings))
-        # self.model.user_embeddings *= scale / np.mean(np.abs(self.model.user_embeddings))
-
         # scale the factors to be of similar scale
-        scale = 1e-6
-        self.model.item_embeddings *= np.sqrt(scale * np.sum(self.model.item_embeddings**2))
-        self.model.user_embeddings *= np.sqrt(scale * np.sum(self.model.user_embeddings**2))
+        scale = self.initialiser_scale
+        self.model.item_embeddings *= scale / np.mean(np.abs(self.model.item_embeddings))
+        self.model.user_embeddings *= scale / np.mean(np.abs(self.model.user_embeddings))
+
 
     def _add_external_features(self):
         if self.external_features is not None:
@@ -135,7 +131,8 @@ class LightFMRecommender(BaseFactorizationRecommender):
 
     def set_params(self, **params):
         params = self._pop_set_params(
-            params, ['use_sample_weight', 'external_features', 'external_features_params'])
+            params, ['use_sample_weight', 'external_features', 'external_features_params',
+                     'initialiser_model', 'initialiser_scale'])
         super().set_params(**params)
 
     def _get_item_factors(self, mode=None):
