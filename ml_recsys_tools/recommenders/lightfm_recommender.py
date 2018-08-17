@@ -41,12 +41,14 @@ class LightFMRecommender(BaseFactorizationRecommender):
                  external_features=None,
                  external_features_params=None,
                  initialiser_model=None,
+                 initialiser_scale=0.1,
                  **kwargs):
         self.use_sample_weight = use_sample_weight
         self.external_features = external_features
         self.external_features_params = external_features_params or \
                                         self.default_external_features_params.copy()
         self.initialiser_model = initialiser_model
+        self.initialiser_scale = initialiser_scale
         super().__init__(**kwargs)
 
     def _prep_for_fit(self, train_obs, **fit_params):
@@ -75,7 +77,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
         self.model.user_embeddings = self.initialiser_model._get_user_factors()[1]
 
         # scale the factors to be of similar scale
-        scale = 0.05
+        scale = self.initialiser_scale
         self.model.item_embeddings *= scale / np.mean(np.abs(self.model.item_embeddings))
         self.model.user_embeddings *= scale / np.mean(np.abs(self.model.user_embeddings))
 
@@ -129,7 +131,8 @@ class LightFMRecommender(BaseFactorizationRecommender):
 
     def set_params(self, **params):
         params = self._pop_set_params(
-            params, ['use_sample_weight', 'external_features', 'external_features_params'])
+            params, ['use_sample_weight', 'external_features', 'external_features_params',
+                     'initialiser_model', 'initialiser_scale'])
         super().set_params(**params)
 
     def _get_item_factors(self, mode=None):
