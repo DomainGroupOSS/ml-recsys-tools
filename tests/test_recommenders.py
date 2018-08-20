@@ -16,6 +16,11 @@ rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_d
 
 class TestRecommendersBasic(TestCaseWithState):
 
+    TESTING_USER_IDS = ['test_user_11', 'test_user_22', 'test_user_33', 'test_user_44']
+    TESTING_ITEM_IDS = ['test_item_11', 'test_item_22', 'test_item_33', 'test_item_44']
+    user_id_col = 'userid'
+    item_id_col = 'itemid'
+
     @classmethod
     def setUpClass(cls):
         cls.k = 10
@@ -24,9 +29,27 @@ class TestRecommendersBasic(TestCaseWithState):
 
     def _setup_obs_handler(self):
         ratings_df = pd.read_csv(rating_csv_path)
-        obs = ObservationsDF(ratings_df, uid_col='userid', iid_col='itemid')
+        obs = ObservationsDF(ratings_df, uid_col=self.user_id_col, iid_col=self.item_id_col)
         obs = obs.sample_observations(n_users=1000, n_items=1000)
         self.state.train_obs, self.state.test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
+        # add some fake data for sanity tests
+        self.state.train_obs.df_obs = self._add_testing_obs_data(self.state.train_obs.df_obs)
+
+    def _add_testing_obs_data(self, obs_df):
+        last_row = obs_df.iloc[-1, :].copy()
+        testing_df = pd.DataFrame(
+            {self.user_id_col: sorted(self.TESTING_USER_IDS * len(self.TESTING_ITEM_IDS)),
+             self.item_id_col: self.TESTING_ITEM_IDS * len(self.TESTING_USER_IDS)})
+
+        # add other columns
+        for col in obs_df.columns.difference(testing_df.columns):
+            testing_df = testing_df.assign(**{col: last_row[col]})
+
+        # exclude matching users and items from training (to later check that they are in predictions)
+        testing_df = testing_df[~(testing_df[self.user_id_col].str[-2:] ==
+                                  testing_df[self.item_id_col].str[-2:])]
+
+        return obs_df.append(testing_df)
 
     def test_b_1_lfm_recommender(self):
         self._setup_obs_handler()
@@ -67,10 +90,24 @@ class TestRecommendersBasic(TestCaseWithState):
         for i in np.random.choice(np.arange(len(simils)), min(100, len(simils))):
             self.assertListEqual(list(simils['prediction'][i]), sorted(simils['prediction'][i], reverse=True))
 
+    def _test_predictions_on_fake_data(self, rec):
+        # check that missing "interactions" are recommended
+        for user in self.TESTING_USER_IDS:
+            recos = rec.get_recommendations(user_ids=[user], n_rec=10).iloc[0][rec._item_col]
+            print(user, recos)
+            self.assertTrue(user.replace('user', 'item') in recos)
+
+        # check that test items are similar to each other
+        for item in self.TESTING_ITEM_IDS:
+            simils = rec.get_similar_items(item_ids=[item], n_simil=10).iloc[0][rec._item_col]
+            print(item, simils)
+            self.assertTrue(len(set(simils).intersection(set(self.TESTING_ITEM_IDS))) >= 3)
+
     def _test_recommender(self, rec):
         self._test_get_recommendations(rec)
         self._test_get_similar_items(rec)
         self._test_predict_for_user(rec)
+        self._test_predictions_on_fake_data(rec)
 
     def _test_predict_for_user(self, rec):
         user = rec.all_users[0]

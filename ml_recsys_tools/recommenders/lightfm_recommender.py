@@ -21,7 +21,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
     default_model_params = {
         'loss': 'warp',
         'learning_schedule': 'adadelta',
-        'no_components': 10,
+        'no_components': 30,
         'max_sampled': 10,
         'item_alpha': 0,
         'user_alpha': 0,
