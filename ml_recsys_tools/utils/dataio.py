@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 
 import boto3
 import redis
+from botocore.exceptions import ClientError
 
 from ml_recsys_tools.utils.instrumentation import log_errors
 from ml_recsys_tools.utils.logger import simple_logger as logger
@@ -131,8 +132,9 @@ class S3FileIO:
 
 
 class Emailer:
-    def __init__(self, from_email='emailer@reporting'):
+    def __init__(self, from_email='name@domain.com', backend='SES:us-west-2'):
         self.from_email = from_email
+        self.backend = backend
 
     def _basic_message(self, to, subject='', body=''):
         msg = MIMEMultipart()
@@ -142,11 +144,38 @@ class Emailer:
         msg.attach(MIMEText(body))
         return msg
 
+    def _SES_region(self, backend_str):
+        parts = backend_str.split('SES:')
+        if len(parts) < 2 or not len(parts[1]):
+            raise ValueError('Please pass AWS_REGION as part of backend parameter. E.G "SES:us-west-2')
+        return parts[1]
+
     def _send_message(self, msg, to):
-        s = smtplib.SMTP('localhost')
         to = [to] if isinstance(to, str) else to
-        s.sendmail(self.from_email, to, msg.as_string())
-        s.quit()
+
+        if self.backend=='SMTP':
+            s = smtplib.SMTP('localhost')
+            s.sendmail(self.from_email, to, msg.as_string())
+            s.quit()
+
+        elif 'SES' in self.backend:
+            # https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-raw.html
+            client = boto3.client('ses', region_name=self._SES_region(self.backend))
+            try:
+                # Provide the contents of the email.
+                response = client.send_raw_email(
+                    Source=self.from_email,
+                    Destinations=to,
+                    RawMessage={'Data': msg.as_string(),}
+                )
+            # Display an error if something goes wrong.
+            except ClientError as e:
+                print(e.response['Error']['Message'])
+            else:
+                print("Email sent! Message ID:"),
+                print(response['MessageId'])
+        else:
+            raise ValueError('Unknown email backend: %s' % self.backend)
 
     def _text_attachment(self, text_file):
         with open(text_file) as fp:
