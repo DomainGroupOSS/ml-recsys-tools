@@ -18,7 +18,8 @@ def console_settings():
 #     return pd.concat([df, df[field].astype(str).apply(split_lambda)], axis=1)
 
 def _split_json_field(df, field):
-    return pd.concat([df, pd.read_json('[%s]' % ','.join(df[field].tolist()))], axis=1)
+    df_json = pd.read_json('[%s]' % ','.join(df[field].tolist()))
+    return pd.concat([df.reset_index(), df_json], axis=1)
 
 
 def split_json_field(df, field, remove_original=True, parallel=True):
