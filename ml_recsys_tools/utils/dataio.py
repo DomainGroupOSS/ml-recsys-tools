@@ -125,11 +125,26 @@ class S3FileIO:
         with open(local_path, 'rb') as local:
             self.write_binary(local.read(), remote_path)
 
-    def remote_to_local(self, remote_path, local_path):
-        logger.info('S3: copying from %s to %s' % (remote_path, local_path))
-        with open(local_path, 'wb') as local:
-            local.write(self.read(remote_path))
+    def remote_to_local(self, remote_path, local_path, overwrite=True):
+        if not os.path.exists(local_path) or overwrite:
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            logger.info('S3: copying from %s to %s' % (remote_path, local_path))
+            with open(local_path, 'wb') as local:
+                local.write(self.read(remote_path))
 
+    def listdir(self, path):
+        s3 = boto3.resource('s3').Bucket(self.bucket_name)
+        return [object_summary.key for object_summary in s3.objects.filter(Prefix=path)]
+
+    def cache_multiple_from_remote(self, paths, destination, overwrite=True):
+        cached_paths = []
+        for s3_path in paths:
+            local_path = os.path.join(destination, s3_path)
+            cached_paths.append(local_path)
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            if not os.path.exists(local_path) or overwrite:
+                self.remote_to_local(s3_path, local_path)
+        return cached_paths
 
 class Emailer:
     def __init__(self, from_email='name@domain.com', backend='SES:us-west-2'):
