@@ -1,5 +1,6 @@
 import logging
 import functools
+import os
 import time
 import inspect
 from types import FunctionType
@@ -315,3 +316,6 @@ def log_errors(logger=None, message=None, return_on_error=None):
         return inner
     return decorator
 
+
+def root_caller_file():
+    return os.path.splitext(os.path.split(inspect.stack()[-1].filename)[1])[0]
