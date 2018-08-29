@@ -614,7 +614,7 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         # @self.logging_decorator
         def _get_test_ranks(test_df):
             test_sparse = self.sparse_mat_builder.build_sparse_interaction_matrix(test_df)
-            ranks_mat = self.model.predict_rank(test_sparse, self.train_mat)
+            ranks_mat = self._predict_rank(test_sparse, self.train_mat)
             return ranks_mat, test_sparse
 
         return self._eval_on_test_by_ranking_LFM(
