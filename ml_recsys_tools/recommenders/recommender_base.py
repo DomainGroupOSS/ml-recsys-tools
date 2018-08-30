@@ -43,6 +43,12 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         # self.train_df = None
         self.model = None
 
+    def reduce_memory_for_serving(self):
+        """
+        method for removing any data to reduce memory for serving (gradients etc..)
+        """
+        pass
+
     @classmethod
     def guess_search_space(cls):
         return SearchSpaceGuess(cls).\
@@ -197,7 +203,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
                 validation_data=validation_data,
                 n_calls=n_iters)
 
-    def pickle_to_file(self, filepath):
+    def pickle(self, filepath):
         with open(filepath, 'wb') as f:
             pickle.dump(self, f)
 

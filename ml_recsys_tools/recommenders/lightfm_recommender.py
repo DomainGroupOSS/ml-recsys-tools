@@ -183,3 +183,20 @@ class LightFMRecommender(BaseFactorizationRecommender):
             item_features=self.fit_params['item_features'],
             num_threads=self.fit_params['num_threads'])
 
+    def reduce_memory_for_serving(self):
+        # would be best to set those to None, but than LightFM will complain, and more importantly
+        # Cython code expects the right data format and will crash if its predict() will be used,
+        # so I just point to the embeddings (which doesn't add memory).
+        # the danger in this is that I don't know what will be the damage if someone calls one of the fit methods
+        # for this reason it's in an explicit method "for_serving" and not in a __getstate__() method
+        self.model.item_embedding_gradients = self.model.item_embeddings
+        self.model.item_embedding_momentum= self.model.item_embeddings
+        self.model.user_embedding_gradients = self.model.user_embeddings
+        self.model.user_embedding_momentum = self.model.user_embeddings
+        self.model.item_bias_gradients = self.model.item_biases
+        self.model.item_bias_momentum= self.model.item_biases
+        self.model.user_bias_gradients = self.model.user_biases
+        self.model.user_bias_momentum = self.model.user_biases
+        self.fit_params['sample_weight'] = None
+        super().reduce_memory_for_serving()
+

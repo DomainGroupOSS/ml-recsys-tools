@@ -1,6 +1,7 @@
 import logging
 import functools
 import os
+import pickle
 import time
 import inspect
 from types import FunctionType
@@ -319,3 +320,7 @@ def log_errors(logger=None, message=None, return_on_error=None):
 
 def root_caller_file():
     return os.path.splitext(os.path.split(inspect.stack()[-1].filename)[1])[0]
+
+
+def pickle_size_mb(obj):
+    return pickle.dumps(obj).__sizeof__() / 1e6
