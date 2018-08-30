@@ -7,6 +7,7 @@ import time
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
 
 from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
+from ml_recsys_tools.utils.instrumentation import pickle_size_mb
 
 from ml_recsys_tools.utils.testing import TestCaseWithState
 from test_movielens_data import movielens_dir
@@ -274,4 +275,11 @@ class TestRecommendersBasic(TestCaseWithState):
         print(comb_simil_rep)
         self._test_recommender(comb_simil_rec)
 
+    def test_d_lfm_reduce_memory_size(self):
+        lfm_rec = deepcopy(self.state.lfm_rec)
+        mem_before = pickle_size_mb(lfm_rec)
+        lfm_rec.reduce_memory_for_serving()
+        mem_after = pickle_size_mb(lfm_rec)
+        self._test_recommender(lfm_rec)
+        self.assertGreater(mem_before, mem_after)
 
