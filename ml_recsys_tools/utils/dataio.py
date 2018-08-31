@@ -11,7 +11,7 @@ import boto3
 import redis
 from botocore.exceptions import ClientError
 
-from ml_recsys_tools.utils.instrumentation import log_errors
+from ml_recsys_tools.utils.instrumentation import log_errors, LogCallsTimeAndOutput
 from ml_recsys_tools.utils.logger import simple_logger as logger
 
 
@@ -74,8 +74,10 @@ class RedisTable(redis.StrictRedis):
         return data
 
 
-class S3FileIO:
-    def __init__(self, bucket_name):
+class S3FileIO(LogCallsTimeAndOutput):
+
+    def __init__(self, bucket_name, verbose=True):
+        super().__init__(verbose=verbose)
         self.bucket_name = bucket_name
 
     @log_errors(message='Failed writing to S3')
