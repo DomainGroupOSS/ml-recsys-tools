@@ -197,33 +197,43 @@ class Emailer:
         return attachment_msg
 
     @staticmethod
-    def _default_subject(file):
-        return os.path.split(file)[-1]
+    def _default_subject(text_files):
+        return ','.join([os.path.split(f)[-1] for f in text_files])
 
     @log_errors()
     def send_simple_message(self, to, subject='', body=''):
         msg = self._basic_message(to, subject=subject, body=body)
         self._send_message(msg, to)
 
+    def _read_text_file(self, text_file):
+        with open(text_file, 'rt') as f:
+            return f.read()
+
     @log_errors()
     def send_text_file(self, to, text_file, subject=None, attach=True):
         if subject is None:
-            subject = self._default_subject(text_file)
+            subject = self._default_subject([text_file])
 
-        with open(text_file, 'rt') as f:
-            body = f.read()
+        body = self._read_text_file(text_file)
 
         if attach:
-            return self.send_text_file_attached(
-                to=to, text_file=text_file, subject=subject, body=body)
+            return self.send_text_files_attached(
+                to=to, text_files=[text_file], subject=subject, body=body)
         else:
             msg = self._basic_message(to, subject=subject, body=body)
             self._send_message(msg, to)
 
     @log_errors()
-    def send_text_file_attached(self, to, text_file, body='', subject=None):
+    def send_text_files_attached(self, to, text_files, body='', subject=None):
+        text_files = [text_files] if isinstance(text_files, str) else text_files
+
+        if os.path.exists(body):
+            body = self._read_text_file(body)
+
         if subject is None:
-            subject = self._default_subject(text_file)
+            subject = self._default_subject(text_files)
+
         msg = self._basic_message(to, subject=subject, body=body)
-        msg.attach(self._text_attachment(text_file))
+        for f in text_files:
+            msg.attach(self._text_attachment(f))
         self._send_message(msg, to)
