@@ -1,3 +1,4 @@
+import random
 import time
 import functools
 from threading import Thread
@@ -22,13 +23,17 @@ def safe_jsonify(fn):
 
 class S3ModelReloaderServer:
     def __init__(self, s3_bucket, latest_path_key,
-                 update_interval_hours=2, block_until_first_load=False,
+                 update_interval_hours=2,
+                 interval_jitter_ratio=0,
+                 block_until_first_load=False,
                  ):
         """
         :param s3_bucket: the S3 bucket used to store the models and the pointer to latest model
         :param latest_path_key: the path to an S3 pickle file that contains the S3 path to the latest model
         :param update_interval_hours: the interval for checking for updated model
             (checks whether the latest_path_key has changed)
+        :param interval_jitter_ratio: ratio of jitter for the time interval
+            (this is to reduce resources spike in parallel workers)
         :param block_until_first_load: whether to block execution until first model is loaded, if False,
             some methods may be broken because self.model will be None until loaded and tested
         """
@@ -37,7 +42,9 @@ class S3ModelReloaderServer:
         self._s3_bucket = s3_bucket
         self._latest_path_key = latest_path_key
         self._current_model_path = None
-        self._reloader_thread = Thread(target=self._model_reloader, args=(update_interval_hours,))
+        self._update_interval_seconds = update_interval_hours * 3600 * (1 - interval_jitter_ratio/2)
+        self._interval_jitter_seconds = interval_jitter_ratio * self._update_interval_seconds
+        self._reloader_thread = Thread(target=self._model_reloader)
         self._reloader_thread.start()
         if block_until_first_load:
             self._block_until_first_load()
@@ -73,7 +80,11 @@ class S3ModelReloaderServer:
         if model is None:
             raise ValueError('Downloaded empty model')
 
-    def _model_reloader(self, interval_hours=1):
+    def _time_jitter(self):
+        return random.random() * self._interval_jitter_seconds
+
+    def _model_reloader(self):
+        time.sleep(self._time_jitter())
         while self.keep_reloading:
             try:
                 new_model_s3_path = self._latest_s3_model_path()
@@ -90,7 +101,7 @@ class S3ModelReloaderServer:
                 logger.exception(e)
                 if self.model is None:
                     raise EnvironmentError('Could not load model on startup.')
-            time.sleep(interval_hours * 3600)
+            time.sleep(self._update_interval_seconds + self._time_jitter())
 
 
 class RankingModelServer(S3ModelReloaderServer):
