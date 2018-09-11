@@ -127,7 +127,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
             users_filt = self.df_obs[self.uid_col].unique().astype(str)
             item_filt = self.df_obs[self.iid_col].unique().astype(str)
 
-        if n_users is None:
+        if n_users is None or n_users >= len(users_filt):
             users_sample = users_filt
         elif method == 'random':
             # users_sample = users_filt.sample(n_users, random_state=random_state)
@@ -138,7 +138,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
         else:
             raise ValueError('Uknown sampling method')
 
-        if n_items is None:
+        if n_items is None or n_items >= len(item_filt):
             item_sample = item_filt
         elif method == 'random':
             # item_sample = item_filt.sample(n_items, random_state=random_state)
