@@ -150,8 +150,8 @@ class RankingModelServer(S3ModelReloaderServer):
 
         result = {'user_id': user_id, 'ranked_items': item_ids, 'scores': scores}
 
-        logger.info('Ran inference for user %s in %.3f seconds for mode %s.' %
-                    (str(user_id), time.time() - ts, str(mode)))
+        logger.info('Ran inference for user %s (%d items) in %.3f seconds for mode %s.' %
+                    (str(user_id), len(scores), time.time() - ts, str(mode)))
         return result
 
     def rank_items_for_user(self, user_id, item_ids, mode, min_score=None):
