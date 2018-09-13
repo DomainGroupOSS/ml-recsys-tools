@@ -242,6 +242,12 @@ class BaseDFSparseRecommender(BaseDFRecommender):
     def item_ids(self, item_inds):
         return self.sparse_mat_builder.iid_encoder.inverse_transform(item_inds)
 
+    def unknown_users_mask(self, user_ids):
+        return self.sparse_mat_builder.uid_encoder.find_new_labels(user_ids)
+
+    def unknown_items_mask(self, item_ids):
+        return self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
+
     def _set_data(self, train_obs, calc_train_mat=True):
         train_df = train_obs.df_obs
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
@@ -521,6 +527,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             source_vec=user_ids, target_ids_mat=best_ids,
             scores_mat=top_scores, results_format='recommendations_' + results_format)
 
+
     def predict_for_user(self, user_id, item_ids, rank_training_last=True,
                          sort=True, combine_original_order=False):
         """
@@ -540,21 +547,22 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             with Nones for unknown users or items
         """
 
+        user_id = str(user_id)
+        item_ids = np.array(item_ids).astype(str)
 
         df = pd.DataFrame()
         df[self._item_col] = item_ids  # assigning first because determines length
         df[self._user_col] = user_id
         df[self._prediction_col] = -np.inf
 
-        new_users_mask = self.sparse_mat_builder.uid_encoder.find_new_labels([user_id])
-        if np.any(new_users_mask):
+        if np.any(self.unknown_users_mask([user_id])):
             return df
 
-        new_items_mask = self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
+        new_items_mask = self.unknown_items_mask(item_ids)
 
         preds = self._predict_for_users_dense_direct(
             user_ids=[user_id],
-            item_ids=np.array(item_ids)[~new_items_mask],
+            item_ids=item_ids[~new_items_mask],
             exclude_training=rank_training_last)
 
         df[self._prediction_col].values[~new_items_mask] = preds.ravel()

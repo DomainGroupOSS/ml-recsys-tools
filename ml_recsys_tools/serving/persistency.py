@@ -138,11 +138,14 @@ class RankingModelServer(S3ModelReloaderServer):
                 sort=True,
                 combine_original_order=cls._combine_original_order(mode),
                 )
+
             item_ids = pred_df[model._item_col].tolist()
 
             scores = pred_df[model._prediction_col].values
+
             if min_score is not None:
                 scores[scores < min_score] = min_score
+
             scores = scores.tolist()
 
         result = {'user_id': user_id, 'ranked_items': item_ids, 'scores': scores}
@@ -158,5 +161,14 @@ class RankingModelServer(S3ModelReloaderServer):
             item_ids=item_ids,
             mode=mode,
             min_score=min_score)
+
+    def unknown_users(self, user_ids):
+        mask = self.model.unknown_users_mask(user_ids).tolist()
+        return [u for u, m in zip(user_ids, mask) if m]
+
+    def unknown_items(self, item_ids):
+        mask = self.model.unknown_items_mask(item_ids).tolist()
+        return [i for i, m in zip(item_ids, mask) if m]
+
 
 
