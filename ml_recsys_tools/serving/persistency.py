@@ -124,7 +124,8 @@ class RankingModelServer(S3ModelReloaderServer):
         return mode in [cls.mode_adjust, cls.mode_combine]
 
     @classmethod
-    def _rank_items_for_user(cls, model: BaseDFSparseRecommender, user_id, item_ids, mode):
+    def _rank_items_for_user(cls, model: BaseDFSparseRecommender,
+                             user_id, item_ids, mode, min_score=None):
         ts = time.time()
 
         if mode==cls.mode_disabled:
@@ -138,7 +139,11 @@ class RankingModelServer(S3ModelReloaderServer):
                 combine_original_order=cls._combine_original_order(mode),
                 )
             item_ids = pred_df[model._item_col].tolist()
-            scores = pred_df[model._prediction_col].tolist()
+
+            scores = pred_df[model._prediction_col].values
+            if min_score is not None:
+                scores[scores < min_score] = min_score
+            scores = scores.tolist()
 
         result = {'user_id': user_id, 'ranked_items': item_ids, 'scores': scores}
 
@@ -146,11 +151,12 @@ class RankingModelServer(S3ModelReloaderServer):
                     (str(user_id), time.time() - ts, str(mode)))
         return result
 
-    def rank_items_for_user(self, user_id, item_ids, mode):
+    def rank_items_for_user(self, user_id, item_ids, mode, min_score=None):
         return self._rank_items_for_user(
             model=self.model,
             user_id=user_id,
             item_ids=item_ids,
-            mode=mode)
+            mode=mode,
+            min_score=min_score)
 
 
