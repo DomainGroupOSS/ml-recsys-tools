@@ -115,6 +115,7 @@ class RankingModelServer(S3ModelReloaderServer):
                              user_id, item_ids, mode, min_score=None):
         ts = time.time()
 
+        n_unknowns = 0
         if mode==cls.mode_disabled:
             scores = [None] * len(item_ids)
         else:
@@ -134,8 +135,6 @@ class RankingModelServer(S3ModelReloaderServer):
                 unknowns_mask = scores < min_score
                 n_unknowns = unknowns_mask.sum()  # is a numpy array
                 scores[unknowns_mask] = min_score
-            else:
-                n_unknowns = 0
 
             scores = scores.tolist()
 
