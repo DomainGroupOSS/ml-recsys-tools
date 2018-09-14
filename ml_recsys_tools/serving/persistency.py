@@ -144,14 +144,18 @@ class RankingModelServer(S3ModelReloaderServer):
             scores = pred_df[model._prediction_col].values
 
             if min_score is not None:
-                scores[scores < min_score] = min_score
+                unknowns_mask = scores < min_score
+                n_unknowns = unknowns_mask.sum()  # is a numpy array
+                scores[unknowns_mask] = min_score
+            else:
+                n_unknowns = 0
 
             scores = scores.tolist()
 
         result = {'user_id': user_id, 'ranked_items': item_ids, 'scores': scores}
 
-        logger.info('Ran inference for user %s (%d items) in %.3f seconds for mode %s.' %
-                    (str(user_id), len(scores), time.time() - ts, str(mode)))
+        logger.info('Ran ranking for user %s (%d items, %d unknown) in %.3f seconds for mode %s.' %
+                    (str(user_id), len(scores), n_unknowns, time.time() - ts, str(mode)))
         return result
 
     def rank_items_for_user(self, user_id, item_ids, mode, min_score=None):
