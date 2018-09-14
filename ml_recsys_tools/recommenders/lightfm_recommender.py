@@ -173,7 +173,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
     def _predict_on_inds(self, user_inds, item_inds):
         return self.model.predict(user_inds, item_inds,
                                   item_features=self.fit_params['item_features'],
-                                  num_threads=self.fit_params['num_threads'])
+                                  num_threads=N_CPUS)
 
 
     def _predict_rank(self, test_mat, train_mat=None):
@@ -181,7 +181,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
             test_interactions=test_mat,
             train_interactions=train_mat,
             item_features=self.fit_params['item_features'],
-            num_threads=self.fit_params['num_threads'])
+            num_threads=N_CPUS)
 
     def reduce_memory_for_serving(self):
         # would be best to set those to None, but than LightFM will complain, and more importantly
