@@ -1,3 +1,4 @@
+import asyncio
 import gzip
 import io
 import json
@@ -7,7 +8,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import asyncpg
 import boto3
+import pandas as pd
 import redis
 from botocore.exceptions import ClientError
 
@@ -239,3 +242,35 @@ class Emailer:
         for f in text_files:
             msg.attach(self._text_attachment(f))
         self._send_message(msg, to)
+
+
+class PostgressReader(LogCallsTimeAndOutput):
+
+    def __init__(self, user=None, password=None, database=None, host=None, port=None):
+        super().__init__()
+        self.pg_user = user
+        self.pg_password = password
+        self.pg_database = database
+        self.pg_host = host
+        self.pg_port = port
+
+    def _connection_params(self):
+        return dict(
+            user=self.pg_user,
+            password=self.pg_password,
+            database=self.pg_database,
+            host=self.pg_host,
+            port=self.pg_port)
+
+    def fetch_dataframe(self, query: str):
+
+        async def run():
+            conn = await asyncpg.connect(**self._connection_params())
+            stmt = await conn.prepare(query)
+            columns = [a.name for a in stmt.get_attributes()]
+            data = await stmt.fetch()
+            await conn.close()
+            return pd.DataFrame(data, columns=columns)
+
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(run())

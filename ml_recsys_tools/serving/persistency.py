@@ -1,24 +1,11 @@
 import random
 import time
-import functools
-from threading import Thread
 
-from flask import jsonify
+from threading import Thread
 
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.dataio import S3FileIO
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
-
-
-def safe_jsonify(fn):
-    @functools.wraps(fn)
-    def inner(*args, **kwargs):
-        try:
-            return jsonify(fn(*args, **kwargs) )
-        except Exception as e:
-            logger.exception(e)
-            return jsonify({'error': str(e)})
-    return inner
 
 
 class S3ModelReloaderServer:

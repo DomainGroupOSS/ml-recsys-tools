@@ -265,7 +265,7 @@ def override_defaults(defaults):
 
 class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)):
 
-    def __init__(self, verbose, **kwargs):
+    def __init__(self, verbose=True, **kwargs):
         self.verbose = verbose
 
     @property
