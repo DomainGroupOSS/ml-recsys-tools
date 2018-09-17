@@ -129,10 +129,6 @@ class TestRecommendersBasic(TestCaseWithState):
         # test sorted descending
         self.assertTrue(scores[::-1] == sorted(scores))
 
-        # test doesn't take more than 0.05 second
-        print('predict_for_user for %s took %.3f seconds.' % (rec, elapsed))
-        self.assertGreater(0.06, elapsed)
-
         # test combine with original order makes first item in original order higher in results
         preds_2 = rec.predict_for_user(user_id=user, item_ids=items, combine_original_order=True)
         ind_item = lambda item, preds: np.argmax(preds[rec._item_col].values == item)
@@ -157,6 +153,9 @@ class TestRecommendersBasic(TestCaseWithState):
         preds_5 = rec.predict_for_user(user_id='new_user', item_ids=items)
         self.assertEqual(preds_5[rec._prediction_col].min(), preds_5[rec._prediction_col].max())
 
+        # test doesn't take more than 0.05 second
+        print('predict_for_user for %s took %.3f seconds.' % (rec, elapsed))
+        self.assertGreater(0.06, elapsed)
 
     def test_b_2_lfm_rec_evaluation(self):
         k = self.k

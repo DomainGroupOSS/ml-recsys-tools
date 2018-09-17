@@ -320,7 +320,7 @@ class ObsWithFeatures(ObservationsDF):
         return self.df_items[self.df_items[self.item_id_col].isin(item_ids)]
 
     def get_items_df_for_user(self, user):
-        item_ids = self.user_filtered_df(user)[self.iid_col].unique().tolist()
+        item_ids = self.users_filtered_df_obs(user)[self.iid_col].unique().tolist()
         df_items_view = self.items_filtered_by_ids(item_ids)
         return df_items_view
 
@@ -479,7 +479,7 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
 
     def map_items_by_common_items(self, item_id, default_marker_size=2):
 
-        users = self.items_filtered_df(item_id)[self.uid_col].unique().tolist()
+        users = self.items_filtered_df_obs(item_id)[self.uid_col].unique().tolist()
 
         items_dfs = [self.get_items_df_for_user(user) for user in users]
 

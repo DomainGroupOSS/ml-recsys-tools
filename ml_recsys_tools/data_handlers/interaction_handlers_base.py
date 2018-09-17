@@ -73,24 +73,17 @@ class ObservationsDF(LogCallsTimeAndOutput):
                         % str(dups.sum()))
             self.df_obs = self.df_obs[~dups]
 
-    def _user_and_item_counts(self, plot=False):
+    def users_history_counts(self):
         if len(self.df_obs):
-            items_per_user = self.df_obs[[self.uid_col]].groupby(self.uid_col).apply(len). \
-                sort_values(ascending=False).reset_index(name='items_per_user')
-            users_per_items = self.df_obs[[self.iid_col]].groupby(self.iid_col).apply(len). \
-                sort_values(ascending=False).reset_index(name='users_per_items')
+            return self.df_obs[self.uid_col].value_counts()
         else:
             raise ValueError('Observations dataframe is empty')
 
-        if plot:
-            items_per_user.value_counts().reset_index(drop=True). \
-                plot(logx=True, logy=True, grid=True, label='items_per_user')
-            users_per_items.value_counts().reset_index(drop=True). \
-                plot(logx=True, logy=True, grid=True, label='users_per_items')
-            plt.ylabel('count of ..')
-            plt.xlabel('with that many')
-            plt.legend()
-        return items_per_user, users_per_items
+    def items_history_counts(self):
+        if len(self.df_obs):
+            return self.df_obs[self.iid_col].value_counts()
+        else:
+            raise ValueError('Observations dataframe is empty')
 
     def sample_observations(self,
                             n_users=None,
@@ -111,17 +104,16 @@ class ObservationsDF(LogCallsTimeAndOutput):
         :return: dataframe
         """
         if method == 'top' or min_user_hist or min_item_hist:
-            items_per_user, users_per_items = self._user_and_item_counts()
+            items_per_user = self.users_history_counts()
+            users_per_items= self.items_history_counts()
 
             if min_user_hist:
-                items_per_user = items_per_user[
-                    items_per_user['items_per_user'] >= min_user_hist]
-            users_filt = items_per_user[self.uid_col].values
+                items_per_user = items_per_user[items_per_user >= min_user_hist]
+            users_filt = items_per_user.index.astype(str).values
 
             if min_item_hist:
-                users_per_items = users_per_items[
-                    users_per_items['users_per_items'] >= min_item_hist]
-            item_filt = users_per_items[self.iid_col].values
+                users_per_items = users_per_items[users_per_items >= min_item_hist]
+            item_filt = users_per_items.index.astype(str).values
 
         else:
             users_filt = self.df_obs[self.uid_col].unique().astype(str)
@@ -191,11 +183,15 @@ class ObservationsDF(LogCallsTimeAndOutput):
         other.df_obs = df_filtered
         return other
 
-    def user_filtered_df(self, user):
-        return self.df_obs[self.df_obs[self.uid_col] == user]
+    def users_filtered_df_obs(self, users):
+        if isinstance(users, str):
+            users = [users]
+        return self.df_obs[self.df_obs[self.uid_col].isin(users)]
 
-    def items_filtered_df(self, item):
-        return self.df_obs[self.df_obs[self.iid_col] == item]
+    def items_filtered_df_obs(self, items):
+        if isinstance(items, str):
+            items = [items]
+        return self.df_obs[self.df_obs[self.iid_col].isin(items)]
 
     @staticmethod
     def time_filter_on_df(df, time_col, days_delta_tuple):
