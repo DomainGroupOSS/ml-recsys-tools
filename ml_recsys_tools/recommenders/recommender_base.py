@@ -157,7 +157,14 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
             group_col=self._item_col_simil,
             target_columns=[self._item_col, self._prediction_col])
 
-    def _format_results_df(self, source_vec, target_ids_mat, scores_mat, results_format):
+    def _format_results_df(self, source_vec, results_format,
+                           target_ids_mat=None, scores_mat=None,
+                           target_ids_lists=None, scores_lists=None):
+
+        matrices = target_ids_mat is not None and scores_mat is not None
+        lists = target_ids_lists is not None and scores_lists is not None
+        assert matrices or lists, 'Provide either matrices or lists'
+
         if 'recommendations' in results_format:
             source_col = self._user_col
             target_col = self._item_col
@@ -172,18 +179,33 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
         order = [source_col, target_col, scores_col]
 
         if 'lists' in results_format:
-            return pd.DataFrame({
-                source_col: source_vec,
-                target_col: list(target_ids_mat),
-                scores_col: list(scores_mat)
-            })[order]
+            if matrices:
+                return pd.DataFrame({
+                    source_col: source_vec,
+                    target_col: list(target_ids_mat),
+                    scores_col: list(scores_mat)
+                })[order]
+            else:
+                return pd.DataFrame({
+                    source_col: source_vec,
+                    target_col: target_ids_lists,
+                    scores_col: scores_lists
+                })[order]
+
         elif 'flat' in results_format:
-            n_rec = target_ids_mat.shape[1]
-            return pd.DataFrame({
-                source_col: np.array(source_vec).repeat(n_rec),
-                target_col: np.concatenate(list(target_ids_mat) if len(target_ids_mat) else [[]]),
-                scores_col: np.concatenate(list(scores_mat) if len(target_ids_mat) else [[]]),
-            })[order]
+            if matrices:
+                n_rec = target_ids_mat.shape[1]
+                return pd.DataFrame({
+                    source_col: np.array(source_vec).repeat(n_rec),
+                    target_col: np.concatenate(list(target_ids_mat) if len(target_ids_mat) else [[]]),
+                    scores_col: np.concatenate(list(scores_mat) if len(target_ids_mat) else [[]]),
+                })[order]
+            else:
+                return pd.DataFrame({
+                    source_col: np.array(source_vec).repeat(list(map(len, target_ids_lists))),
+                    target_col: np.concatenate(target_ids_lists if len(target_ids_lists) else [[]]),
+                    scores_col: np.concatenate(scores_lists if len(scores_lists) else [[]]),
+                })[order]
 
         else:
             raise NotImplementedError('results_format: ' + results_format)
