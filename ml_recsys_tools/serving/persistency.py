@@ -104,15 +104,21 @@ class RankingModelServer(S3ModelReloaderServer):
         # tests and warms up model (first inference is a bit slower for some reason)
         _ = self._rank_items_for_user(
             model, user_id='test_user',
-            item_ids=['test_item1', 'test_item2'], mode=self.mode_resort)
+            item_ids=['test_item1', 'test_item2'],
+            mode=self.mode_resort)
 
     @classmethod
     def _combine_original_order(cls, mode):
         return mode in [cls.mode_adjust, cls.mode_combine]
 
     @classmethod
-    def _rank_items_for_user(cls, model: BaseDFSparseRecommender,
-                             user_id, item_ids, mode, min_score=None):
+    def _rank_items_for_user(cls,
+                             model: BaseDFSparseRecommender,
+                             user_id,
+                             item_ids,
+                             mode,
+                             rank_training_last=True,
+                             min_score=None):
         ts = time.time()
 
         n_unknowns = 0
@@ -122,7 +128,7 @@ class RankingModelServer(S3ModelReloaderServer):
             pred_df = model.predict_for_user(
                 user_id=user_id,
                 item_ids=item_ids,
-                rank_training_last=True,
+                rank_training_last=rank_training_last,
                 sort=True,
                 combine_original_order=cls._combine_original_order(mode),
                 )
@@ -144,12 +150,14 @@ class RankingModelServer(S3ModelReloaderServer):
                     (str(user_id), len(scores), n_unknowns, time.time() - ts, str(mode)))
         return result
 
-    def rank_items_for_user(self, user_id, item_ids, mode, min_score=None):
+    def rank_items_for_user(self, user_id, item_ids, mode,
+                            rank_training_last=True, min_score=None):
         return self._rank_items_for_user(
             model=self.model,
             user_id=user_id,
             item_ids=item_ids,
             mode=mode,
+            rank_training_last=rank_training_last,
             min_score=min_score)
 
     def unknown_users(self, user_ids):
