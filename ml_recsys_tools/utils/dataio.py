@@ -151,6 +151,7 @@ class S3FileIO(LogCallsTimeAndOutput):
                 self.remote_to_local(s3_path, local_path)
         return cached_paths
 
+
 class Emailer:
     def __init__(self, from_email='name@domain.com', backend='SES:us-west-2'):
         self.from_email = from_email
