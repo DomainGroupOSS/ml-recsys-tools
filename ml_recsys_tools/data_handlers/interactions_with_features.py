@@ -237,7 +237,7 @@ class ObsWithFeatures(ObservationsDF):
 
     def __add__(self, other):
         super().__add__(other)
-        self.df_items = pd.concat([self.df_items, other.df_items])
+        self.df_items = pd.concat([self.df_items, other.df_items], sort=True)
         self.df_items.drop_duplicates(self.item_id_col, inplace=True)
         return self
 
@@ -484,7 +484,7 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
         items_dfs = [self.get_items_df_for_user(user) for user in users]
 
         # unite all data and get counts
-        all_data = pd.concat(items_dfs)
+        all_data = pd.concat(items_dfs, sort=True)
         counts = all_data[self.item_id_col].value_counts()
         all_data = all_data.set_index(self.item_id_col).drop_duplicates()
         all_data['counts'] = counts
@@ -516,7 +516,7 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
         items_dfs = [df_items[df_items[self.cluster_label_col] == label].sample(sample_n)
                      for label in unique_labels]
 
-        all_data = pd.concat(items_dfs)
+        all_data = pd.concat(items_dfs, sort=True)
 
         mapper = self.mapper_class(all_data)
 
@@ -541,7 +541,7 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
                      for df, name, scores in
                      zip(items_dfs + [df_item_source],
                          names + ['source'], scores_lists + [[0]])]
-        all_data = pd.concat(all_lists)
+        all_data = pd.concat(all_lists, sort=True)
 
         # add counts
         all_data = all_data.join(
@@ -592,7 +592,7 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
         df_test = self.items_filtered_by_ids(test_items)
         rec_dfs = [self.items_filtered_by_ids(rec) for rec in recs_variants]
 
-        all_data = pd.concat(rec_dfs + [df_train, df_test])
+        all_data = pd.concat(rec_dfs + [df_train, df_test], sort=True)
         all_data = all_data.set_index(self.item_id_col).drop_duplicates()
 
         mapper = self.mapper_class(all_data)  # for view init

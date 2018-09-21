@@ -127,7 +127,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
                    'rating': 0})
             df_neg = self._make_features_df(df_inds_neg, with_targets=True)
 
-            return pd.concat([df_pos, df_neg], axis=0)
+            return pd.concat([df_pos, df_neg], axis=0, sort=True)
 
     def _set_item_features_df(self, train_obs):
         if hasattr(train_obs, 'df_items'):
