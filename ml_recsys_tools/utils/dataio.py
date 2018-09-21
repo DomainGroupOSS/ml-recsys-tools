@@ -79,13 +79,31 @@ class RedisTable(redis.StrictRedis):
 
 class S3FileIO(LogCallsTimeAndOutput):
 
-    def __init__(self, bucket_name, verbose=True):
-        super().__init__(verbose=verbose)
+    def __init__(self, bucket_name, assume_role=None):
+        super().__init__()
+        self.assume_role = assume_role
         self.bucket_name = bucket_name
+
+    def _s3_resource(self):
+        if self.assume_role is None:
+            return boto3.resource('s3')
+
+        else:
+            assumedRoleObject = boto3.client('sts'). \
+                assume_role(RoleArn=self.assume_role,
+                            RoleSessionName="AssumeRoleSession1")
+
+            credentials = assumedRoleObject['Credentials']
+            s3_resource = boto3.resource(
+                's3',
+                aws_access_key_id=credentials['AccessKeyId'],
+                aws_secret_access_key=credentials['SecretAccessKey'],
+                aws_session_token=credentials['SessionToken'],
+            )
+            return s3_resource
 
     @log_errors(message='Failed writing to S3')
     def write_binary(self, data, remote_path, compress=True):
-        client = boto3.client('s3')
         if compress:
             try:
                 # https://stackoverflow.com/questions/33562394/gzip-raised-overflowerror-size-does-not-fit-in-an-unsigned-int
@@ -93,14 +111,11 @@ class S3FileIO(LogCallsTimeAndOutput):
             except OverflowError:
                 pass
         with io.BytesIO(data) as f:
-            client.upload_fileobj(
-                Fileobj=f,
-                Bucket=self.bucket_name,
-                Key=remote_path)
+            self._s3_resource().Bucket(self.bucket_name).\
+                upload_fileobj(Fileobj=f, Key=remote_path)
 
     @log_errors(message='Failed reading from S3')
     def read(self, remote_path):
-        client = boto3.client('s3')
         ## for some reason this returns empty sometimes, but get_object works..
         # with io.BytesIO() as f:
         #     client.download_fileobj(
@@ -108,9 +123,8 @@ class S3FileIO(LogCallsTimeAndOutput):
         #         Key=remote_path,
         #         Fileobj=f)
         #     data = f.read()
-        data = client.get_object(
-            Bucket=self.bucket_name, Key=remote_path)['Body'].\
-            read()
+        data = self._s3_resource().Bucket(self.bucket_name).\
+            Object(remote_path).get()['Body'].read()
         try:
             data = gzip.decompress(data)
         except OSError:
@@ -138,7 +152,7 @@ class S3FileIO(LogCallsTimeAndOutput):
                 local.write(self.read(remote_path))
 
     def listdir(self, path):
-        s3 = boto3.resource('s3').Bucket(self.bucket_name)
+        s3 = self._s3_resource().Bucket(self.bucket_name)
         return [object_summary.key for object_summary in s3.objects.filter(Prefix=path)]
 
     def cache_multiple_from_remote(self, paths, destination, overwrite=True):
