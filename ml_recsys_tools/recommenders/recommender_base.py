@@ -364,7 +364,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                     ranks_list=[ranks_mat], datasets=[sp_mat],
                     dataset_names=[name], k=k))
 
-        report_df = pd.concat(report_dfs, sort=True)
+        report_df = pd.concat(report_dfs, sort=False)
         return report_df
 
     def get_prediction_mat_builder_adapter(self, mat_builder: InteractionMatrixBuilder):
@@ -504,7 +504,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
 
         ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
-        return pd.concat(ret, axis=0, sort=True)
+        return pd.concat(ret, axis=0, sort=False)
 
     def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
         """

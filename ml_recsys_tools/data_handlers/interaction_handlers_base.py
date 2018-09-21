@@ -46,7 +46,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
         return super().__repr__() + ', %d Observations' % len(self)
 
     def __add__(self, other):
-        self.df_obs = pd.concat([self.df_obs, other.df_obs], sort=True)
+        self.df_obs = pd.concat([self.df_obs, other.df_obs], sort=False)
         self._check_duplicated_interactions()
         return self
 
@@ -314,7 +314,7 @@ def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid'
         df_test_col, test_size=test_ratio, random_state=random_state)
 
     # concat train dfs
-    df_train = pd.concat([df_train_col, df_non_test_items], sort=True)
+    df_train = pd.concat([df_train_col, df_non_test_items], sort=False)
     # shuffle
     df_train = df_train.sample(frac=1).reset_index(drop=True)
     return df_train, df_test

@@ -53,7 +53,7 @@ def parallelize_dataframe(df, func, n_partitions=N_CPUS, parallelism_type='proce
     df_split = np.array_split(df, n_partitions)
     with pool_type(parallelism_type)(n_partitions) as pool:
         res = pool.map(func, df_split)
-    df = pd.concat(res, sort=True)
+    df = pd.concat(res, sort=False)
     return df
 
 
