@@ -23,7 +23,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
     _numeric_duplicate_suffix = '_num'
 
     def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None, verbose=True):
-        super().__init__(verbose)
+        super().__init__(verbose=verbose)
         self.feat_df = feat_df.copy()
         self.id_col = id_col
         self.num_cols = num_cols

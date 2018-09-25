@@ -29,7 +29,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
     def __init__(self, user_col='userid', item_col='itemid',
                  rating_col='rating', prediction_col='prediction',
                  model_params=None, fit_params=None, verbose=True, **kwargs):
-        super().__init__(verbose)
+        super().__init__(verbose=verbose)
         self._user_col = user_col
         self._item_col = item_col
         self._item_col_simil = item_col + '_source'

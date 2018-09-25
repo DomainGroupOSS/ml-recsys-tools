@@ -25,7 +25,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
 
     def __init__(self, df_obs=None, uid_col='userid', iid_col='itemid', timestamp_col=None,
                  rating_col='rating', verbose=True, **kwargs):
-        super().__init__(verbose, **kwargs)
+        super().__init__(verbose=verbose, **kwargs)
         self.df_obs = df_obs
         self.uid_col = uid_col
         self.iid_col = iid_col
