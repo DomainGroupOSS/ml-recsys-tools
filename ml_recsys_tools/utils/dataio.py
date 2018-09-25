@@ -85,22 +85,19 @@ class S3FileIO(LogCallsTimeAndOutput):
         self.bucket_name = bucket_name
 
     def _s3_resource(self):
-        if self.assume_role is None:
-            return boto3.resource('s3')
-
-        else:
-            assumedRoleObject = boto3.client('sts'). \
-                assume_role(RoleArn=self.assume_role,
-                            RoleSessionName="AssumeRoleSession1")
-
-            credentials = assumedRoleObject['Credentials']
-            s3_resource = boto3.resource(
-                's3',
-                aws_access_key_id=credentials['AccessKeyId'],
-                aws_secret_access_key=credentials['SecretAccessKey'],
-                aws_session_token=credentials['SessionToken'],
-            )
-            return s3_resource
+        creds = {}
+        if self.assume_role is not None:
+            client = boto3.client('sts')
+            current_arn = client.get_caller_identity()['Arn']
+            if current_arn != self.assume_role:
+                assumedRoleObject = client.assume_role(
+                    RoleArn=self.assume_role, RoleSessionName="AssumeRoleSession1")
+                credentials = assumedRoleObject['Credentials']
+                creds = dict(
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken'])
+        return boto3.resource('s3', **creds)
 
     @log_errors(message='Failed writing to S3')
     def write_binary(self, data, remote_path, compress=True):
