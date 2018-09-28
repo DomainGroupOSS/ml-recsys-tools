@@ -100,28 +100,28 @@ class ClusterRecommender(BaseFactorizationRecommender):
 
     def __init__(self, factoriser, n_clusters=30, n_neighbours=0, **kwargs):
         super().__init__(**kwargs)
-
         self.__dict__.update(factoriser.__dict__)
-
-        self._predict_rank = factoriser._predict_rank
-        self._predict_on_inds = factoriser._predict_on_inds
-        self._set_epochs = factoriser._set_epochs
-        self.fit_partial = factoriser.fit_partial
-        self.fit = factoriser.fit
-        self._prep_for_fit = factoriser._prep_for_fit
-        self._get_user_factors = factoriser._get_user_factors
-        self._get_item_factors = factoriser._get_item_factors
-
+        self.factoriser = factoriser
         self.n_clusters = n_clusters
         self.n_neighbours = n_neighbours
         self.cluster_mapper = None
         self.calc_clusters()
 
+    def _predict_rank(self, *args, **kwargs): return self.factoriser._predict_rank(*args, **kwargs)
+    def _predict_on_inds(self, *args, **kwargs): return self.factoriser._predict_on_inds(*args, **kwargs)
+    def _set_epochs(self, *args, **kwargs): return self.factoriser._set_epochs(*args, **kwargs)
+    def fit_partial(self, *args, **kwargs): return self.factoriser.fit_partial(*args, **kwargs)
+    def fit(self, *args, **kwargs): return self.factoriser.fit(*args, **kwargs)
+    def _prep_for_fit(self, *args, **kwargs): return self.factoriser._prep_for_fit(*args, **kwargs)
+    def _get_user_factors(self, *args, **kwargs): return self.factoriser._get_user_factors(*args, **kwargs)
+    def _get_item_factors(self, *args, **kwargs): return self.factoriser._get_item_factors(*args, **kwargs)
+
     def calc_clusters(self):
         self.cluster_mapper = FactorClusterMapper(
-            factoriser=self,
+            factoriser=self.factoriser,
             n_clusters=self.n_clusters,
             n_neighbours=self.n_neighbours)
+        self.cluster_mapper.cluster_factors()
 
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
