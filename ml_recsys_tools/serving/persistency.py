@@ -13,6 +13,7 @@ class S3ModelReloaderServer:
                  update_interval_hours=2,
                  interval_jitter_ratio=0,
                  block_until_first_load=False,
+                 start_on_init=True,
                  ):
         """
         :param s3_bucket: the S3 bucket used to store the models and the pointer to latest model
@@ -23,20 +24,32 @@ class S3ModelReloaderServer:
             (this is to reduce resources spike in parallel workers)
         :param block_until_first_load: whether to block execution until first model is loaded, if False,
             some methods may be broken because self.model will be None until loaded and tested
+        :param: start_on_init: whether to start the server when instance
+            is initialized or not, default True. If set to False, call start_server() to start.
         """
         self.keep_reloading = True
         self.model = None
         self._s3_bucket = s3_bucket
         self._latest_path_key = latest_path_key
+        self._block_until_first_load = block_until_first_load
         self._current_model_path = None
         self._update_interval_seconds = update_interval_hours * 3600 * (1 - interval_jitter_ratio/2)
         self._interval_jitter_seconds = interval_jitter_ratio * self._update_interval_seconds
-        self._reloader_thread = Thread(target=self._model_reloader)
-        self._reloader_thread.start()
-        if block_until_first_load:
-            self._block_until_first_load()
+        self._reloader_thread = None
+        if start_on_init:
+            self.start_server()
 
-    def _block_until_first_load(self):
+    def start_server(self):
+        if self._reloader_thread is None:
+            self._reloader_thread = Thread(target=self._model_reloading_loop)
+            self._reloader_thread.start()
+            if self._block_until_first_load:
+                self._block_until_first_load_loop()
+        else:
+            logger.error(f'{self.__class__.__name__}: server already started, '
+                         f'to control reloading behavior user keep_reloading attribute.')
+
+    def _block_until_first_load_loop(self):
         wait_sec = 0
         while self.keep_reloading and (self.model is None):
             if wait_sec==0 or (wait_sec % 10)==0:
@@ -51,7 +64,12 @@ class S3ModelReloaderServer:
         return {'model_version': self._current_model_path}
 
     def status(self):
-        status = 'ready' if self.model_ready() else 'loading'
+        if self.model_ready():
+            status = 'ready'
+        elif self._reloader_thread is not None and self.keep_reloading:
+            status = 'loading'
+        else:
+            status = 'not_started'
         return {'model_status': status}
 
     def model_ready(self):
@@ -70,7 +88,7 @@ class S3ModelReloaderServer:
     def _time_jitter(self):
         return random.random() * self._interval_jitter_seconds
 
-    def _model_reloader(self):
+    def _model_reloading_loop(self):
         time.sleep(self._time_jitter())
         while self.keep_reloading:
             try:
