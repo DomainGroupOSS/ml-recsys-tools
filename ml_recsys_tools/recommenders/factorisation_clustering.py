@@ -2,7 +2,7 @@ from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import pandas as pd
-from sklearn.cluster import MiniBatchKMeans
+from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.preprocessing import normalize
 
@@ -56,8 +56,16 @@ class FactorClusterMapper(LogCallsTimeAndOutput):
             verbose=verbose,
             reassignment_ratio=1/self.n_clusters,
             max_no_improvement=100,
-            random_state=RANDOM_STATE). \
-            fit(np.stack(reps_norm))
+            random_state=RANDOM_STATE)
+
+        # cls = KMeans(
+        #     n_clusters=self.n_clusters,
+        #     max_iter=1000,
+        #     verbose=verbose,
+        #     n_jobs=-1,
+        #     random_state=RANDOM_STATE)
+
+        cls.fit(np.stack(reps_norm))
 
         self.cluster_labels = cls.labels_
         self.centers = cls.cluster_centers_
@@ -98,14 +106,15 @@ class FactorClusterMapper(LogCallsTimeAndOutput):
 
 class ClusterRecommender(BaseFactorizationRecommender):
 
-    def __init__(self, factoriser, n_clusters=30, n_neighbours=0, **kwargs):
+    def __init__(self, factoriser, n_clusters=30, neighbour_ratio=0.01,
+                 verbose_clustering=False, **kwargs):
         super().__init__(**kwargs)
         self.__dict__.update(factoriser.__dict__)
         self.factoriser = factoriser
         self.n_clusters = n_clusters
-        self.n_neighbours = n_neighbours
+        self.neighbour_ratio = neighbour_ratio
         self.cluster_mapper = None
-        self.calc_clusters()
+        self.calc_clusters(verbose=verbose_clustering)
 
     def _predict_rank(self, *args, **kwargs): return self.factoriser._predict_rank(*args, **kwargs)
     def _predict_on_inds(self, *args, **kwargs): return self.factoriser._predict_on_inds(*args, **kwargs)
@@ -116,12 +125,12 @@ class ClusterRecommender(BaseFactorizationRecommender):
     def _get_user_factors(self, *args, **kwargs): return self.factoriser._get_user_factors(*args, **kwargs)
     def _get_item_factors(self, *args, **kwargs): return self.factoriser._get_item_factors(*args, **kwargs)
 
-    def calc_clusters(self):
+    def calc_clusters(self, verbose=False):
         self.cluster_mapper = FactorClusterMapper(
             factoriser=self.factoriser,
             n_clusters=self.n_clusters,
-            n_neighbours=self.n_neighbours)
-        self.cluster_mapper.cluster_factors()
+            n_neighbours=self.neighbour_ratio)
+        self.cluster_mapper.cluster_factors(verbose=verbose)
 
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
@@ -145,7 +154,7 @@ class ClusterRecommender(BaseFactorizationRecommender):
 
             item_clusters = self.cluster_mapper.cluster_neighbours(
                 n_cluster=n_cluster,
-                n_neighbours=self.n_neighbours,
+                n_neighbours=np.ceil(self.n_clusters * self.neighbour_ratio),
                 include_self=True)
 
             return self._get_recommendations_flat(
