@@ -59,7 +59,8 @@ def _top_N_similar(source_inds, source_mat, target_mat, n,
     :return:
     """
 
-    if not len(source_inds):
+    if not len(source_inds) or \
+            0 in target_mat.shape + source_mat.shape:
         return np.array([[]]), np.array([[]])
 
     if simil_mode == 'cosine':
