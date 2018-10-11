@@ -7,6 +7,7 @@ import pickle
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
 import asyncpg
 import boto3
@@ -213,6 +214,12 @@ class Emailer:
         attachment_msg.add_header('Content-Disposition', 'attachment', filename=text_file)
         return attachment_msg
 
+    def _image_attachment(self, image_file):
+        with open(image_file, 'rb') as fp:
+            attachment_msg = MIMEImage(fp.read())
+        attachment_msg.add_header('Content-ID', 'attachment', filename=image_file)
+        return attachment_msg
+
     @staticmethod
     def _default_subject(text_files):
         return ','.join([os.path.split(f)[-1] for f in text_files])
@@ -253,6 +260,14 @@ class Emailer:
         msg = self._basic_message(to, subject=subject, body=body)
         for f in text_files:
             msg.attach(self._text_attachment(f))
+        self._send_message(msg, to)
+
+    @log_errors()
+    def send_image_attached(self, to, image_file, body='', subject=None):
+        if subject is None:
+            subject = self._default_subject([image_file])
+        msg = self._basic_message(to, subject=subject, body=body)
+        msg.attach(self._image_attachment(image_file))
         self._send_message(msg, to)
 
 
