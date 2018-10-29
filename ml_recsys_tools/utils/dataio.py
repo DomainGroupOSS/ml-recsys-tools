@@ -129,18 +129,18 @@ class S3FileIO(LogCallsTimeAndOutput):
             pass
         return data
 
-    def pickle(self, obj, remote_path):
+    def pickle(self, obj, remote_path, compress=True):
         logger.info('S3: pickling to %s' % remote_path)
-        return self.write_binary(pickle.dumps(obj), remote_path)
+        return self.write_binary(pickle.dumps(obj), remote_path, compress=compress)
 
     def unpickle(self, remote_path):
         logger.info('S3: unpickling from %s' % remote_path)
         return pickle.loads(self.read(remote_path))
 
-    def local_to_remote(self, local_path, remote_path):
+    def local_to_remote(self, local_path, remote_path, compress=True):
         logger.info('S3: copying from %s to %s' % (local_path, remote_path))
         with open(local_path, 'rb') as local:
-            self.write_binary(local.read(), remote_path)
+            self.write_binary(local.read(), remote_path, compress=compress)
 
     def remote_to_local(self, remote_path, local_path, overwrite=True):
         if not os.path.exists(local_path) or overwrite:
