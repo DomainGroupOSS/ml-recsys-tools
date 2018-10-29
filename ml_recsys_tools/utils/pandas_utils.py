@@ -3,6 +3,8 @@ from pandas.compat import StringIO
 from sklearn.metrics.classification import classification_report
 import warnings
 from functools import partial
+
+from ml_recsys_tools.utils.instrumentation import log_time_and_shape
 from ml_recsys_tools.utils.parallelism import parallelize_dataframe
 
 
@@ -17,15 +19,19 @@ def console_settings():
 #     split_lambda = lambda x: pd.Series(json.loads(x) if x else [])
 #     return pd.concat([df, df[field].astype(str).apply(split_lambda)], axis=1)
 
+@log_time_and_shape
 def _split_json_field(df, field):
     df_json = pd.read_json('[%s]' % ','.join(df[field].tolist()))
     return pd.concat([df.reset_index(), df_json], axis=1)
 
-
+@log_time_and_shape
 def split_json_field(df, field, remove_original=True, parallel=True):
 
     if parallel:
-        df_out = parallelize_dataframe(df, partial(_split_json_field, field=field))
+        if not isinstance(parallel, str):
+            parallel = 'process'
+        df_out = parallelize_dataframe(
+            df, partial(_split_json_field, field=field), parallelism_type=parallel)
     else:
         df_out = _split_json_field(df, field=field)
 
