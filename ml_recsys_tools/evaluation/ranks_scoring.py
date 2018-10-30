@@ -77,7 +77,7 @@ class RanksScorer(LogCallsTimeAndOutput):
             ('recall@%d' % self.k, self.recall_at_k),
             ('n-recall@%d' % self.k, self.n_recall_at_k),
             ('n-i-gini@%d' % self.k, self.n_i_gini_at_k),
-            ('n-diversity@%d' % self.k, self.n_diversity_at_k),
+            ('n-coverage@%d' % self.k, self.n_coverage_at_k),
         ])
 
         with ThreadPool(len(metrics)) as pool:
@@ -120,9 +120,9 @@ class RanksScorer(LogCallsTimeAndOutput):
         return (1 - gini_coefficient_at_k(**self._ranks_kwargs(), k=self.k)) / \
                (1 - gini_coefficient_at_k(**self._best_ranks_kwargs(), k=self.k))
 
-    def n_diversity_at_k(self):
-        return diversity_at_k(**self._ranks_kwargs(), k=self.k) / \
-               diversity_at_k(**self._best_ranks_kwargs(), k=self.k)
+    def n_coverage_at_k(self):
+        return coverage_at_k(**self._ranks_kwargs(), k=self.k) / \
+               coverage_at_k(**self._best_ranks_kwargs(), k=self.k)
 
 
 def best_possible_ranks(test_mat):
@@ -243,9 +243,9 @@ def dcg_binary_at_k(
     return dcg
 
 
-def diversity_at_k(ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
+def coverage_at_k(ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
     """
-    Diversity metric:
+    coverage metric:
         calculates the percentage of items that
         were recommended @ k for any user out of all possible items
     """
@@ -265,7 +265,7 @@ def diversity_at_k(ranks, test_interactions, k=10, train_interactions=None, pres
 
 def gini_coefficient_at_k(ranks, test_interactions, k=10, train_interactions=None, preserve_rows=False):
     """
-    Diversity metric:
+    coverage metric:
         calculates the gini coefficient for the
         counts of recommended items @ k for all users
     """
