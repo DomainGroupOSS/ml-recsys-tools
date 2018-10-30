@@ -40,8 +40,11 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
         t.map_locations(cats)
         return t
 
-    def transform(self, y, check_labels=True):
+    def check_is_fitted(self):
         check_is_fitted(self, ['classes_', '_cat_dtype', '_table', '_dtype'])
+
+    def transform(self, y, check_labels=True):
+        self.check_is_fitted()
         y = column_or_1d(y, warn=True)
 
         ## slower because it creates the hash table every time
@@ -57,6 +60,11 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
                                  str(np.unique(y[mask_new_labels])))
 
         return trans_y
+
+    def inverse_transform(self, y):
+        y = np.array(y)
+        shape = y.shape
+        return super().inverse_transform(y.ravel()).reshape(shape)
 
     def _new_labels_locs(self, trans_y):
         return trans_y == -1

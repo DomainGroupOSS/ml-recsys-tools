@@ -10,7 +10,7 @@ from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 from ml_recsys_tools.utils.instrumentation import pickle_size_mb
 
 from ml_recsys_tools.utils.testing import TestCaseWithState
-from test_movielens_data import movielens_dir
+from tests.test_movielens_data import movielens_dir
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
 
@@ -50,7 +50,7 @@ class TestRecommendersBasic(TestCaseWithState):
         testing_df = testing_df[~(testing_df[self.user_id_col].str[-2:] ==
                                   testing_df[self.item_id_col].str[-2:])]
 
-        return obs_df.append(testing_df)
+        return obs_df.append(testing_df, sort=False)
 
     def test_b_1_lfm_recommender(self):
         self._setup_obs_handler()

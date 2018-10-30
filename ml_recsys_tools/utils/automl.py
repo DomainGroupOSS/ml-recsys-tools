@@ -277,7 +277,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                 raise InterruptedError('interrupted by "stop" message in %s'
                                        % self.interrupt_message_file)
             elif 'pause' in message:
-                simple_logger.warn('Paused by "pause" message in %s'
+                simple_logger.warning('Paused by "pause" message in %s'
                             % self.interrupt_message_file)
                 while 'pause' in message:
                     time.sleep(1)
@@ -286,7 +286,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
                 self._check_interrupt()
 
             elif 'update' in message:
-                simple_logger.warn('Updating HP space due to "update" message in %s'
+                simple_logger.warning('Updating HP space due to "update" message in %s'
                             % self.interrupt_message_file)
                 raise NotImplementedError('not yet implemented')
 
@@ -296,7 +296,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
             report_df = pd.DataFrame()
         params_dict = self.values_to_dict(values)
         report_df = report_df.assign(**params_dict)
-        self.all_metrics = self.all_metrics.append(report_df)
+        self.all_metrics = self.all_metrics.append(report_df, sort=False)
 
     def best_results_summary(self):
         return self.all_metrics. \
@@ -308,7 +308,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
         if target_col is None:
             target_col = self.target_loss_col
         mutual_info = {}
-        target = self.all_metrics[target_col].values.reshape(-1, 1)
+        target = self.all_metrics[target_col].values
         for feat in self.search_space.keys():
             vec = self.all_metrics[feat].values.reshape(-1, 1)
             try:

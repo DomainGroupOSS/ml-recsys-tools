@@ -64,7 +64,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         def update_full_metrics_df(cur_epoch, report_df):
             nonlocal all_metrics
             all_metrics = all_metrics.append(
-                report_df.rename(index={'test': cur_epoch}))
+                report_df.rename(index={'test': cur_epoch}), sort=False)
 
         def check_point_func():
             if not refit_on_all:

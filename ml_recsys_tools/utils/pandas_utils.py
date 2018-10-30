@@ -22,7 +22,7 @@ def console_settings():
 @log_time_and_shape
 def _split_json_field(df, field):
     df_json = pd.read_json('[%s]' % ','.join(df[field].tolist()))
-    return pd.concat([df.reset_index(), df_json], axis=1)
+    return pd.concat([df.reset_index(), df_json], axis=1, sort=False)
 
 @log_time_and_shape
 def split_json_field(df, field, remove_original=True, parallel=True):

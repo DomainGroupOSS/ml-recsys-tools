@@ -69,7 +69,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
     def _check_duplicated_interactions(self):
         dups = self.df_obs.duplicated([self.uid_col, self.iid_col])
         if dups.sum():
-            logger.warn('ObservationsDF: Dropping %s duplicate interactions.'
+            logger.warning('ObservationsDF: Dropping %s duplicate interactions.'
                         % str(dups.sum()))
             self.df_obs = self.df_obs[~dups]
 
@@ -350,8 +350,6 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         self.n_rows = len(all_uids)
         self.n_cols = len(all_iids)
 
-        # self.uid_encoder = LabelEncoder().fit(all_uids)
-        # self.iid_encoder = LabelEncoder().fit(all_iids)
         self.uid_encoder = PDLabelEncoder().fit(all_uids)
         self.iid_encoder = PDLabelEncoder().fit(all_iids)
 
