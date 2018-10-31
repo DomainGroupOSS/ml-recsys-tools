@@ -23,10 +23,10 @@ class EmbeddingFactorsRecommender(BaseFactorizationRecommender):
         loss='adaptive_hinge',  # 'bpr', 'hinge', 'adaptive hinge'
         embedding_dim=32,
         n_iter=15,
-        batch_size=256,
+        batch_size=1024,
         l2=0.0,
         learning_rate=1e-2,
-        num_negative_samples=5)
+        num_negative_samples=10)
 
     default_fit_params = dict(
         verbose=True)

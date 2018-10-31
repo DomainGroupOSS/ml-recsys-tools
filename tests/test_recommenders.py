@@ -258,7 +258,9 @@ class TestRecommendersBasic(TestCaseWithState):
         from ml_recsys_tools.recommenders.spotlight_recommenders import EmbeddingFactorsRecommender
 
         rec = EmbeddingFactorsRecommender()
-        rec.set_params(embedding_dim=16)
+        # trying to balance flakiness and speed
+        rec.set_params(embedding_dim=32, batch_size=1<<10,
+                       num_negative_samples=10, n_iter=5)
         rec.fit(self.state.train_obs)
         report = rec.eval_on_test_by_ranking(self.state.test_obs, prefix='spot ')
         logger.info(report)
