@@ -3,62 +3,64 @@
 version: 2
 jobs:
   build:
-      working_directory: /repo
-      docker:
-      - image: docker:rc-git
+
+      ### version with no caching (simpler)
+      machine: true
+
       steps:
       - checkout
-      - setup_remote_docker
-      - restore_cache:
-          keys:
-          - v1-{{ .Branch }}
-          paths:
-          - /caches/ml-recsys-tools.tar
-      - run:
-          name: Load Docker image layer cache
-          command: |
-            set +o pipefail
-            docker load -i /caches/ml-recsys-tools.tar | true
-      - run:
-          name: Build application Docker image
-          command: |
-            docker build --cache-from=ml-recsys-tools -t ml-recsys-tools .
-      - run:
-          name: Save Docker image layer cache
-          command: |
-            mkdir -p /caches
-            docker save -o /caches/ml-recsys-tools.tar ml-recsys-tools
-      - save_cache:
-          key: v1-{{ .Branch }}
-          paths:
-          - /caches/ml-recsys-tools.tar
-      - run:
-          name: Run tests
-          command: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
-      - deploy:
-          name: Push application Docker image
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker tag ml-recsys-tools "${$DOCKER_USER}/ml-recsys-tools:${CIRCLE_BRANCH}"
-              docker push "${$DOCKER_USER}/ml-recsys-tools:${CIRCLE_BRANCH}"
-            fi
 
+      - run: docker build -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
 
-#### version with no caching (simpler)
-#    machine: true
-#
-#    steps:
-#    - checkout
-#
-#    - run: docker build -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
-#
-#    - run: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
-#
-#    # deploy the image
-#    - run: |
-#        if [ "${CIRCLE_BRANCH}" == "master" ]; then
-#          docker login -u $DOCKER_USER -p $DOCKER_PASS
-#          docker tag $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH $DOCKER_USER/ml_recsys_tools:latest
-#          docker push $DOCKER_USER/ml_recsys_tools:latest
-#        fi
+      - run: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
+
+      # push the image
+      - run: |
+          if [ "${CIRCLE_BRANCH}" == "master" ]; then
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker tag $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH $DOCKER_USER/ml_recsys_tools:latest
+            docker push $DOCKER_USER/ml_recsys_tools:latest
+          fi
+
+#      ### version caching
+#      working_directory: /repo
+#      docker:
+#      - image: docker:rc-git
+#      steps:
+#      - checkout
+#      - setup_remote_docker
+#      - restore_cache:
+#          keys:
+#          - v1-{{ .Branch }}
+#          paths:
+#          - /caches/ml-recsys-tools.tar
+#      - run:
+#          name: Load Docker image layer cache
+#          command: |
+#            set +o pipefail
+#            docker load -i /caches/ml-recsys-tools.tar | true
+#      - run:
+#          name: Build application Docker image
+#          command: |
+#            docker build --cache-from=ml-recsys-tools -t ml-recsys-tools .
+#      - run:
+#          name: Save Docker image layer cache
+#          command: |
+#            mkdir -p /caches
+#            docker save -o /caches/ml-recsys-tools.tar ml-recsys-tools
+#      - save_cache:
+#          key: v1-{{ .Branch }}
+#          paths:
+#          - /caches/ml-recsys-tools.tar
+#      - run:
+#          name: Run tests
+#          command: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
+#      - deploy:
+#          name: Push application Docker image
+#          command: |
+#            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+#              docker login -u $DOCKER_USER -p $DOCKER_PASS
+#              docker tag ml-recsys-tools "${$DOCKER_USER}/ml-recsys-tools:${CIRCLE_BRANCH}"
+#              docker push "${$DOCKER_USER}/ml-recsys-tools:${CIRCLE_BRANCH}"
+#            fi
+
