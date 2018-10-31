@@ -5,7 +5,7 @@ jobs:
   build:
       working_directory: /repo
       docker:
-      - image: docker/rc-git
+      - image: docker:rc-git
       steps:
       - checkout
       - setup_remote_docker
