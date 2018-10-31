@@ -9,11 +9,14 @@ jobs:
     - checkout
 
     # build the application image
-    - run: docker build -t artdgn/ml_recsys_tools:$CIRCLE_BRANCH .
+    - run: docker build -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
 
-    - run: docker run --rm artdgn/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
-
-    - run: docker login -u artdgn -p $DOCKER_PASS
+    - run: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
 
     # deploy the image
-    - run: docker push artdgn/ml_recsys_tools:$CIRCLE_BRANCH
+    - run: |
+        if [ "${CIRCLE_BRANCH}" == "master" ]; then
+          docker login -u $DOCKER_USER -p $DOCKER_PASS
+          docker tag $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH $DOCKER_USER/ml_recsys_tools:latest
+          docker push $DOCKER_USER/ml_recsys_tools:latest
+        fi
