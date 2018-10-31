@@ -11,9 +11,11 @@ jobs:
       - checkout
 
       - run: |
-            docker pull $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH | true
-
-      - run: docker build --cache-from $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
+          if [docker pull $DOCKER_USER/ml_recsys_tools:latest]; than
+            docker build --cache-from $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
+          else
+            docker build -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
+          fi
 
       - run: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
 
