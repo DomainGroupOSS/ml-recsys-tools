@@ -301,7 +301,7 @@ class BayesSearchHoldOut(LogCallsTimeAndOutput):
     def best_results_summary(self):
         return self.all_metrics. \
             reset_index(). \
-            drop('level_0', axis=1). \
+            drop('index', axis=1). \
             sort_values(self.target_loss_col)
 
     def params_mutual_info(self, target_col=None):

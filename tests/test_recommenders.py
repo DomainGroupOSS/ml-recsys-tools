@@ -62,8 +62,8 @@ class TestRecommendersBasic(TestCaseWithState):
 
         from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
         lfm_rec = LightFMRecommender()
-        lfm_rec.fit(self.state.train_obs, epochs=10)
-        self.assertEqual(lfm_rec.fit_params['epochs'], 10)
+        lfm_rec.fit(self.state.train_obs, epochs=20)
+        self.assertEqual(lfm_rec.fit_params['epochs'], 20)
         self._test_recommender(lfm_rec)
         # self._test_predict_for_user(lfm_rec)
         self.state.lfm_rec = lfm_rec
@@ -200,7 +200,7 @@ class TestRecommendersBasic(TestCaseWithState):
         self.assertNotEqual(prev_epochs, sut_epochs)
 
         # check that in the report dataframe the maximum metric value is for our new epoch number
-        self.assertEqual(lfm_rec.early_stop_metrics_df[self.metric].idxmax()[0], sut_epochs)
+        self.assertEqual(lfm_rec.early_stop_metrics_df[self.metric].idxmax(), sut_epochs)
 
     def test_b_4_lfm_hp_search(self):
         lfm_rec = deepcopy(self.state.lfm_rec)
@@ -258,6 +258,7 @@ class TestRecommendersBasic(TestCaseWithState):
         from ml_recsys_tools.recommenders.spotlight_recommenders import EmbeddingFactorsRecommender
 
         rec = EmbeddingFactorsRecommender()
+        rec.set_params(embedding_dim=16)
         rec.fit(self.state.train_obs)
         report = rec.eval_on_test_by_ranking(self.state.test_obs, prefix='spot ')
         logger.info(report)

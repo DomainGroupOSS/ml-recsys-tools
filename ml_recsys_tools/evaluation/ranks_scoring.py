@@ -31,11 +31,13 @@ def mean_scores_report(model, datasets, dataset_names, k=10):
 
 def mean_scores_report_on_ranks(ranks_list, datasets, dataset_names, k=10):
     data = []
-    for ranks, dataset in zip(ranks_list, datasets):
-        full_report = RanksScorer(ranks_mat=ranks, test_mat=dataset, k=k).scores_report()
-        res = full_report.describe().loc['mean']
+    full_reports = {}
+    for ranks, dataset, name in zip(ranks_list, datasets, dataset_names):
+        full_reports[name] = RanksScorer(
+            ranks_mat=ranks, test_mat=dataset, k=k).scores_report()
+        res = full_reports[name].describe().loc['mean']
         data.append(res)
-    return pd.DataFrame(data=data, index=dataset_names)
+    return pd.DataFrame(data=data, index=dataset_names), full_reports
 
 
 class RanksScorer(LogCallsTimeAndOutput):
@@ -76,7 +78,7 @@ class RanksScorer(LogCallsTimeAndOutput):
             ('precision@%d' % self.k, self.precision_at_k),
             ('recall@%d' % self.k, self.recall_at_k),
             ('n-recall@%d' % self.k, self.n_recall_at_k),
-            ('n-i-gini@%d' % self.k, self.n_i_gini_at_k),
+            # ('n-i-gini@%d' % self.k, self.n_i_gini_at_k),
             ('n-coverage@%d' % self.k, self.n_coverage_at_k),
         ])
 

@@ -350,22 +350,25 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         res = []
         report_dfs = []
+        full_reports = {}
         with ThreadPool(len(test_dfs) + int(include_train)) as pool:
             if include_train:
-                res.append(([prefix + 'train'], pool.apply_async(train_ranks_func)))
+                res.append((prefix + 'train', pool.apply_async(train_ranks_func)))
 
             for test_df, test_name in zip(test_dfs, test_names):
-                res.append(([prefix + test_name + 'test'],
+                res.append((prefix + test_name + 'test',
                             pool.apply_async(test_ranks_func, args=(test_df,))))
 
             for name, r in res:
                 ranks_mat, sp_mat = r.get()
-                report_dfs.append(mean_scores_report_on_ranks(
+                means_report, full_report = mean_scores_report_on_ranks(
                     ranks_list=[ranks_mat], datasets=[sp_mat],
-                    dataset_names=[name], k=k))
+                    dataset_names=[name], k=k)
+                report_dfs.append(means_report)
+                full_reports.update(full_report)
 
         report_df = pd.concat(report_dfs, sort=False)
-        return report_df
+        return report_df, full_reports
 
     def get_prediction_mat_builder_adapter(self, mat_builder: InteractionMatrixBuilder):
         mat_builder = deepcopy(mat_builder)
@@ -421,14 +424,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='rec ',
                                 include_train=True, items_filter=None,
-                                n_rec=100, k=10):
-        @self.logging_decorator
-        def relevant_users():
-            # get only those users that are present in the evaluation dataframes
-            all_test_users = []
-            [all_test_users.extend(df[self._user_col].unique().tolist()) for df in test_dfs]
-            all_test_users = np.unique(all_test_users)
-            return all_test_users
+                                n_rec=100, k=10, return_full_metrics=False):
 
         if isinstance(test_dfs, pd.DataFrame):
             test_dfs = [test_dfs]
@@ -438,7 +434,9 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         mat_builder = self.sparse_mat_builder
         pred_mat_builder = self.get_prediction_mat_builder_adapter(mat_builder)
 
-        users = self.remove_unseen_users(relevant_users())
+        all_test_users = np.unique(np.concatenate([df[self._user_col].unique()
+                                                   for df in test_dfs]))
+        users = self.remove_unseen_users(all_test_users)
 
         if include_train:
             recos_flat_train = self.get_recommendations(
@@ -479,7 +477,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 filter_all_ranks_by_sparse_selection(sp_test, ranks_all_test)
             return sp_test_ranks, sp_test
 
-        report_df = self._eval_on_test_by_ranking_LFM(
+        report_df, full_metrics = self._eval_on_test_by_ranking_LFM(
             train_ranks_func=_get_training_ranks,
             test_ranks_func=_get_test_ranks,
             test_dfs=test_dfs,
@@ -488,7 +486,10 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             include_train=include_train,
             k=k)
 
-        return report_df
+        if return_full_metrics:
+            return report_df, full_metrics
+        else:
+            return report_df
 
     def get_recommendations_exact(
             self, user_ids, item_ids=None, n_rec=10,
@@ -640,20 +641,34 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         return df
 
     def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',),
-                                      prefix='lfm ', include_train=True, k=10):
+                                      prefix='lfm ', include_train=True, k=10,
+                                      return_full_metrics=False):
+
+        if isinstance(test_dfs, pd.DataFrame):
+            test_dfs = [test_dfs]
+        elif isinstance(test_dfs, ObservationsDF):
+            test_dfs = [test_dfs.df_obs]
 
         # @self.logging_decorator
         def _get_training_ranks():
-            ranks_mat = self._predict_rank(self.train_mat)
-            return ranks_mat, self.train_mat
+            all_test_users = np.unique(np.concatenate(
+                [df[self._user_col].unique() for df in test_dfs]))
+            users = self.remove_unseen_users(all_test_users)
+            users_inds = self.sparse_mat_builder.uid_encoder.transform(users)
+            users_inds.sort()
+            sub_train_mat = self.sparse_mat_builder.crop_rows(
+                self.train_mat, inds_stay=users_inds)
+            ranks_mat = self._predict_rank(sub_train_mat)
+            return ranks_mat, sub_train_mat
 
         # @self.logging_decorator
         def _get_test_ranks(test_df):
-            test_sparse = self.sparse_mat_builder.build_sparse_interaction_matrix(test_df)
+            test_sparse = self.sparse_mat_builder.\
+                build_sparse_interaction_matrix(test_df)
             ranks_mat = self._predict_rank(test_sparse, self.train_mat)
             return ranks_mat, test_sparse
 
-        return self._eval_on_test_by_ranking_LFM(
+        report_df, full_metrics = self._eval_on_test_by_ranking_LFM(
             train_ranks_func=_get_training_ranks,
             test_ranks_func=_get_test_ranks,
             test_dfs=test_dfs,
@@ -662,6 +677,10 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
             include_train=include_train,
             k=k)
 
+        if return_full_metrics:
+            return report_df, full_metrics
+        else:
+            return report_df
 
 class RecoBayesSearchHoldOut(BayesSearchHoldOut, LogCallsTimeAndOutput):
 
