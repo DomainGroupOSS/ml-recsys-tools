@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import numpy as np
 from copy import deepcopy
@@ -5,14 +6,18 @@ from copy import deepcopy
 import time
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
-
 from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
+
+from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.instrumentation import pickle_size_mb
 
 from ml_recsys_tools.utils.testing import TestCaseWithState
 from tests.test_movielens_data import movielens_dir
 
 rating_csv_path, users_csv_path, movies_csv_path = get_and_prep_data(movielens_dir)
+
+
+DEBUG_ON = getattr(sys, 'gettrace', None) is not None
 
 
 class TestRecommendersBasic(TestCaseWithState):
@@ -95,13 +100,13 @@ class TestRecommendersBasic(TestCaseWithState):
         # check that missing "interactions" are recommended
         for user in self.TESTING_USER_IDS:
             recos = rec.get_recommendations(user_ids=[user], n_rec=10).iloc[0][rec._item_col]
-            print(user, recos)
+            logger.info(f'{user} {recos}')
             self.assertTrue(user.replace('user', 'item') in recos)
 
         # check that test items are similar to each other
         for item in self.TESTING_ITEM_IDS:
             simils = rec.get_similar_items(item_ids=[item], n_simil=10).iloc[0][rec._item_col]
-            print(item, simils)
+            logger.info(f'{item} {simils}')
             self.assertTrue(len(set(simils).intersection(set(self.TESTING_ITEM_IDS))) >= 3)
 
     def _test_recommender(self, rec):
@@ -154,26 +159,29 @@ class TestRecommendersBasic(TestCaseWithState):
         self.assertEqual(preds_5[rec._prediction_col].min(), preds_5[rec._prediction_col].max())
 
         # test doesn't take more than 0.05 second
-        print('predict_for_user for %s took %.3f seconds.' % (rec, elapsed))
-        self.assertGreater(0.06, elapsed)
+        logger.info(f'predict_for_user for {rec} took {elapsed:.3f} seconds.')
+        self.assertGreater(0.06 * (1 + 2 * int(DEBUG_ON)), elapsed)  #  allow more time if debugging
 
     def test_b_2_lfm_rec_evaluation(self):
         k = self.k
 
         rep_exact = self.state.lfm_rec.eval_on_test_by_ranking_exact(
             self.state.test_obs.df_obs, prefix='lfm regular exact ', k=k)
-        print(rep_exact)
+        logger.info(rep_exact)
 
         rep_reg = self.state.lfm_rec.eval_on_test_by_ranking(
             self.state.test_obs.df_obs, prefix='lfm regular ', n_rec=200, k=k)
-        print(rep_reg)
+        logger.info(rep_reg)
 
         self.assertListEqual(list(rep_reg.columns), list(rep_exact.columns))
 
         # test that those fields are almost equal for the two test methods
         tolerance = 0.05
+        logger.info('deviations from exact evaluation')
         for col in rep_reg.columns:
-            self.assertTrue(all(abs(1 - (rep_exact[col].values / rep_reg[col].values)) < tolerance))
+            deviations = abs(1 - (rep_exact[col].values / rep_reg[col].values))
+            logger.info(f'{col}: {deviations}')
+            self.assertTrue(all(deviations < tolerance))
 
     def test_b_3_lfm_early_stop(self):
         lfm_rec = deepcopy(self.state.lfm_rec)
@@ -233,7 +241,7 @@ class TestRecommendersBasic(TestCaseWithState):
         item_cooc_rec = ItemCoocRecommender()
         item_cooc_rec.fit(self.state.train_obs)
         item_cooc_rep = item_cooc_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='item cooccurrence ')
-        print(item_cooc_rep)
+        logger.info(item_cooc_rep)
         self._test_recommender(item_cooc_rec)
         self.state.item_cooc_rec = item_cooc_rec
 
@@ -243,7 +251,7 @@ class TestRecommendersBasic(TestCaseWithState):
         als_rec = ALSRecommender()
         als_rec.fit(self.state.train_obs)
         als_rep = als_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='als ')
-        print(als_rep)
+        logger.info(als_rep)
         self._test_recommender(als_rec)
 
     def test_c_spotlight_implicit_recommender(self):
@@ -252,7 +260,7 @@ class TestRecommendersBasic(TestCaseWithState):
         rec = EmbeddingFactorsRecommender()
         rec.fit(self.state.train_obs)
         report = rec.eval_on_test_by_ranking(self.state.test_obs, prefix='spot ')
-        print(report)
+        logger.info(report)
         self._test_recommender(rec)
 
     def test_d_comb_rank_ens(self):
@@ -261,7 +269,7 @@ class TestRecommendersBasic(TestCaseWithState):
         comb_ranks_rec = CombinedRankEnsemble(
             recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
         comb_rank_rep = comb_ranks_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined ranks ')
-        print(comb_rank_rep)
+        logger.info(comb_rank_rep)
         self._test_recommender(comb_ranks_rec)
 
     def test_d_comb_simil_ens(self):
@@ -271,7 +279,7 @@ class TestRecommendersBasic(TestCaseWithState):
             recommenders=[self.state.lfm_rec, self.state.item_cooc_rec])
         comb_simil_rec.fit(self.state.train_obs)
         comb_simil_rep = comb_simil_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='combined simils ')
-        print(comb_simil_rep)
+        logger.info(comb_simil_rep)
         self._test_recommender(comb_simil_rec)
 
     def test_d_lfm_reduce_memory_size(self):
