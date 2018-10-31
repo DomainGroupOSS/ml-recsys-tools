@@ -11,7 +11,7 @@ jobs:
       - checkout
 
       - run: |
-          if [docker pull $DOCKER_USER/ml_recsys_tools:latest]; than
+          if [docker pull $DOCKER_USER/ml_recsys_tools:latest]; then
             docker build --cache-from $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
           else
             docker build -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
