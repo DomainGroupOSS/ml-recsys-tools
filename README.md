@@ -11,8 +11,8 @@ Pip:
 * As dependency (add to `requirements.txt`): add line `git+https://github.com/DomainGroupOSS/ml-recsys-tools@master#egg=ml_recsys_tools`
 
 Docker (build and run interactively):
-* tests: `docker run --rm artdgn/ml_recsys_tools:latest`
-* interactive: `docker run --rm -it artdgn/ml_recsys_tools:latest python`
+* tests: `docker run --rm domaingroupossml/ml_recsys_tools:latest`
+* interactive: `docker run --rm -it domaingroupossml/ml_recsys_tools:latest python`
   
 
 #### Basic example:

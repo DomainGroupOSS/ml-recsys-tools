@@ -16,6 +16,6 @@ RUN pip install .
 
 CMD ["python", "-m", "unittest"]
 
-# docker build -t artdgn/ml_recsys_tools:latest .
-# docker run --rm artdgn/ml_recsys_tools:latest python -m unittest
-# docker push artdgn/ml_recsys_tools:latest
+# docker build -t domaingroupossml/ml_recsys_tools:latest .
+# docker run --rm domaingroupossml/ml_recsys_tools:latest python -m unittest
+# docker push domaingroupossml/ml_recsys_tools:latest
