@@ -6,13 +6,12 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 ENV APP_DIR=/ml_recsys_tools
-ENV PYTHONPATH "${PYTHONPATH}:${APP_DIR}"
 
 ADD . ${APP_DIR}
 
 WORKDIR ${APP_DIR}
 
-RUN pip install .
+RUN pip install -i file://$(realpath .) .
 
 CMD ["python", "-m", "unittest"]
 
