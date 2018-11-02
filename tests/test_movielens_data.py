@@ -25,8 +25,8 @@ class TestMovieLens(unittest.TestCase):
         from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
         obs = ObservationsDF(df_obs=ratings_df)
         info = obs.data_info()
-        self.assertEqual(info.len, 989539)
-        self.assertEqual(info.n_unique_items, 3706)
-        self.assertEqual(info.n_unique_users, 5796)
-        self.assertEqual(info.ratings_20_pctl, 3.0)
-        self.assertEqual(info.ratings_80_pctl, 5.0)
+        self.assertEqual(info['len'], 989539)
+        self.assertEqual(info['n_unique_items'], 3706)
+        self.assertEqual(info['n_unique_users'], 5796)
+        self.assertEqual(info['ratings_20_pctl'], 3.0)
+        self.assertEqual(info['ratings_80_pctl'], 5.0)
