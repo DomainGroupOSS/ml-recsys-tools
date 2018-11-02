@@ -176,12 +176,16 @@ class TestRecommendersBasic(TestCaseWithState):
         self.assertListEqual(list(rep_reg.columns), list(rep_exact.columns))
 
         # test that those fields are almost equal for the two test methods
-        tolerance = 0.05
+        tolerance = 0.01
         logger.info('deviations from exact evaluation')
         for col in rep_reg.columns:
             deviations = abs(1 - (rep_exact[col].values / rep_reg[col].values))
             logger.info(f'{col}: {deviations}')
-            self.assertTrue(all(deviations < tolerance))
+            if col == 'AUC':
+                self.assertTrue(all(deviations < tolerance * 10))
+            else:
+                self.assertTrue(all(deviations < tolerance))
+
 
     def test_b_3_lfm_early_stop(self):
         lfm_rec = deepcopy(self.state.lfm_rec)

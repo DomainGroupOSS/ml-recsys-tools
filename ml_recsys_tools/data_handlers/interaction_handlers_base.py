@@ -422,35 +422,6 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         return ranks_mat
 
     @staticmethod
-    def _filt_ranks_mat_by_filt_mat(inds, ranks_mat, filter_mat):
-        # apparently a faster implementation of this would be by using lil matrix format
-
-        ranks_mat.sort_indices()
-        filter_mat.sort_indices()
-        filt_ranks = filter_mat.copy()
-        filt_ranks.data *= 0  # remove actual data
-        filt_ranks.data += int(filt_ranks.shape[1] / 2)  # add number of columns / 2 - meaning chance rank
-        for i in inds:
-            f_s = filt_ranks.indptr[i]
-            f_e = filt_ranks.indptr[i + 1]
-            r_s = ranks_mat.indptr[i]
-            r_e = ranks_mat.indptr[i + 1]
-
-            f_cols = filt_ranks.indices[f_s: f_e]
-            r_cols = ranks_mat.indices[r_s: r_e]
-
-            mask_filt = np.isin(f_cols, r_cols)
-            mask_ranks = np.isin(r_cols, f_cols)
-
-            # adding 1 to differentiate from 0 as first rank
-            filt_ranks.data[f_s: f_e][mask_filt] = ranks_mat.data[r_s: r_e][mask_ranks] + 1
-
-        filt_ranks.eliminate_zeros()
-        filt_ranks.data -= 1
-        filt_ranks = filt_ranks.tocoo()
-        return filt_ranks
-
-    @staticmethod
     def crop_rows(mat, inds_stay):
         mat = mat.tocoo()
         min_data = np.min(mat.data)
@@ -459,17 +430,6 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         mat.eliminate_zeros()
         mat.data -= min_data
         return mat.tocsr()
-
-    @staticmethod
-    def crop_rows_continuous(mat, ind_start, ind_end):
-        mat = mat.tocsr().copy()
-        mat.sort_indices()
-        mat.data += 1
-        mat.data[:mat.indptr[ind_start]] *= 0
-        mat.data[(mat.indptr[ind_end + 1] + 1):] *= 0
-        mat.eliminate_zeros()
-        mat.data -= 1
-        return mat
 
     @classmethod
     def filter_all_ranks_by_sparse_selection(cls, sparse_filter_mat, all_recos_ranks_mat):
@@ -480,32 +440,11 @@ class InteractionMatrixBuilder(LogCallsTimeAndOutput):
         :param all_recos_ranks_mat: sparse matrix of all ranked predictions
         :return: sparse matrix of ranks of the predictions for GT observations in the full prediction matrix
         """
-        filter_mat = sparse_filter_mat.tocsr()
-        ranks_mat = all_recos_ranks_mat.tocsr()
-        filter_mat.sort_indices()
-        ranks_mat.sort_indices()
-
-        assert ranks_mat.shape == filter_mat.shape
-
-        n_rows = ranks_mat.shape[0]
-        res = []
-        with Pool(N_CPUS) as pool:
-            for ind_batch in batch_generator(np.arange(n_rows),
-                                             n=int(n_rows / N_CPUS)):
-                res.append(pool.apply_async(
-                    cls._filt_ranks_mat_by_filt_mat,
-                    args=(
-                        ind_batch,
-                        cls.crop_rows_continuous(ranks_mat, ind_batch[0], ind_batch[-1]),
-                        cls.crop_rows_continuous(filter_mat, ind_batch[0], ind_batch[-1]))))
-            ret = [r.get(timeout=3600) for r in res]
-
-        data = np.concatenate([r.data for r in ret])
-        row = np.concatenate([r.row for r in ret])
-        col = np.concatenate([r.col for r in ret])
-        filt_ranks = sp.coo_matrix((data, (row, col)), shape=ranks_mat.shape)
-
-        # ranks are 0 based, and float32 in LFM
-        filt_ranks = filt_ranks.astype(np.float32).tocsr()
+        filter_mat = sparse_filter_mat.copy().tocsr()
+        ranks_mat = all_recos_ranks_mat.copy().tocsr()
+        ranks_mat.data += 1
+        filt_ranks = filter_mat.astype(bool).multiply(ranks_mat)
+        filt_ranks.eliminate_zeros()
+        filt_ranks.data -= 1
 
         return filt_ranks
