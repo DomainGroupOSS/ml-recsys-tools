@@ -10,11 +10,12 @@ jobs:
       steps:
       - checkout
 
-      - run: |
-          if docker pull $DOCKER_USER/ml_recsys_tools:latest; then
-            echo "pulled older image"
-          fi
-          docker build --cache-from $DOCKER_USER/ml_recsys_tools:latest -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
+      - run: docker build -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
+#          if docker pull $DOCKER_USER/ml_recsys_tools:latest; then
+#            echo "pulled older image"
+#          fi
+#          docker build --cache-from $DOCKER_USER/ml_recsys_tools:latest -t $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH .
+
 
       - run: docker run --rm $DOCKER_USER/ml_recsys_tools:$CIRCLE_BRANCH python -m unittest
 
