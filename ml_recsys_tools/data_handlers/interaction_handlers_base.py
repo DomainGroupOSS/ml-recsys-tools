@@ -1,4 +1,5 @@
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -84,6 +85,16 @@ class ObservationsDF(LogCallsTimeAndOutput):
             return self.df_obs[self.iid_col].value_counts()
         else:
             raise ValueError('Observations dataframe is empty')
+
+    def data_info(self):
+        rating_pctl = np.percentile(self.ratings, [20, 80])
+        return SimpleNamespace(**{
+            'len': len(self.df_obs),
+            'n_unique_users': len(np.unique(self.user_ids)),
+            'n_unique_items': len(np.unique(self.item_ids)),
+            'ratings_20_pctl': rating_pctl[0],
+            'ratings_80_pctl': rating_pctl[1],
+        })
 
     def sample_observations(self,
                             n_users=None,
