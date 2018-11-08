@@ -11,6 +11,7 @@ from email.mime.image import MIMEImage
 
 import asyncpg
 import boto3
+import snowflake.connector
 import pandas as pd
 import redis
 from botocore.exceptions import ClientError
@@ -301,3 +302,29 @@ class PostgressReader(LogCallsTimeAndOutput):
 
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(run())
+
+class SnowflakeDFReader(LogCallsTimeAndOutput):
+
+    def __init__(self, user=None, password=None, database=None, account=None):
+        super().__init__()
+        self.sf_user = user
+        self.sf_password = password
+        self.sf_database = database
+        self.sf_account = account
+
+    def _connection_params(self):
+        return dict(
+            user=self.sf_user,
+            password=self.sf_password,
+            database=self.sf_database,
+            account=self.sf_account)
+
+    def fetch_dataframe(self, query: str):
+        ctx = snowflake.connector.connect(**self._connection_params())
+        cursor = ctx.cursor()
+        cursor.execute(query)
+        data = cursor.fetchall()
+        columns = [attribute[0].lower() for attribute in cursor.description]
+        cursor.close()
+        ctx.close()
+        return pd.DataFrame(data, columns=columns)
