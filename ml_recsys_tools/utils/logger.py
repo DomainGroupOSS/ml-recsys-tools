@@ -4,7 +4,7 @@ import os
 import sys
 
 LOGGER = logging.getLogger('ml-logger')
-short_time_fmt = logging.Formatter('[%(asctime)s:%(levelname)s] %(message)s', datefmt='%H:%M')
+short_time_fmt = logging.Formatter('[%(asctime)s:%(levelname)s] %(message)s', datefmt='%H:%M:%S')
 
 
 def add_file_output(logger, filename, level=logging.DEBUG):
