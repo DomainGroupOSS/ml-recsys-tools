@@ -18,6 +18,7 @@ gmaps==0.8.0
 redis==2.10.6
 lightfm==1.14
 scikit_learn==0.20.0
+snowflake_connector_python==1.6.12
 
 
 torch>=0.4.1
