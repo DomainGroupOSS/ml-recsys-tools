@@ -411,7 +411,7 @@ class PostgressDFReader(DBDFReaderWithCache):
             await conn.close()
             return pd.DataFrame(data, columns=columns)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         return loop.run_until_complete(run())
 
 
