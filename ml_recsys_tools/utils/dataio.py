@@ -7,6 +7,7 @@ import os
 import pickle
 import smtplib
 import time
+from abc import abstractclassmethod
 from hashlib import md5
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -300,7 +301,7 @@ class DataFrameDiskCacher:
         cache_obj = tuple(hash_str(a) for a in args) + \
                     tuple((hash_str(k), hash_str(v)) for k, v in kwargs.items())
         if self.disk_cache_dir is None:
-            logger.error('Attempting to use cache but cache dir was not defined. Not using cache.')
+            logger.warning('Attempting to use cache but cache dir was not defined. Not using cache.')
         else:
             if not os.path.exists(self.disk_cache_dir):
                 logger.warning("Cache dir doesn't exist, trying to create.")
@@ -322,6 +323,10 @@ class DataFrameDiskCacher:
                 save_to_cache = kwargs.pop('save_to_cache', True)
                 cache_valid_days = kwargs.pop('cache_valid_days', None)
 
+                if not read_from_cache and not save_to_cache:
+                    # short circuit everything if cache not requested
+                    return func(*args, **kwargs)
+
                 path_func = path_func or self.cache_filepath
                 cache_path = path_func(*args, **kwargs)
                 cache_valid = self.is_cache_valid(cache_path, valid_days=cache_valid_days)
@@ -329,10 +334,10 @@ class DataFrameDiskCacher:
                 read_cache_attempt = read_from_cache and cache_valid
 
                 # using pickle here because pickling stores the dataframe more reliably
-                # (data types and other informations may changed or lost during write/read of csv)
+                # (data types and other information may have changed or lost during write/read of csv)
 
                 if read_cache_attempt:
-                    # df = pd.read_pickle(cache_path, keep_default_na=False, na_values=NA_VALUES)
+                    # df = pd.read_sv(cache_path, keep_default_na=False, na_values=NA_VALUES)
                     df = pd.read_pickle(cache_path)
                     logger.info(f'Read cache file from {cache_path}')
                 else:
@@ -350,19 +355,41 @@ class DataFrameDiskCacher:
         return decorator
 
 
-class PostgressReader(LogCallsTimeAndOutput):
+class DBDFReaderWithCache(LogCallsTimeAndOutput):
+    def __init__(self, disk_cache_dir=None):
+        super().__init__()
+        self.disk_query_cacher = DataFrameDiskCacher(cache_file_pattern='cached_db_df_%s.pkl',
+                                                     disk_cache_dir=disk_cache_dir)
+
+    @abstractclassmethod
+    def _fetch_dataframe(self, query: str):
+        return pd.DataFrame()
+
+    def fetch_dataframe(self, query: str,
+                        save_to_cache=False,
+                        read_from_cache=False,
+                        cache_valid_days=None):
+        cacher = self.disk_query_cacher
+        # using the decorator without decorating because
+        # the path func only can be defined after initialisations
+        fetch_with_cache = cacher.with_file_cache()(self._fetch_dataframe)
+        return fetch_with_cache(query=query,
+                                save_to_cache=save_to_cache,
+                                read_from_cache=read_from_cache,
+                                cache_valid_days=cache_valid_days)
+
+
+class PostgressDFReader(DBDFReaderWithCache):
 
     def __init__(self,
                  user=None, password=None, database=None, host=None, port=None,
                  disk_cache_dir=None):
-        super().__init__()
+        super().__init__(disk_cache_dir=disk_cache_dir)
         self.pg_user = user
         self.pg_password = password
         self.pg_database = database
         self.pg_host = host
         self.pg_port = port
-        self.disk_query_cacher = DataFrameDiskCacher(cache_file_pattern='cached_db_df_%s.pkl',
-                                                     disk_cache_dir=disk_cache_dir)
 
     def _connection_params(self):
         return dict(
@@ -387,27 +414,14 @@ class PostgressReader(LogCallsTimeAndOutput):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(run())
 
-    def fetch_dataframe(self, query: str,
-                        save_to_cache=False,
-                        read_from_cache=False,
-                        cache_valid_days=None):
-        cacher = self.disk_query_cacher
-        # using the decorator without decorating because
-        # the path func only can be defined after initialisations
-        fetch_with_cache = cacher.with_file_cache()(self._fetch_dataframe)
-        return fetch_with_cache(query=query,
-                                save_to_cache=save_to_cache,
-                                read_from_cache=read_from_cache,
-                                cache_valid_days=cache_valid_days)
+
+PostgressReader = PostgressDFReader  # alias for backwards compat
 
 
-PostgressDFReader = PostgressReader  # alias for backwards compat
+class SnowflakeDFReader(DBDFReaderWithCache):
 
-
-class SnowflakeDFReader(LogCallsTimeAndOutput):
-
-    def __init__(self, user=None, password=None, database=None, account=None):
-        super().__init__()
+    def __init__(self, user=None, password=None, database=None, account=None, disk_cache_dir=None):
+        super().__init__(disk_cache_dir=disk_cache_dir)
         self.sf_user = user
         self.sf_password = password
         self.sf_database = database
@@ -420,7 +434,7 @@ class SnowflakeDFReader(LogCallsTimeAndOutput):
             database=self.sf_database,
             account=self.sf_account)
 
-    def fetch_dataframe(self, query: str):
+    def _fetch_dataframe(self, query: str):
         ctx = snowflake.connector.connect(**self._connection_params())
         cursor = ctx.cursor()
         cursor.execute(query)
@@ -429,3 +443,5 @@ class SnowflakeDFReader(LogCallsTimeAndOutput):
         cursor.close()
         ctx.close()
         return pd.DataFrame(data, columns=columns)
+
+
