@@ -1,10 +1,13 @@
 import asyncio
+import functools
 import gzip
 import io
 import json
 import os
 import pickle
 import smtplib
+import time
+from hashlib import md5
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
@@ -12,11 +15,14 @@ from email.mime.image import MIMEImage
 import asyncpg
 import boto3
 import pandas as pd
+import pandas.io.common
 import redis
 from botocore.exceptions import ClientError
 
 from ml_recsys_tools.utils.instrumentation import log_errors, LogCallsTimeAndOutput
 from ml_recsys_tools.utils.logger import simple_logger as logger
+
+NA_VALUES = pandas.io.common._NA_VALUES.difference(['null', 'NULL'])
 
 
 class RedisTable(redis.StrictRedis):
@@ -271,15 +277,91 @@ class Emailer:
         self._send_message(msg, to)
 
 
+def hash_str(obj):
+    # creates a hash string representing the input object
+    obj_str = pickle.dumps(obj)  # pickle is used for speed in case a large object is passed like a DF
+    return md5(obj_str).hexdigest()
+
+
+class DataFrameDiskCacher:
+    """
+    This is a class that helps cache dataframe files to disk
+    """
+    def __init__(self, cache_file_pattern='cache_file_%s.tmp', disk_cache_dir=None):
+        self.cache_file_pattern = cache_file_pattern
+        self.disk_cache_dir = disk_cache_dir
+
+    @staticmethod
+    def file_age_days(filepath):
+        return (time.time() - os.path.getmtime(filepath)) / 86400
+
+    def cache_filepath(self, *args, **kwargs):
+        cache_obj = tuple(hash_str(a) for a in args) + \
+                    tuple((hash_str(k), hash_str(v)) for k, v in kwargs.items())
+        if self.disk_cache_dir is None:
+            logger.error('Attempting to use cache but cache dir was not defined. Not using cache.')
+        else:
+            if not os.path.exists(self.disk_cache_dir):
+                logger.warning("Cache dir doesn't exist, trying to create.")
+                os.makedirs(self.disk_cache_dir, exist_ok=True)
+            return os.path.join(self.disk_cache_dir, self.cache_file_pattern % hash_str(cache_obj))
+
+    @classmethod
+    def is_cache_valid(cls, cache_path, valid_days=None):
+        return cache_path \
+               and os.path.exists(cache_path) \
+               and (valid_days is None or cls.file_age_days(cache_path) <= valid_days)
+
+    def with_file_cache(self, path_func=None):
+        def decorator(func):
+            @functools.wraps(func)
+            def inner(*args, **kwargs):
+                nonlocal self, path_func
+                read_from_cache = kwargs.pop('read_from_cache', False)
+                save_to_cache = kwargs.pop('save_to_cache', True)
+                cache_valid_days = kwargs.pop('cache_valid_days', None)
+
+                path_func = path_func or self.cache_filepath
+                cache_path = path_func(*args, **kwargs)
+                cache_valid = self.is_cache_valid(cache_path, valid_days=cache_valid_days)
+
+                read_cache_attempt = read_from_cache and cache_valid
+
+                # using pickle here because pickling stores the dataframe more reliably
+                # (data types and other informations may changed or lost during write/read of csv)
+
+                if read_cache_attempt:
+                    # df = pd.read_pickle(cache_path, keep_default_na=False, na_values=NA_VALUES)
+                    df = pd.read_pickle(cache_path)
+                    logger.info(f'Read cache file from {cache_path}')
+                else:
+                    if read_from_cache:
+                        logger.warning(f'Cache file not found/valid, attempting to create ({cache_path})')
+                    df = func(*args, **kwargs)
+
+                if save_to_cache and cache_path and not read_cache_attempt:
+                    # df.to_csv(cache_path, index=None)
+                    df.to_pickle(cache_path)
+
+                return df
+
+            return inner
+        return decorator
+
+
 class PostgressReader(LogCallsTimeAndOutput):
 
-    def __init__(self, user=None, password=None, database=None, host=None, port=None):
+    def __init__(self,
+                 user=None, password=None, database=None, host=None, port=None,
+                 disk_cache_dir=None):
         super().__init__()
         self.pg_user = user
         self.pg_password = password
         self.pg_database = database
         self.pg_host = host
         self.pg_port = port
+        self.disk_query_cacher = DataFrameDiskCacher(cache_file_pattern='cached_db_df_%s.pkl',
+                                                     disk_cache_dir=disk_cache_dir)
 
     def _connection_params(self):
         return dict(
@@ -289,7 +371,9 @@ class PostgressReader(LogCallsTimeAndOutput):
             host=self.pg_host,
             port=self.pg_port)
 
-    def fetch_dataframe(self, query: str):
+    def _fetch_dataframe(self, query: str):
+        # this part is with async / await because we're using
+        # the asyncpg library (for the speed) and it is ONLY async
 
         async def run():
             conn = await asyncpg.connect(**self._connection_params())
@@ -301,3 +385,19 @@ class PostgressReader(LogCallsTimeAndOutput):
 
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(run())
+
+    def fetch_dataframe(self, query: str,
+                        save_to_cache=False,
+                        read_from_cache=False,
+                        cache_valid_days=None):
+        cacher = self.disk_query_cacher
+        # using the decorator without decorating because
+        # the path func only can be defined after initialisations
+        fetch_with_cache = cacher.with_file_cache()(self._fetch_dataframe)
+        return fetch_with_cache(query=query,
+                                save_to_cache=save_to_cache,
+                                read_from_cache=read_from_cache,
+                                cache_valid_days=cache_valid_days)
+
+
+PostgressDFReader = PostgressReader  # alias for backwards compat
