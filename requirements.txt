@@ -1,6 +1,6 @@
 setuptools==39.2.0
 boto3==1.7.16
-asyncpg==0.17.0
+asyncpg==0.18.0
 pytest==3.6.3
 ipywidgets==7.3.0
 implicit==0.3.5
