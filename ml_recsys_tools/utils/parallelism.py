@@ -1,8 +1,13 @@
+from multiprocessing import Process, Queue
+
 import numpy as np
 import pandas as pd
 from itertools import islice
 import multiprocessing
 from multiprocessing.pool import ThreadPool, Pool
+
+from ml_recsys_tools.utils.logger import simple_logger as logger
+
 
 N_CPUS = multiprocessing.cpu_count()
 
@@ -65,3 +70,62 @@ def parallelize_array(arr, func, n_partitions=N_CPUS, parallelism_type='process'
         res = pool.map(func, arr_split)
     arr = np.concatenate(res)
     return arr
+
+
+def non_daemonic_process_pool_map(func, jobs, n_workers, timeout_per_job=None):
+    """
+    function for calculating in parallel a function that may not be run
+    a in a regular pool (due to forking processes for example)
+
+    :param func: a function that accepts one input argument
+    :param jobs: a list of input arguments to func
+    :param n_workers: number of parallel workers
+    :param timeout_per_job: timeout for processing a single job
+    :return: list of results in the order of the "jobs" list
+    """
+
+    END_TOKEN = 'END'
+    q_in = Queue()
+    q_out = Queue()
+
+    def queue_worker(q_in, q_out):
+        arg_in = q_in.get()
+        while input != END_TOKEN:
+            try:
+                result = func(arg_in)
+            except Exception as e:
+                logger.exception(e)
+                logger.error(f'Queue worker failed on input: {arg_in}, with {str(e)}')
+                result = None
+            q_out.put((arg_in, result))
+        q_out.put(END_TOKEN)
+
+    # put jobs
+    [q_in.put(c) for c in jobs + n_workers * [END_TOKEN]]
+
+    # start workers
+    workers = [Process(target=queue_worker, args=(q_in, q_out))
+               for _ in range(n_workers)]
+    [w.start() for w in workers]
+
+    # wait for results
+    n_finished = 0
+    outputs = []
+    while n_finished < n_workers:
+        output = q_out.get(timeout=timeout_per_job)
+        logger.info(f'queue out, got: {output}')
+        if output == END_TOKEN:
+            n_finished += 1
+            logger.info(f'{n_finished}/{n_workers} queue workers done')
+        else:
+            outputs.append(output)
+
+    # wait for workers to join
+    logger.info('Joining queue workers')
+    [w.join() for w in workers]
+    logger.info('Joined all queue workers')
+
+    # sort in original order
+    results = [output[1] for output in
+               sorted(outputs, key=lambda output: jobs.index(output[0]))]
+    return results
