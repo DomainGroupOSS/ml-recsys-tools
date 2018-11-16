@@ -118,7 +118,7 @@ class ResourceMonitor:
             # for some reason there's a KeyError: ('psutil',) in psutil
             return 0, 0
         except Exception as e:
-            simple_logger.exception(str(e))
+            simple_logger.exception(e)
             return 0, 0
 
     def _measure(self):
