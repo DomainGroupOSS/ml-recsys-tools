@@ -90,7 +90,7 @@ def non_daemonic_process_pool_map(func, jobs, n_workers, timeout_per_job=None):
 
     def queue_worker(q_in, q_out):
         arg_in = q_in.get()
-        while input != END_TOKEN:
+        while arg_in != END_TOKEN:
             try:
                 result = func(arg_in)
             except Exception as e:
@@ -98,6 +98,7 @@ def non_daemonic_process_pool_map(func, jobs, n_workers, timeout_per_job=None):
                 logger.error(f'Queue worker failed on input: {arg_in}, with {str(e)}')
                 result = None
             q_out.put((arg_in, result))
+            arg_in = q_in.get()
         q_out.put(END_TOKEN)
 
     # put jobs
