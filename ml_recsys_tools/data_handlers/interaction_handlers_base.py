@@ -119,11 +119,11 @@ class ObservationsDF(LogCallsTimeAndOutput):
             users_per_items= self.items_history_counts()
 
             if min_user_hist:
-                items_per_user = items_per_user[items_per_user >= min_user_hist]
+                items_per_user = items_per_user[items_per_user.values >= min_user_hist]
             users_filt = items_per_user.index.astype(str).values
 
             if min_item_hist:
-                users_per_items = users_per_items[users_per_items >= min_item_hist]
+                users_per_items = users_per_items[users_per_items.values >= min_item_hist]
             item_filt = users_per_items.index.astype(str).values
 
         else:

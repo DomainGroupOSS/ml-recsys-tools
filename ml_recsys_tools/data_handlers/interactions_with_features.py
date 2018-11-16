@@ -382,15 +382,17 @@ class ObsWithGeoFeatures(ObsWithFeatures):
         max_long = 151.31997699999999
         """
 
-        geo_filt = (self.df_items[self.lat_col] <= max_lat) & (self.df_items[self.lat_col] >= min_lat) & \
-                   (self.df_items[self.long_col] <= max_long) & (self.df_items[self.long_col] >= min_long)
+        geo_filt = (self.df_items[self.lat_col].values <= max_lat) & \
+                   (self.df_items[self.lat_col].values >= min_lat) & \
+                   (self.df_items[self.long_col].values <= max_long) & \
+                   (self.df_items[self.long_col].values >= min_long)
 
         return self._apply_filter(geo_filt)
 
     def filter_by_location_circle(self, center_lat, center_long, degree_dist):
 
-        geo_filt = ((self.df_items[self.lat_col] - center_lat) ** 2 +
-                    (self.df_items[self.long_col] - center_long) ** 2) <= degree_dist
+        geo_filt = ((self.df_items[self.lat_col].values - center_lat) ** 2 +
+                    (self.df_items[self.long_col].values - center_long) ** 2) <= degree_dist
 
         return self._apply_filter(geo_filt)
 
@@ -423,7 +425,8 @@ class ObsWithGeoFeatures(ObsWithFeatures):
         for i in range(n_lat):
             cur_lat_bins = lat_bins[i:(i + 2)]
 
-            prop_slice = df_items[(df_items.lat <= cur_lat_bins[1]) & (df_items.lat >= cur_lat_bins[0])]
+            prop_slice = df_items[(df_items.lat.values <= cur_lat_bins[1]) &
+                                  (df_items.lat.values >= cur_lat_bins[0])]
 
             long_bins = np.percentile(prop_slice.long, np.linspace(0, 100, n_long + 1))
 
@@ -500,7 +503,7 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
             mapper.add_heatmap(df, color=color, sensitivity=1, opacity=0.4)
 
         # add common items
-        common_items = all_data[all_data['counts'] > 1]
+        common_items = all_data[all_data['counts'].values > 1]
         sizes = list(map(int, np.sqrt(common_items['counts'].as_matrix()) + default_marker_size))
         mapper.add_markers(common_items, color='white', size=sizes)
 
