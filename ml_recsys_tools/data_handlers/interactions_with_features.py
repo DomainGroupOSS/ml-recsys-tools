@@ -311,8 +311,8 @@ class ObsWithFeatures(ObservationsDF):
         other._filter_relevant_obs_and_items(stage='filter_columns_by_df')
         return other
 
-    def remove_interactions_by_df(self, other_df_obs):
-        other = super().remove_interactions_by_df(other_df_obs)
+    def filter_interactions_by_df(self, other_df_obs, mode):
+        other = super().filter_interactions_by_df(other_df_obs, mode)
         other._filter_relevant_obs_and_items(stage='remove_interactions_by_df')
         return other
 

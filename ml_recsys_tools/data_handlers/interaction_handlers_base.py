@@ -178,16 +178,26 @@ class ObservationsDF(LogCallsTimeAndOutput):
             (self.df_obs[self.uid_col].isin(other_df_obs[self.uid_col].unique()))]
         return other
 
-    def remove_interactions_by_df(self, other_df_obs):
+    def filter_interactions_by_df(self, other_df_obs, mode):
         """
-        removes all interactions that are present in the other dataframe.
-        e.g. remove training examples from the full dataframe
+        removes / keeps all interactions that are present in the other dataframe.
+        e.g. remove training examples from a full observations dataframe following
         :param other_df_obs: other dataframe
+        :param mode: whether to remove to keep the observations in the dataframe,
+            that are also in the other dataframe
         :return: new observation handler
         """
         df_filtered = pd.merge(
             self.df_obs, other_df_obs, on=[self.iid_col, self.uid_col], how='left')
-        df_filtered = df_filtered[df_filtered[self.rating_col + '_y'].isnull()]. \
+
+        if mode=='remove':
+            filt_mask = df_filtered[self.rating_col + '_y'].isnull()
+        elif mode=='keep':
+            filt_mask = df_filtered[self.rating_col + '_y'].notnull()
+        else:
+            raise ValueError(f'unknown value for mode:{mode}')
+
+        df_filtered = df_filtered[filt_mask]. \
             rename({self.rating_col + '_x': self.rating_col}, axis=1). \
             drop(self.rating_col + '_y', axis=1)
         other = copy.deepcopy(self)
