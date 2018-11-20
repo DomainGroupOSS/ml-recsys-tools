@@ -7,7 +7,7 @@ import os
 import pickle
 import smtplib
 import time
-from abc import abstractclassmethod
+from abc import abstractmethod
 from hashlib import md5
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -289,9 +289,13 @@ class DataFrameDiskCacher:
     """
     This is a class that helps cache dataframe files to disk
     """
-    def __init__(self, cache_file_pattern='cache_file_%s.tmp', disk_cache_dir=None):
+    def __init__(self,
+                 cache_file_pattern='cache_file_%s.tmp',
+                 disk_cache_dir=None,
+                 salt=None):
         self.cache_file_pattern = cache_file_pattern
         self.disk_cache_dir = disk_cache_dir
+        self.salt = salt
 
     @staticmethod
     def file_age_days(filepath):
@@ -299,7 +303,8 @@ class DataFrameDiskCacher:
 
     def cache_filepath(self, *args, **kwargs):
         cache_obj = tuple(hash_str(a) for a in args) + \
-                    tuple((hash_str(k), hash_str(v)) for k, v in kwargs.items())
+                    tuple((hash_str(k), hash_str(v)) for k, v in kwargs.items()) + \
+                    (self.salt,)
         if self.disk_cache_dir is None:
             logger.warning('Attempting to use cache but cache dir was not defined. Not using cache.')
         else:
@@ -356,12 +361,14 @@ class DataFrameDiskCacher:
 
 
 class DBDFReaderWithCache(LogCallsTimeAndOutput):
-    def __init__(self, disk_cache_dir=None):
-        super().__init__()
-        self.disk_query_cacher = DataFrameDiskCacher(cache_file_pattern='cached_db_df_%s.pkl',
-                                                     disk_cache_dir=disk_cache_dir)
+    def __init__(self, disk_cache_dir=None, cache_salt=None, **kwargs):
+        super().__init__(**kwargs)
+        self.disk_query_cacher = DataFrameDiskCacher(
+            cache_file_pattern='cached_db_df_%s.pkl',
+            disk_cache_dir=disk_cache_dir,
+            salt=cache_salt)
 
-    @abstractclassmethod
+    @abstractmethod
     def _fetch_dataframe(self, query: str):
         return pd.DataFrame()
 
@@ -383,8 +390,8 @@ class PostgressDFReader(DBDFReaderWithCache):
 
     def __init__(self,
                  user=None, password=None, database=None, host=None, port=None,
-                 disk_cache_dir=None):
-        super().__init__(disk_cache_dir=disk_cache_dir)
+                 disk_cache_dir=None, cache_salt=None, **kwargs):
+        super().__init__(disk_cache_dir=disk_cache_dir, cache_salt=cache_salt, **kwargs)
         self.pg_user = user
         self.pg_password = password
         self.pg_database = database
@@ -421,8 +428,9 @@ PostgressReader = PostgressDFReader  # alias for backwards compat
 
 class SnowflakeDFReader(DBDFReaderWithCache):
 
-    def __init__(self, user=None, password=None, database=None, account=None, disk_cache_dir=None):
-        super().__init__(disk_cache_dir=disk_cache_dir)
+    def __init__(self, user=None, password=None, database=None, account=None,
+                 disk_cache_dir=None, cache_salt=None, **kwargs):
+        super().__init__(disk_cache_dir=disk_cache_dir, cache_salt=cache_salt, **kwargs)
         self.sf_user = user
         self.sf_password = password
         self.sf_database = database
