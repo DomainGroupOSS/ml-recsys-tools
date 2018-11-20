@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ml_recsys_tools',
-    version='0.5.5',
+    version='0.5.6',
     description='Tools for recommendation systems development',
     long_description=long_description,
     long_description_content_type='text/markdown',
