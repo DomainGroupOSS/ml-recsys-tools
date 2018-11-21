@@ -429,12 +429,14 @@ PostgressReader = PostgressDFReader  # alias for backwards compat
 class SnowflakeDFReader(DBDFReaderWithCache):
 
     def __init__(self, user=None, password=None, database=None, account=None,
-                 disk_cache_dir=None, cache_salt=None, **kwargs):
+                 disk_cache_dir=None, cache_salt=None,
+                 max_fetch_rows=1000000, **kwargs):
         super().__init__(disk_cache_dir=disk_cache_dir, cache_salt=cache_salt, **kwargs)
         self.sf_user = user
         self.sf_password = password
         self.sf_database = database
         self.sf_account = account
+        self.max_fetch_rows = max_fetch_rows
 
     def _connection_params(self):
         return dict(
@@ -447,7 +449,11 @@ class SnowflakeDFReader(DBDFReaderWithCache):
         ctx = snowflake.connector.connect(**self._connection_params())
         cursor = ctx.cursor()
         cursor.execute(query)
-        data = cursor.fetchall()
+        # data = cursor.fetchall()
+        data = cursor.fetchmany(self.max_fetch_rows)
+        while len(data) > 0:
+            new_data = cursor.fetchmany(self.max_fetch_rows)
+            data.extend(new_data)
         columns = [attribute[0].lower() for attribute in cursor.description]
         cursor.close()
         ctx.close()
