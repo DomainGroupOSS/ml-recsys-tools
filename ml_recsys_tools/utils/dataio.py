@@ -3,6 +3,7 @@ import functools
 import gzip
 import io
 import json
+import logging
 import os
 import pickle
 import smtplib
@@ -428,6 +429,8 @@ PostgressReader = PostgressDFReader  # alias for backwards compat
 
 class SnowflakeDFReader(DBDFReaderWithCache):
 
+    snowflake.connector.cursor.logger.setLevel(logging.WARNING)
+
     def __init__(self, user=None, password=None, database=None, account=None,
                  disk_cache_dir=None, cache_salt=None,
                  max_fetch_rows=1000000, **kwargs):
@@ -449,11 +452,11 @@ class SnowflakeDFReader(DBDFReaderWithCache):
         ctx = snowflake.connector.connect(**self._connection_params())
         cursor = ctx.cursor()
         cursor.execute(query)
-        # data = cursor.fetchall()
-        data = cursor.fetchmany(self.max_fetch_rows)
-        while len(data) > 0:
-            new_data = cursor.fetchmany(self.max_fetch_rows)
-            data.extend(new_data)
+        data = cursor.fetchall()
+        # data = cursor.fetchmany(self.max_fetch_rows)
+        # while len(data) > 0:
+        #     new_data = cursor.fetchmany(self.max_fetch_rows)
+        #     data.extend(new_data)
         columns = [attribute[0].lower() for attribute in cursor.description]
         cursor.close()
         ctx.close()
