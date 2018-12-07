@@ -188,7 +188,9 @@ class ObservationsDF(LogCallsTimeAndOutput):
         :return: new observation handler
         """
         df_filtered = pd.merge(
-            self.df_obs, other_df_obs, on=[self.iid_col, self.uid_col], how='left')
+            self.df_obs,
+            other_df_obs[[self.iid_col, self.uid_col, self.rating_col]],
+            on=[self.iid_col, self.uid_col], how='left')
 
         if mode=='remove':
             filt_mask = df_filtered[self.rating_col + '_y'].isnull()
@@ -327,15 +329,15 @@ def train_test_split_by_col(df, col_ratio=0.2, test_ratio=0.2, col_name='userid'
     vals_train, vals_test = train_test_split(
         df[col_name].unique(), test_size=col_ratio, random_state=random_state)
 
-    df_train_col = df[df[col_name].isin(vals_train)]
-    df_test_col = df[df[col_name].isin(vals_test)]
+    df_train_part1 = df[df[col_name].isin(vals_train)]
+    df_to_split = df[df[col_name].isin(vals_test)]
 
     # split within selected field values
-    df_non_test_items, df_test = train_test_split(
-        df_test_col, test_size=test_ratio, random_state=random_state)
+    df_train_part2, df_test = train_test_split(
+        df_to_split, test_size=test_ratio, random_state=random_state)
 
     # concat train dfs
-    df_train = pd.concat([df_train_col, df_non_test_items], sort=False)
+    df_train = pd.concat([df_train_part1, df_train_part2], sort=False)
     # shuffle
     df_train = df_train.sample(frac=1).reset_index(drop=True)
     return df_train, df_test
