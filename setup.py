@@ -1,6 +1,8 @@
 from setuptools import setup, find_packages
 from os import path
 
+version = '0.6.0'
+
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
@@ -9,7 +11,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ml_recsys_tools',
-    version='0.5.6',
+    version=version,
     description='Tools for recommendation systems development',
     long_description=long_description,
     long_description_content_type='text/markdown',

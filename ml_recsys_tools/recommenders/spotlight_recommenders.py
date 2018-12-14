@@ -127,11 +127,11 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
         self.model.fit(self.sequence_interactions)
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, **kwargs):
+                                  exclusions=True, **kwargs):
 
         return self._get_recommendations_exact(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-            exclude_training=exclude_training, results_format='flat')
+            exclusions=exclusions, results_format='flat')
 
     def _predict_on_inds_dense(self, user_inds, item_inds):
         sequences = self.sequence_interactions.sequences

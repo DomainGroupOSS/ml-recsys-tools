@@ -134,7 +134,7 @@ class ClusterRecommender(BaseFactorizationRecommender):
 
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
-            exclude_training=True, results_format='lists',
+            exclusions=True, results_format='lists',
             **kwargs):
 
         if user_ids is not None:
@@ -161,7 +161,7 @@ class ClusterRecommender(BaseFactorizationRecommender):
                 user_ids=user_ids[u_clusters == n_cluster],
                 item_ids=item_ids[np.isin(i_clusters, item_clusters)],
                 n_rec=n_rec,
-                exclude_training=exclude_training)
+                exclusions=exclusions)
 
         with ThreadPool(N_CPUS) as pool:
             flat_dfs = pool.map(_get_cluster_recommendations, np.unique(u_clusters))

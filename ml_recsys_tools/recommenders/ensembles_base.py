@@ -137,6 +137,11 @@ class EnsembleBase(BaseDFSparseRecommender):
         self.recommenders = []
         super().__init__(**kwargs)
 
+    def set_exclude_mat(self, exclude_obs=None, exclude_training=True):
+        super().set_exclude_mat(exclude_obs=exclude_obs, exclude_training=exclude_training)
+        [rec.set_exclude_mat(exclude_obs=exclude_obs, exclude_training=exclude_training)
+         for rec in self.recommenders]
+
     def n_concurrent(self):
         return N_CPUS
 

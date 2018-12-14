@@ -107,7 +107,7 @@ class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
     @abstractmethod
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
-            exclude_training=True,
+            exclusions=True,
             results_format='lists',
             **kwargs):
         return pd.DataFrame()
@@ -250,6 +250,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         super().__init__(**kwargs)
         self.sparse_mat_builder = None
         self.train_mat = None
+        self.exclude_mat = None
         self.external_features_mat = None
 
     def user_inds(self, user_ids):
@@ -270,7 +271,14 @@ class BaseDFSparseRecommender(BaseDFRecommender):
     def unknown_items_mask(self, item_ids):
         return self.sparse_mat_builder.iid_encoder.find_new_labels(item_ids)
 
-    def _set_data(self, train_obs, calc_train_mat=True):
+    def _set_data(self, train_obs, exclude_obs=None, exclude_training=True):
+        """
+        :param train_obs: training observations handler
+        :param exclude_obs: additional observations that need to be excluded
+            (e.g. observations that were not in training, but should not be predicted for test)
+        :param exclude_training: whether to include training in the
+            resulting excluded matrix, if True exclude_obs and train_obs are excluded
+        """
         train_df = train_obs.df_obs
         self.sparse_mat_builder = train_obs.get_sparse_matrix_helper()
         self.all_users = train_df[self.sparse_mat_builder.uid_source_col].unique().astype(str)
@@ -280,14 +288,38 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         # and at a later stage might be sampled / iterated in order
         np.random.shuffle(self.all_users)
         np.random.shuffle(self.all_items)
-        if calc_train_mat:
-            self.train_mat = self.sparse_mat_builder.build_sparse_interaction_matrix(train_df)
+        self.train_mat = self.sparse_mat_builder.\
+            build_sparse_interaction_matrix(train_df)
+        # set training mat as default exclude_mat
+        self.set_exclude_mat(exclude_obs, exclude_training=exclude_training)
+
+    def set_exclude_mat(self, exclude_obs=None, exclude_training=True):
+        """
+        this methods allows to alter the exclusion matrix from the default of using just the training.
+        An error is raised if parameters dictate no excluded data in order to prevent accidental mistake.
+        :param exclude_obs: alternative / additional excluded data
+        :param exclude_training: whether to exclude training data
+        """
+        if exclude_obs is None:
+            if not exclude_training:
+                raise ValueError("Got exclude_training=False, but no "
+                                 "replacement exclude_obs provided. "
+                                 "If you're sure you don't want to have excluded data "
+                                 "at all provide an empty observation handler")
+            exclude_mat = self.train_mat.copy()
+        else:
+            exclude_mat = self.sparse_mat_builder.\
+                build_sparse_interaction_matrix(exclude_obs.df_obs)
+            if exclude_training:
+                exclude_mat += self.train_mat
+        self.exclude_mat = exclude_mat
 
     def _reuse_data(self, other):
         self.all_users = other.all_users
         self.all_items = other.all_items
         self.sparse_mat_builder = other.sparse_mat_builder
         self.train_mat = other.train_mat
+        self.exclude_mat = other.exclude_mat
 
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
@@ -331,7 +363,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     @staticmethod
     def _eval_on_test_by_ranking_LFM(train_ranks_func, test_ranks_func,
-                                     test_dfs, test_names=('',), prefix='',
+                                     test_dfs, test_names=None, prefix='',
                                      include_train=True, k=10):
         """
         this is just to avoid the same flow twice (or more)
@@ -347,6 +379,11 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         # test
         if isinstance(test_dfs, pd.DataFrame):
             test_dfs = [test_dfs]
+
+        if test_names is None or len(test_names) != len(test_dfs):
+            logger.warning('No test names provided or number of names '
+                           'not matching number of test DFs, using empty strings')
+            test_names = [''] * len(test_dfs)
 
         res = []
         report_dfs = []
@@ -379,7 +416,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     @abstractmethod
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, **kwargs):
+                                  exclusions=True, **kwargs):
         return pd.DataFrame()
 
     @abstractmethod
@@ -388,7 +425,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     def get_recommendations(
             self, user_ids=None, item_ids=None, n_rec=10,
-            exclude_training=True, results_format='lists',
+            exclusions=True, results_format='lists',
             **kwargs):
 
         if user_ids is not None:
@@ -401,7 +438,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         recos_flat = self._get_recommendations_flat(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-            exclude_training=exclude_training)
+            exclusions=exclusions)
 
         if results_format == 'flat':
             return recos_flat
@@ -422,14 +459,18 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             if target_user_ids is not None else None
         return user_ids, target_user_ids
 
-    def eval_on_test_by_ranking(self, test_dfs, test_names=('',), prefix='rec ',
+    def eval_on_test_by_ranking(self, test_dfs, test_names=None, prefix='rec ',
                                 include_train=True, items_filter=None,
                                 n_rec=100, k=10, return_full_metrics=False):
 
-        if isinstance(test_dfs, pd.DataFrame):
+        # convert to list
+        if isinstance(test_dfs, (pd.DataFrame, ObservationsDF)):
             test_dfs = [test_dfs]
-        elif isinstance(test_dfs, ObservationsDF):
-            test_dfs = [test_dfs.df_obs]
+
+        # convert to dfs
+        for i in range(len(test_dfs)):
+            if isinstance(test_dfs[i], ObservationsDF):
+                test_dfs[i] = test_dfs[i].df_obs
 
         mat_builder = self.sparse_mat_builder
         pred_mat_builder = self.get_prediction_mat_builder_adapter(mat_builder)
@@ -443,14 +484,14 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                 user_ids=users,
                 item_ids=None,
                 n_rec=min(n_rec, mat_builder.n_cols),
-                exclude_training=False,
+                exclusions=False,
                 results_format='flat')
 
         recos_flat_test = self.get_recommendations(
             user_ids=users,
             item_ids=items_filter,
             n_rec=min(n_rec, mat_builder.n_cols),
-            exclude_training=True,
+            exclusions=True,
             results_format='flat')
 
         ranks_all_test = pred_mat_builder.predictions_df_to_sparse_ranks(
@@ -493,13 +534,13 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
     def get_recommendations_exact(
             self, user_ids, item_ids=None, n_rec=10,
-            exclude_training=True, chunksize=200, results_format='lists'):
+            exclusions=True, chunksize=200, results_format='lists'):
 
         calc_func = partial(
             self._get_recommendations_exact,
             n_rec=n_rec,
             item_ids=item_ids,
-            exclude_training=exclude_training,
+            exclusions=exclusions,
             results_format=results_format)
 
         chunksize = int(35000 * chunksize / self.sparse_mat_builder.n_cols)
@@ -507,14 +548,14 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         ret = map_batches_multiproc(calc_func, user_ids, chunksize=chunksize)
         return pd.concat(ret, axis=0, sort=False)
 
-    def _predict_for_users_dense(self, user_ids, item_ids=None, exclude_training=True):
+    def _predict_for_users_dense(self, user_ids, item_ids=None, exclusions=True):
         """
         method for calculating prediction for a grid of users and items.
         this method uses the _predict_on_inds() method that the subclasses should implement.
 
         :param user_ids: users ids
         :param item_ids: item ids, when None - all known items are used
-        :param exclude_training: when True sets prediction on training examples to -np.inf
+        :param exclusions: when True uses default exclusion matrix sets prediction on training examples to -np.inf
         :return: a matrix of predictions (n_users, n_items)
         """
 
@@ -526,19 +567,19 @@ class BaseDFSparseRecommender(BaseDFRecommender):
 
         full_pred_mat = self._predict_on_inds_dense(user_inds, item_inds)
 
-        if exclude_training:
-            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
+        if exclusions:
+            exclude_mat_sp_coo = self.exclude_mat[user_inds, :][:, item_inds].tocoo()
             full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
         return full_pred_mat
 
     _predict_for_users_dense_direct = _predict_for_users_dense
 
-    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclude_training=True,
+    def _get_recommendations_exact(self, user_ids, item_ids=None, n_rec=10, exclusions=True,
                                    results_format='lists'):
 
         full_pred_mat = self._predict_for_users_dense(user_ids, item_ids,
-                                                      exclude_training=exclude_training)
+                                                      exclusions=exclusions)
 
         top_inds, top_scores = top_N_sorted(full_pred_mat, n=n_rec)
 
@@ -586,7 +627,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         preds = self._predict_for_users_dense_direct(
             user_ids=[user_id],
             item_ids=item_ids[~new_items_mask],
-            exclude_training=rank_training_last)
+            exclusions=rank_training_last)
 
         df[self._prediction_col].values[~new_items_mask] = preds.ravel()
 
@@ -618,7 +659,7 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         item_inds_mat = np.tile(item_inds, n_users)
         return self._predict_on_inds(user_inds_mat, item_inds_mat).reshape((n_users, n_items))
 
-    def predict_on_df(self, df, exclude_training=True, user_col=None, item_col=None):
+    def predict_on_df(self, df, exclusions=True, user_col=None, item_col=None):
         if user_col is not None and user_col != self.sparse_mat_builder.uid_source_col:
             df[self.sparse_mat_builder.uid_source_col] = df[user_col]
         if item_col is not None and item_col != self.sparse_mat_builder.iid_source_col:
@@ -630,9 +671,9 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         df[self._prediction_col] = self._predict_on_inds(
             df[mat_builder.uid_col].values, df[mat_builder.iid_col].values)
 
-        if exclude_training:
+        if exclusions:
             exclude_mat_sp_coo = \
-                self.train_mat[df[mat_builder.uid_col].values, :] \
+                self.exclude_mat[df[mat_builder.uid_col].values, :] \
                     [:, df[mat_builder.iid_col].values].tocoo()
             df[df[mat_builder.uid_col].isin(exclude_mat_sp_coo.row) &
                df[mat_builder.iid_col].isin(exclude_mat_sp_coo.col)][self._prediction_col] = -np.inf
@@ -640,14 +681,18 @@ class BasePredictorRecommender(BaseDFSparseRecommender):
         df.drop([mat_builder.uid_col, mat_builder.iid_col], axis=1, inplace=True)
         return df
 
-    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=('',),
+    def eval_on_test_by_ranking_exact(self, test_dfs, test_names=None,
                                       prefix='lfm ', include_train=True, k=10,
                                       return_full_metrics=False):
 
-        if isinstance(test_dfs, pd.DataFrame):
+        # convert to list
+        if isinstance(test_dfs, (pd.DataFrame, ObservationsDF)):
             test_dfs = [test_dfs]
-        elif isinstance(test_dfs, ObservationsDF):
-            test_dfs = [test_dfs.df_obs]
+
+        # convert to dfs
+        for i in range(len(test_dfs)):
+            if isinstance(test_dfs[i], ObservationsDF):
+                test_dfs[i] = test_dfs[i].df_obs
 
         # @self.logging_decorator
         def _get_training_ranks():

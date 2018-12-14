@@ -89,10 +89,10 @@ class CascadeEnsemble(CombinationEnsembleBase):
             'no "predict_on_df" for second recommender'
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
-                                  exclude_training=True, **kwargs):
+                                  exclusions=True, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-            exclude_training=exclude_training,
+            exclusions=exclusions,
             results_format='flat', **kwargs)
         pred_mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)
         return self.recommenders[1].predict_on_df(

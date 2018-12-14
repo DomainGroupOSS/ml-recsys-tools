@@ -107,7 +107,7 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
         return user_pred_mat[:, item_inds].toarray()
 
     def _get_recommendations_flat(
-            self, user_ids, item_ids=None, exclude_training=True,
+            self, user_ids, item_ids=None, exclusions=True,
             n_rec=100, **kwargs):
 
         self._check_no_negatives()
@@ -122,8 +122,8 @@ class BaseSimilarityRecommeder(BaseDFSparseRecommender):
 
         def best_for_batch(u_inds):
             user_pred_mat = self.train_mat[u_inds, :] * self.similarity_mat
-            if exclude_training:
-                user_pred_mat -= self.train_mat[u_inds, :] * np.inf
+            if exclusions:
+                user_pred_mat -= self.exclude_mat[u_inds, :] * np.inf
             if item_inds is not None:
                 user_pred_mat = user_pred_mat[:, item_inds]
             return top_N_sorted(user_pred_mat.toarray(), n_rec)
@@ -197,7 +197,7 @@ class UserCoocRecommender(ItemCoocRecommender):
         return user_pred_mat[:, item_inds].toarray()
 
     def _get_recommendations_flat(
-            self, user_ids, item_ids=None, exclude_training=True,
+            self, user_ids, item_ids=None, exclusions=True,
             n_rec=100, **kwargs):
 
         self._check_no_negatives()
@@ -212,8 +212,8 @@ class UserCoocRecommender(ItemCoocRecommender):
 
         def best_for_batch(u_inds):
             user_pred_mat = self.similarity_mat[u_inds, :] * self.train_mat
-            if exclude_training:
-                user_pred_mat -= self.train_mat[u_inds, :] * np.inf
+            if exclusions:
+                user_pred_mat -= self.exclude_mat[u_inds, :] * np.inf
             if item_inds is not None:
                 user_pred_mat = user_pred_mat[:, item_inds]
             return top_N_sorted(user_pred_mat.toarray(), n_rec)

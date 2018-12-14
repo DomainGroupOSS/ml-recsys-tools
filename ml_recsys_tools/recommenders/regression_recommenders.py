@@ -184,11 +184,11 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         return pd.DataFrame(data=scores, index=test_names)
 
     def _get_recommendations_flat(
-            self, user_ids, n_rec, item_ids=None, exclude_training=True, **kwargs):
+            self, user_ids, n_rec, item_ids=None, exclusions=True, **kwargs):
 
         return self.get_recommendations_exact(
             user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
-            exclude_training=exclude_training, results_format='flat')
+            exclusions=exclusions, results_format='flat')
 
     def get_similar_items(self, item_ids=None, target_item_ids=None, n_simil=10,
                           remove_self=True, embeddings_mode=None,

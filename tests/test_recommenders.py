@@ -114,6 +114,7 @@ class TestRecommendersBasic(TestCaseWithState):
         self._test_get_similar_items(rec)
         self._test_predict_for_user(rec)
         self._test_predictions_on_fake_data(rec)
+        self._test_custom_exclusions(rec)
 
     def _test_predict_for_user(self, rec):
         user = rec.all_users[0]
@@ -160,7 +161,45 @@ class TestRecommendersBasic(TestCaseWithState):
 
         # test doesn't take more than 0.05 second
         logger.info(f'predict_for_user for {rec} took {elapsed:.3f} seconds.')
-        self.assertGreater(0.06 * (1 + 2 * int(DEBUG_ON)), elapsed)  #  allow more time if debugging
+        self.assertGreater(0.06 * (1 + 2 * int(DEBUG_ON)), elapsed)  #  allow more tme if debugging
+
+    def _test_custom_exclusions(self, rec):
+        rec = deepcopy(rec)
+
+        # baseline
+        rep_reg = rec.eval_on_test_by_ranking(
+            self.state.test_obs.df_obs, prefix='lfm regular ', n_rec=200, k=self.k)
+
+        # take half of the test for exclusion
+        exc_df = self.state.test_obs.df_obs.sample(len(self.state.test_obs.df_obs) // 2)
+        exc_obs = self.state.test_obs.filter_interactions_by_df(exc_df, mode='keep')
+
+        AUC_ind = rep_reg.columns.tolist().index('AUC')
+
+        # custom exclusion with training
+        rec.set_exclude_mat(exc_obs)
+        rep_exc_default = rec.eval_on_test_by_ranking(
+            [self.state.train_obs, self.state.test_obs, exc_obs], prefix='lfm regular ', n_rec=200, k=self.k)
+        # train performance is the same
+        self.assertAlmostEqual(rep_exc_default.iloc[0, AUC_ind], rep_reg.iloc[0, AUC_ind], places=2)
+        # train performance when train excluded is chance
+        self.assertAlmostEqual(rep_exc_default.iloc[1, AUC_ind], 0.5, places=2)
+        # test performance with exclusion is lower than without
+        self.assertLess(rep_exc_default.iloc[2, AUC_ind], rep_reg.iloc[1, AUC_ind] - 0.03)
+        # test performance on exclusion only is chance
+        self.assertAlmostEqual(rep_exc_default.iloc[3, AUC_ind], 0.5, places=2)
+
+        rec.set_exclude_mat(exc_obs, exclude_training=False)
+        rep_exc_train = rec.eval_on_test_by_ranking(
+            [self.state.train_obs, self.state.test_obs, exc_obs], prefix='lfm regular ', n_rec=200, k=self.k)
+        # train performance is the same
+        self.assertAlmostEqual(rep_exc_train.iloc[0, AUC_ind], rep_reg.iloc[0, AUC_ind], places=2)
+        # train performance with exclusion is NOT chance (because train is not excluded)
+        self.assertAlmostEqual(rep_exc_train.iloc[1, AUC_ind], rep_reg.iloc[0, AUC_ind], places=2)
+        # test performance with exclusion is lower than without
+        self.assertLess(rep_exc_train.iloc[2, AUC_ind], rep_reg.iloc[1, AUC_ind] - 0.03)
+        # test performance on exclusion only is chance
+        self.assertAlmostEqual(rep_exc_train.iloc[3, AUC_ind], 0.5, places=2)
 
     def test_b_2_lfm_rec_evaluation(self):
         k = self.k

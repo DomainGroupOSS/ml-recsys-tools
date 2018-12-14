@@ -191,7 +191,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
         return simil_df
 
     def _get_recommendations_flat(
-            self, user_ids, n_rec, item_ids=None, exclude_training=True,
+            self, user_ids, n_rec, item_ids=None, exclusions=True,
             item_features_mode=None, use_biases=True):
 
         user_biases, user_representations = self._get_user_factors()
@@ -209,7 +209,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             target_mat=item_representations,
             source_biases=user_biases,
             target_biases=item_biases,
-            exclude_mat_sp=self.train_mat if exclude_training else None,
+            exclude_mat_sp=self.exclude_mat if exclusions else None,
             n=n_rec,
             simil_mode='dot',
         )
@@ -218,7 +218,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
             source_vec=user_ids, target_ids_mat=best_ids, scores_mat=best_scores,
             results_format='recommendations_flat')
 
-    def _predict_for_users_dense_direct(self, user_ids, item_ids=None, exclude_training=True):
+    def _predict_for_users_dense_direct(self, user_ids, item_ids=None, exclusions=True):
         """
         method for calculating prediction for a grid of users and items
         directly from the calculated factors. this method is faster for smaller inputs
@@ -227,7 +227,7 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
         :param user_ids: users ids
         :param item_ids: item ids, when None - all known items are used
-        :param exclude_training: when True sets prediction on training examples to -np.inf
+        :param exclusions: when True sets prediction on excluded examples to -np.inf
         :return: a matrix of predictions (n_users, n_items)
         """
         if item_ids is None:
@@ -254,8 +254,8 @@ class BaseFactorizationRecommender(BasePredictorRecommender):
 
         full_pred_mat = scores
 
-        if exclude_training:
-            exclude_mat_sp_coo = self.train_mat[user_inds, :][:, item_inds].tocoo()
+        if exclusions:
+            exclude_mat_sp_coo = self.exclude_mat[user_inds, :][:, item_inds].tocoo()
             full_pred_mat[exclude_mat_sp_coo.row, exclude_mat_sp_coo.col] = -np.inf
 
         return full_pred_mat
