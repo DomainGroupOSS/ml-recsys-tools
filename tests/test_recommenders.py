@@ -174,32 +174,32 @@ class TestRecommendersBasic(TestCaseWithState):
         exc_df = self.state.test_obs.df_obs.sample(len(self.state.test_obs.df_obs) // 2)
         exc_obs = self.state.test_obs.filter_interactions_by_df(exc_df, mode='keep')
 
-        AUC_ind = rep_reg.columns.tolist().index('AUC')
+        metric_ind = rep_reg.columns.tolist().index('n-MRR')
 
         # custom exclusion with training
         rec.set_exclude_mat(exc_obs)
         rep_exc_default = rec.eval_on_test_by_ranking(
             [self.state.train_obs, self.state.test_obs, exc_obs], prefix='lfm regular ', n_rec=200, k=self.k)
         # train performance is the same
-        self.assertAlmostEqual(rep_exc_default.iloc[0, AUC_ind], rep_reg.iloc[0, AUC_ind], places=2)
+        self.assertAlmostEqual(rep_exc_default.iloc[0, metric_ind], rep_reg.iloc[0, metric_ind], places=1)
         # train performance when train excluded is chance
-        self.assertAlmostEqual(rep_exc_default.iloc[1, AUC_ind], 0.5, places=2)
+        self.assertAlmostEqual(rep_exc_default.iloc[1, metric_ind], 0.0, places=1)
         # test performance with exclusion is lower than without
-        self.assertLess(rep_exc_default.iloc[2, AUC_ind], rep_reg.iloc[1, AUC_ind] - 0.03)
+        self.assertLess(rep_exc_default.iloc[2, metric_ind], rep_reg.iloc[1, metric_ind] - 0.03)
         # test performance on exclusion only is chance
-        self.assertAlmostEqual(rep_exc_default.iloc[3, AUC_ind], 0.5, places=2)
+        self.assertAlmostEqual(rep_exc_default.iloc[3, metric_ind], 0.0, places=1)
 
         rec.set_exclude_mat(exc_obs, exclude_training=False)
         rep_exc_train = rec.eval_on_test_by_ranking(
             [self.state.train_obs, self.state.test_obs, exc_obs], prefix='lfm regular ', n_rec=200, k=self.k)
         # train performance is the same
-        self.assertAlmostEqual(rep_exc_train.iloc[0, AUC_ind], rep_reg.iloc[0, AUC_ind], places=2)
+        self.assertAlmostEqual(rep_exc_train.iloc[0, metric_ind], rep_reg.iloc[0, metric_ind], places=1)
         # train performance with exclusion is NOT chance (because train is not excluded)
-        self.assertAlmostEqual(rep_exc_train.iloc[1, AUC_ind], rep_reg.iloc[0, AUC_ind], places=2)
+        self.assertAlmostEqual(rep_exc_train.iloc[1, metric_ind], rep_reg.iloc[0, metric_ind], places=1)
         # test performance with exclusion is lower than without
-        self.assertLess(rep_exc_train.iloc[2, AUC_ind], rep_reg.iloc[1, AUC_ind] - 0.03)
+        self.assertLess(rep_exc_train.iloc[2, metric_ind], rep_reg.iloc[1, metric_ind] - 0.03)
         # test performance on exclusion only is chance
-        self.assertAlmostEqual(rep_exc_train.iloc[3, AUC_ind], 0.5, places=2)
+        self.assertAlmostEqual(rep_exc_train.iloc[3, metric_ind], 0.0, places=1)
 
     def test_b_2_lfm_rec_evaluation(self):
         k = self.k

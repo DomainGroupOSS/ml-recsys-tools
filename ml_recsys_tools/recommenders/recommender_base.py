@@ -306,11 +306,11 @@ class BaseDFSparseRecommender(BaseDFRecommender):
                                  "replacement exclude_obs provided. "
                                  "If you're sure you don't want to have excluded data "
                                  "at all provide an empty observation handler")
-            exclude_mat = self.train_mat.copy()
+            exclude_mat = self.train_mat.copy() if self.train_mat is not None else None
         else:
             exclude_mat = self.sparse_mat_builder.\
                 build_sparse_interaction_matrix(exclude_obs.df_obs)
-            if exclude_training:
+            if exclude_training and self.train_mat is not None:
                 exclude_mat += self.train_mat
         self.exclude_mat = exclude_mat
 
