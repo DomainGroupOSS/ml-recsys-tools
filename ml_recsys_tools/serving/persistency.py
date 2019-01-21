@@ -1,3 +1,4 @@
+import logging
 import random
 import time
 
@@ -14,6 +15,7 @@ class S3ModelReloaderServer:
                  interval_jitter_ratio=0,
                  block_until_first_load=False,
                  start_on_init=True,
+                 load_model_through_disk=True
                  ):
         """
         :param s3_bucket: the S3 bucket used to store the models and the pointer to latest model
@@ -26,12 +28,14 @@ class S3ModelReloaderServer:
             some methods may be broken because self.model will be None until loaded and tested
         :param: start_on_init: whether to start the server when instance
             is initialized or not, default True. If set to False, call start_server() to start.
+        :param: load_model_through_disk: use through disk to reduce memory spike on load
         """
         self.keep_reloading = True
         self.model = None
         self._s3_bucket = s3_bucket
         self._latest_path_key = latest_path_key
         self._block_until_first_load = block_until_first_load
+        self.load_model_through_disk = load_model_through_disk
         self._current_model_path = None
         self._update_interval_seconds = update_interval_hours * 3600 * (1 - interval_jitter_ratio/2)
         self._interval_jitter_seconds = interval_jitter_ratio * self._update_interval_seconds
@@ -75,11 +79,17 @@ class S3ModelReloaderServer:
     def model_ready(self):
         return self.version()['model_version'] is not None
 
-    def _latest_s3_model_path(self):
-        path = S3FileIO(self._s3_bucket).unpickle(self._latest_path_key)
+    def _latest_s3_model_path(self, quiet=False):
+        path = S3FileIO(self._s3_bucket,
+                        log_level=logging.DEBUG if quiet else None).\
+            unpickle(self._latest_path_key)
         if not path:
             raise ValueError('S3 model path is empty (%s).' % str(path))
         return path
+
+    def _load_model(self, s3_path):
+        return S3FileIO(self._s3_bucket).\
+            unpickle(s3_path, use_disk=self.load_model_through_disk)
 
     def _test_loaded_model(self, model):
         if model is None:
@@ -96,7 +106,7 @@ class S3ModelReloaderServer:
                 if new_model_s3_path == self._current_model_path:
                     logger.info('Model path unchanged, not reloading. %s' % new_model_s3_path)
                 else:
-                    updated_model = S3FileIO(self._s3_bucket).unpickle(new_model_s3_path)
+                    updated_model = self._load_model(new_model_s3_path)
                     self._test_loaded_model(updated_model)
                     self.model = updated_model
                     self._current_model_path = new_model_s3_path

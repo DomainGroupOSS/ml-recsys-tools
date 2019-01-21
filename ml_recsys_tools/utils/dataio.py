@@ -3,9 +3,11 @@ import functools
 import gzip
 import io
 import json
+import logging
 import os
 import pickle
 import smtplib
+import tempfile
 import time
 from abc import abstractmethod
 from hashlib import md5
@@ -87,10 +89,11 @@ class RedisTable(redis.StrictRedis):
 
 class S3FileIO(LogCallsTimeAndOutput):
 
-    def __init__(self, bucket_name, assume_role=None):
+    def __init__(self, bucket_name, assume_role=None, log_level=None):
         super().__init__()
         self.assume_role = assume_role
         self.bucket_name = bucket_name
+        self.log_level = log_level if log_level is not None else logging.INFO
 
     def _s3_resource(self):
         creds = {}
@@ -107,6 +110,9 @@ class S3FileIO(LogCallsTimeAndOutput):
                     aws_session_token=credentials['SessionToken'])
         return boto3.resource('s3', **creds)
 
+    def _s3_obj(self, path):
+        return self._s3_resource().Bucket(self.bucket_name).Object(path)
+
     @log_errors(message='Failed writing to S3')
     def write_binary(self, data, remote_path, compress=True):
         if compress:
@@ -121,38 +127,51 @@ class S3FileIO(LogCallsTimeAndOutput):
 
     @log_errors(message='Failed reading from S3')
     def read(self, remote_path):
-        ## for some reason this returns empty sometimes, but get_object works..
-        # with io.BytesIO() as f:
-        #     client.download_fileobj(
-        #         Bucket=self.bucket_name,
-        #         Key=remote_path,
-        #         Fileobj=f)
-        #     data = f.read()
-        data = self._s3_resource().Bucket(self.bucket_name).\
-            Object(remote_path).get()['Body'].read()
+        data = self._s3_obj(remote_path).get()['Body'].read()
         try:
             data = gzip.decompress(data)
         except OSError:
             pass
         return data
 
+    def _stream_to_file(self, remote_path, fileobj):
+        # https://stackoverflow.com/questions/7624900/how-can-i-use-boto-to-stream-a-file-out-of-amazon-s3-to-rackspace-cloudfiles
+        obj_body = self._s3_obj(remote_path).get()['Body']
+        while fileobj.write(obj_body.read(amt=1<<10)):
+            pass
+        fileobj.flush()
+
+    def _unpickle_through_disk(self, remote_path):
+        with tempfile.NamedTemporaryFile(delete=True) as file:
+            self._stream_to_file(remote_path=remote_path, fileobj=file)
+            try:
+                with gzip.open(file.name, 'rb') as gzipfile:
+                    obj = pickle.load(gzipfile)
+            except Exception as e:
+                logger.info('_unpickle_through_disk: failed gzip read, trying regular load')
+                obj = pickle.load(file)
+            return obj
+
     def pickle(self, obj, remote_path, compress=True):
-        logger.info('S3: pickling to %s' % remote_path)
+        logger.log(self.log_level, 'S3: pickling to %s' % remote_path)
         return self.write_binary(pickle.dumps(obj), remote_path, compress=compress)
 
-    def unpickle(self, remote_path):
-        logger.info('S3: unpickling from %s' % remote_path)
-        return pickle.loads(self.read(remote_path))
+    def unpickle(self, remote_path, use_disk=False):
+        logger.log(self.log_level, 'S3: unpickling from %s' % remote_path)
+        if use_disk:
+            return self._unpickle_through_disk(remote_path)
+        else:
+            return pickle.loads(self.read(remote_path))
 
     def local_to_remote(self, local_path, remote_path, compress=True):
-        logger.info('S3: copying from %s to %s' % (local_path, remote_path))
+        logger.log(self.log_level, 'S3: copying from %s to %s' % (local_path, remote_path))
         with open(local_path, 'rb') as local:
             self.write_binary(local.read(), remote_path, compress=compress)
 
     def remote_to_local(self, remote_path, local_path, overwrite=True):
         if not os.path.exists(local_path) or overwrite:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            logger.info('S3: copying from %s to %s' % (remote_path, local_path))
+            logger.log(self.log_level, 'S3: copying from %s to %s' % (remote_path, local_path))
             with open(local_path, 'wb') as local:
                 local.write(self.read(remote_path))
 
