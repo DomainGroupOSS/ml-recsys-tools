@@ -134,46 +134,54 @@ class S3FileIO(LogCallsTimeAndOutput):
             pass
         return data
 
-    def _stream_to_file(self, remote_path, fileobj):
-        # https://stackoverflow.com/questions/7624900/how-can-i-use-boto-to-stream-a-file-out-of-amazon-s3-to-rackspace-cloudfiles
-        obj_body = self._s3_obj(remote_path).get()['Body']
-        while fileobj.write(obj_body.read(amt=1<<10)):
+    def _stream_to_file(self, srtream, fileobj):
+        while fileobj.write(srtream.read(1024)):
             pass
         fileobj.flush()
+        fileobj.seek(0)
 
-    def _unpickle_through_disk(self, remote_path):
-        with tempfile.NamedTemporaryFile(delete=True) as file:
-            self._stream_to_file(remote_path=remote_path, fileobj=file)
+    def _stream_obj_to_file(self, remote_path, fileobj):
+        # https://stackoverflow.com/questions/7624900/how-can-i-use-boto-to-stream-a-file-out-of-amazon-s3-to-rackspace-cloudfiles
+        obj_body = self._s3_obj(remote_path).get()['Body']
+        return self._stream_to_file(obj_body, fileobj)
+
+    def _download_through_disk(self, remote_path, local_fileobj):
+        with tempfile.NamedTemporaryFile(delete=True) as temp:
+            self._stream_obj_to_file(remote_path=remote_path, fileobj=temp)
             try:
-                with gzip.open(file.name, 'rb') as gzipfile:
-                    obj = pickle.load(gzipfile)
+                with gzip.open(temp) as gzipfile:
+                    return self._stream_to_file(gzipfile, local_fileobj)
             except Exception as e:
-                logger.info('_unpickle_through_disk: failed gzip read, trying regular load')
-                obj = pickle.load(file)
-            return obj
+                logger.info('_download_through_disk: failed gzip read, assuming regular binary')
+                return self._stream_to_file(temp, local_fileobj)
 
     def pickle(self, obj, remote_path, compress=True):
         logger.log(self.log_level, 'S3: pickling to %s' % remote_path)
         return self.write_binary(pickle.dumps(obj), remote_path, compress=compress)
 
-    def unpickle(self, remote_path, use_disk=False):
+    def unpickle(self, remote_path, in_memory=True):
         logger.log(self.log_level, 'S3: unpickling from %s' % remote_path)
-        if use_disk:
-            return self._unpickle_through_disk(remote_path)
-        else:
+        if in_memory:
             return pickle.loads(self.read(remote_path))
+        else:
+            with tempfile.NamedTemporaryFile(delete=True) as temp:
+                self._download_through_disk(remote_path, temp)
+                return pickle.load(temp)
 
     def local_to_remote(self, local_path, remote_path, compress=True):
         logger.log(self.log_level, 'S3: copying from %s to %s' % (local_path, remote_path))
         with open(local_path, 'rb') as local:
             self.write_binary(local.read(), remote_path, compress=compress)
 
-    def remote_to_local(self, remote_path, local_path, overwrite=True):
+    def remote_to_local(self, remote_path, local_path, overwrite=True, in_memory=True):
         if not os.path.exists(local_path) or overwrite:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             logger.log(self.log_level, 'S3: copying from %s to %s' % (remote_path, local_path))
             with open(local_path, 'wb') as local:
-                local.write(self.read(remote_path))
+                if in_memory:
+                    local.write(self.read(remote_path))
+                else:
+                    self._download_through_disk(remote_path, local)
 
     def listdir(self, path):
         s3 = self._s3_resource().Bucket(self.bucket_name)
