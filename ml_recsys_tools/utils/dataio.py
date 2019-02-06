@@ -89,6 +89,8 @@ class RedisTable(redis.StrictRedis):
 
 class S3FileIO(LogCallsTimeAndOutput):
 
+    buff_size = 1024
+
     def __init__(self, bucket_name, assume_role=None, log_level=None):
         super().__init__()
         self.assume_role = assume_role
@@ -135,7 +137,7 @@ class S3FileIO(LogCallsTimeAndOutput):
         return data
 
     def _stream_to_file(self, srtream, fileobj):
-        while fileobj.write(srtream.read(1024)):
+        while fileobj.write(srtream.read(self.buff_size)):
             pass
         fileobj.flush()
         fileobj.seek(0)
@@ -150,9 +152,11 @@ class S3FileIO(LogCallsTimeAndOutput):
             self._stream_obj_to_file(remote_path=remote_path, fileobj=temp)
             try:
                 with gzip.open(temp) as gzipfile:
-                    return self._stream_to_file(gzipfile, local_fileobj)
+                    with io.BufferedReader(gzipfile) as gzipbuffered:
+                        return self._stream_to_file(gzipbuffered, local_fileobj)
             except Exception as e:
                 logger.info('_download_through_disk: failed gzip read, assuming regular binary')
+                temp.seek(0)
                 return self._stream_to_file(temp, local_fileobj)
 
     def pickle(self, obj, remote_path, compress=True):
