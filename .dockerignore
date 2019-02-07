@@ -6,8 +6,5 @@ dist
 doc
 out
 *.egg*
-tests
-doc
 src
 scripts
-examples
