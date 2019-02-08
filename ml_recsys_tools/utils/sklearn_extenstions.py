@@ -6,7 +6,7 @@ import scipy.sparse as sp
 import sklearn.preprocessing
 from sklearn.utils import column_or_1d
 from sklearn.utils.validation import check_is_fitted
-from pandas.core.algorithms import _get_data_algo, _hashtables, _ensure_object
+from pandas.core.algorithms import _get_data_algo, _hashtables, ensure_object
 import importlib
 
 pd_cat_module = importlib.import_module(pd.Categorical.__module__)
@@ -31,8 +31,8 @@ class PDLabelEncoder(sklearn.preprocessing.LabelEncoder):
     def _get_table_for_categories(values, categories):
         # ripped out of _get_codes_for_values() in pandas Categorical module
         if not pd_cat_module.is_dtype_equal(values.dtype, categories.dtype):
-            values = _ensure_object(values)
-            categories = _ensure_object(categories)
+            values = ensure_object(values)
+            categories = ensure_object(categories)
 
         (hash_klass, vec_klass), vals = _get_data_algo(values, _hashtables)
         (_, _), cats = _get_data_algo(categories, _hashtables)
