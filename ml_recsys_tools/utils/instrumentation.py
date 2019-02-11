@@ -7,6 +7,8 @@ import inspect
 from types import FunctionType
 from abc import ABC, ABCMeta
 from threading import Thread
+
+import atexit
 from psutil import virtual_memory, cpu_percent
 
 from ml_recsys_tools.utils.logger import simple_logger
@@ -53,23 +55,15 @@ def log_time_and_shape(fn):
         result = fn(*args, **kwargs)
 
         elapsed = time.time() - start
-        duration_str = '%.2f' % elapsed
 
         sys_monitor.stop()
-        mem_str = 'mem: %s%%(peak:%s%%) cpu:%d%%' % \
-                  (sys_monitor.current_memory, sys_monitor.peak_memory, int(sys_monitor.avg_cpu_load))
-
-        ret_str = variable_info(result)
-
-        stack_depth = get_stack_depth()
-
-        fn_str = function_name_with_class(fn)
-
-        msg = ' ' * stack_depth + \
-              '%s, elapsed: %s, returned: %s, sys %s' % \
-              (fn_str, duration_str, ret_str, mem_str)
 
         if elapsed >= LOGGING_VERBOSITY.min_time:
+            msg = ' ' * get_stack_depth() + \
+                  f'{function_name_with_class(fn)}, elapsed: {elapsed:.2f}, ' \
+                  f'returned: {variable_info(result)}, sys mem: {sys_monitor.current_memory}%' \
+                  f'(peak:{sys_monitor.peak_memory}%) cpu:{int(sys_monitor.avg_cpu_load)}%'
+
             simple_logger.log(LOGGING_VERBOSITY.level, msg)
 
         return result
@@ -106,9 +100,7 @@ class ResourceMonitor:
         self._n_measurements = 0
 
     def __del__(self):
-        if self._run_condition:
-            self._run_condition = False
-            self._thread.join(self.interval + 0.1)
+        self.stop()
 
     @staticmethod
     def _current():
@@ -140,7 +132,9 @@ class ResourceMonitor:
             self._thread.join(0)
         self._run_condition = True
         self._thread = Thread(target=self._thread_loop, name='ResourceMonitor')
+        self._thread.daemon = True
         self._thread.start()
+        atexit.register(self.stop)
         return self
 
     def stop(self):
