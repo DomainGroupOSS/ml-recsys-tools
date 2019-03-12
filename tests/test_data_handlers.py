@@ -41,3 +41,17 @@ class TestRecommendersBasic(TestCaseWithState):
         train_obs, test_obs = obs.split_train_test(ratio=ratio, time_split_column=time_col)
         self._obs_split_data_check(obs, train_obs, test_obs)
         self.assertGreaterEqual(test_obs.df_obs[time_col].min(), train_obs.df_obs[time_col].max())
+
+        # split by timestamp n samples
+        time_col = obs.timestamp_col
+        train_obs, test_obs = obs.split_train_test_by_time(time_col=time_col, ratio=ratio)
+        self.assertAlmostEqual(ratio, len(test_obs) / (len(test_obs) + len(train_obs)), places=2)
+        self._obs_split_data_check(obs, train_obs, test_obs)
+        self.assertGreaterEqual(test_obs.df_obs[time_col].min(), train_obs.df_obs[time_col].max())
+
+        # split certain amount of samples
+        n_samples = 100
+        train_obs, test_obs = obs.split_train_test_by_time(time_col=time_col, n_samples=100)
+        self.assertAlmostEqual(n_samples / len(test_obs), 1, places=1)
+        self._obs_split_data_check(obs, train_obs, test_obs)
+        self.assertGreaterEqual(test_obs.df_obs[time_col].min(), train_obs.df_obs[time_col].max())

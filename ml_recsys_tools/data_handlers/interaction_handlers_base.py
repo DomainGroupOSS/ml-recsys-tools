@@ -266,13 +266,26 @@ class ObservationsDF(LogCallsTimeAndOutput):
         else:
             return train_test_split(self.df_obs, test_size=ratio, random_state=random_state)
 
-    def split_by_time_col(self, time_col, days_delta_tuple):
+    def split_train_test_by_time(self, time_col, days_delta_tuple=None, n_samples=None, ratio=None):
 
-        time_filt = self.time_filter_on_df(
-            self.df_obs, time_col=time_col, days_delta_tuple=days_delta_tuple)
+        if sum([arg is not None for arg in [days_delta_tuple, n_samples, ratio]]) != 1:
+            raise ValueError('split_train_test_by_time: provide exactly one split argument '
+                             'out of [days_delta_tuple, n_samples, ratio]"')
 
-        df_train = self.df_obs[~time_filt].copy()
-        df_test = self.df_obs[time_filt].copy()
+        if days_delta_tuple:
+            time_filt = self.time_filter_on_df(
+                self.df_obs, time_col=time_col, days_delta_tuple=days_delta_tuple)
+
+            df_train = self.df_obs[~time_filt].copy()
+            df_test = self.df_obs[time_filt].copy()
+
+        else:
+            self.df_obs.sort_values(time_col, inplace=True)
+            if n_samples:
+                ratio = n_samples / len(self.df_obs)
+            split_ind = int((len(self.df_obs) - 1) * ratio)
+            df_train, df_test = self.df_obs.iloc[:-split_ind].copy(), \
+                                self.df_obs.iloc[-split_ind:].copy()
 
         train_other = copy.deepcopy(self)
         train_other.df_obs = df_train
@@ -281,6 +294,8 @@ class ObservationsDF(LogCallsTimeAndOutput):
         test_other.df_obs = df_test
 
         return train_other, test_other
+
+    split_by_time_col = split_train_test_by_time  # backwards compat
 
     def split_train_test(self, ratio=0.2, users_ratio=1.0, time_split_column=None, random_state=None):
         """
@@ -319,8 +334,8 @@ class ObservationsDF(LogCallsTimeAndOutput):
             # the data that's not in later batches
             delta = days_delta if i < (n_batches - 1) else inf_days
 
-            remaining, batch_obs = remaining.split_by_time_col(
-                time_col, (i * days_delta, i * days_delta + delta))
+            remaining, batch_obs = remaining.split_train_test_by_time(
+                time_col, days_delta_tuple=(i * days_delta, i * days_delta + delta))
             yield batch_obs.df_obs
 
 
