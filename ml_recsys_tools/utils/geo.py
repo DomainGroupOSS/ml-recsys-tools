@@ -41,6 +41,9 @@ class ItemsGeoMap:
 
         return min(zoom_level_lat, zoom_level_long)
 
+    def reset_map(self):
+        self.fig = None
+
     def _check_get_view_fig(self):
         if self.fig is None:
             self.fig = gmaps.figure()
@@ -78,6 +81,7 @@ class ItemsGeoMap:
                     color='red',
                     size=2,
                     opacity=1.0,
+                    fill=True
                     ):
 
         self._check_get_view_fig()
@@ -91,7 +95,7 @@ class ItemsGeoMap:
             marker_locs[self.loc_cols].values,
             fill_color=color,
             stroke_color=color,
-            fill_opacity=opacity,
+            fill_opacity=opacity if fill else 0,
             stroke_opacity=opacity,
             scale=size,
             info_box_content=marker_info))
@@ -118,17 +122,17 @@ class ItemsGeoMap:
         self.add_markers(df_items, **kwargs)
         return self
 
-    def write_html_to_file(self, path, map_height=800):
+    def write_html_to_file(self, path, title='exported map', map_height=800):
         for w in self.fig.widgets.values():
             if isinstance(w, ipywidgets.Layout) and str(w.height).endswith('px'):
                 w.height = f'{map_height}px'
 
-        ipywidgets.embed.embed_minimal_html(path, views=[self.fig])
+        ipywidgets.embed.embed_minimal_html(path, title=title, views=[self.fig])
         return self
 
-    def write_html_to_str(self, map_height=800):
+    def write_html_to_str(self, title='exported map', map_height=800):
         with io.StringIO() as fp:
-            self.write_html_to_file(fp, map_height=map_height)
+            self.write_html_to_file(fp, title=title, map_height=map_height)
             fp.flush()
             return fp.getvalue()
 
