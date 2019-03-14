@@ -96,7 +96,7 @@ class LFMEnsembleBase(LightFMRecommender, SubdivisionEnsembleBase):
         # external features
         if self.use_item_features:
             fit_params['external_features'] = \
-                obs.get_item_features_for_obs(**self.item_features_params)
+                obs.get_item_features(**self.item_features_params)
 
         # self.recommenders[i_m] = sub_model_fit_func(self.recommenders[i_m], obs)
         self.recommenders[i_m].fit(obs, **fit_params)

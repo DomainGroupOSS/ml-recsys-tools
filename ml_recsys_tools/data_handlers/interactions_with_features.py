@@ -11,7 +11,7 @@ from ml_recsys_tools.utils.sklearn_extenstions import NumericBinningBinarizer, G
 
 from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF, RANDOM_STATE
 from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
-from ml_recsys_tools.utils.geo import ItemsGeoMapper
+from ml_recsys_tools.utils.geo import ItemsGeoMap
 from ml_recsys_tools.utils.logger import simple_logger as logger
 
 
@@ -226,17 +226,20 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         return feat_mapper
 
 
-class ObsWithFeatures(ObservationsDF):
+class ItemsHandler(LogCallsTimeAndOutput):
 
-    def __init__(self, df_obs, df_items, items_id_col='item_id', **kwargs):
-        super().__init__(df_obs=df_obs, **kwargs)
+    def __init__(self, df_items, items_id_col='item_id', **kwargs):
+        super().__init__(**kwargs)
         self.item_id_col = items_id_col
-        self.cluster_label_col = 'cluster_label'
         self.df_items = self._preprocess_items_df(df_items)
-        self._filter_relevant_obs_and_items(stage='init')
+
+    def _preprocess_items_df(self, df_items):
+        # make sure the ID col is of object type
+        df_items[self.item_id_col] = df_items[self.item_id_col].astype(str)
+        df_items.drop_duplicates(self.item_id_col, inplace=True)
+        return df_items
 
     def __add__(self, other):
-        super().__add__(other)
         self.df_items = pd.concat([self.df_items, other.df_items], sort=False)
         self.df_items.drop_duplicates(self.item_id_col, inplace=True)
         return self
@@ -244,11 +247,37 @@ class ObsWithFeatures(ObservationsDF):
     def __repr__(self):
         return super().__repr__() + ', %d Items' % len(self.df_items)
 
-    def _preprocess_items_df(self, df_items):
-        # make sure the ID col is of object type
-        df_items[self.item_id_col] = df_items[self.item_id_col].astype(str)
-        df_items.drop_duplicates(self.item_id_col, inplace=True)
-        return df_items
+    def items_filtered_by_ids(self, item_ids):
+        return self.df_items[self.df_items[self.item_id_col].isin(item_ids)]
+
+    def get_item_features(self,
+                          categorical_unique_ratio=0.05,
+                          categorical_n_unique=20,
+                          selection_filter=None, **kwargs):
+        """
+
+        :param categorical_n_unique: consider categorical if less unique values than this
+        :param categorical_unique_ratio: consider categorical if ratio of uniques to length less than this
+        :param selection_filter: include only those column, if None or empty includes all
+        :param kwargs:
+        :return: dataframe of features, list of numeric columns, list of categorical columns
+        """
+        feat_df = self.df_items
+
+        ext_feat = ExternalFeaturesDF(
+            feat_df=feat_df, id_col=self.item_id_col)
+
+        ext_feat.apply_selection_filter(selection_filter)
+
+        return ext_feat
+
+
+class ObsWithFeatures(ObservationsDF, ItemsHandler):
+
+    def __init__(self, df_obs, df_items, items_id_col='item_id', **kwargs):
+        super().__init__(df_obs=df_obs, df_items=df_items, items_id_col=items_id_col, **kwargs)
+        self.cluster_label_col = 'cluster_label'
+        self._filter_relevant_obs_and_items(stage='init')
 
     def _filter_relevant_obs_and_items(self, stage=''):
         items_ids = self.df_items[self.item_id_col].unique().astype(str)
@@ -316,34 +345,11 @@ class ObsWithFeatures(ObservationsDF):
         other._filter_relevant_obs_and_items(stage='remove_interactions_by_df')
         return other
 
-    def items_filtered_by_ids(self, item_ids):
-        return self.df_items[self.df_items[self.item_id_col].isin(item_ids)]
-
     def get_items_df_for_user(self, user):
         item_ids = self.users_filtered_df_obs(user)[self.iid_col].unique().tolist()
         df_items_view = self.items_filtered_by_ids(item_ids)
         return df_items_view
 
-    def get_item_features_for_obs(self,
-                                  categorical_unique_ratio=0.05,
-                                  categorical_n_unique=20,
-                                  selection_filter=None, **kwargs):
-        """
-
-        :param categorical_n_unique: consider categorical if less unique values than this
-        :param categorical_unique_ratio: consider categorical if ratio of uniques to length less than this
-        :param selection_filter: include only those column, if None or empty includes all
-        :param kwargs:
-        :return: dataframe of features, list of numeric columns, list of categorical columns
-        """
-        feat_df = self.df_items
-
-        ext_feat = ExternalFeaturesDF(
-            feat_df=feat_df, id_col=self.item_id_col)
-
-        ext_feat.apply_selection_filter(selection_filter)
-
-        return ext_feat
 
 
 class ObsWithGeoFeatures(ObsWithFeatures):
@@ -411,7 +417,7 @@ class ObsWithGeoFeatures(ObsWithFeatures):
     def geo_cluster_items(self, n_clusters=20):
         cls = MiniBatchKMeans(n_clusters=n_clusters,
                               random_state=RANDOM_STATE). \
-            fit(self.df_items[self.geo_cols].as_matrix())
+            fit(self.df_items[self.geo_cols].values)
 
         self.df_items[self.cluster_label_col] = cls.labels_
 
@@ -468,72 +474,18 @@ class ObsWithGeoFeatures(ObsWithFeatures):
         return geo_filters
 
     def get_mapper(self):
-        return ObsGeoFeatMapper(obs_handler=self, mapper_class=ItemsGeoMapper)
+        return ObsItemsGeoMapper(obs_handler=self, map=ItemsGeoMap())
 
 
-class ObsGeoFeatMapper(ObsWithGeoFeatures):
+class ItemsGeoMapper:
 
-    def __init__(self, obs_handler, mapper_class=ItemsGeoMapper, **kwargs):
-        self.mapper_class = mapper_class
-        super().__init__(df_obs=obs_handler.df_obs, df_items=obs_handler.df_items, **kwargs)
-
-    def map_items_for_user(self, user):
-        return self.mapper_class(self.get_items_df_for_user(user))
-
-    def map_items_by_common_items(self, item_id, default_marker_size=2):
-
-        users = self.items_filtered_df_obs(item_id)[self.uid_col].unique().tolist()
-
-        items_dfs = [self.get_items_df_for_user(user) for user in users]
-
-        # unite all data and get counts
-        all_data = pd.concat(items_dfs, sort=False)
-        counts = all_data[self.item_id_col].value_counts()
-        all_data = all_data.set_index(self.item_id_col).drop_duplicates()
-        all_data['counts'] = counts
-        all_data.reset_index(inplace=True)
-
-        mapper = self.mapper_class(all_data)  # for view init
-
-        # add maps for each user's history
-        colors = iter(self.mapper_class.get_n_spaced_colors(len(items_dfs)))
-        for df in items_dfs:
-            color = next(colors)
-            mapper.add_markers(df, color=color, size=default_marker_size)
-            mapper.add_heatmap(df, color=color, sensitivity=1, opacity=0.4)
-
-        # add common items
-        common_items = all_data[all_data['counts'].values > 1]
-        sizes = list(map(int, np.sqrt(common_items['counts'].as_matrix()) + default_marker_size))
-        mapper.add_markers(common_items, color='white', size=sizes)
-
-        return mapper
-
-    def map_cluster_labels(self, df_items=None, sample_n=1000):
-
-        if df_items is None:
-            df_items = self.df_items
-
-        unique_labels = df_items[self.cluster_label_col].unique()
-
-        items_dfs = [df_items[df_items[self.cluster_label_col] == label].sample(sample_n)
-                     for label in unique_labels]
-
-        all_data = pd.concat(items_dfs, sort=False)
-
-        mapper = self.mapper_class(all_data)
-
-        colors = iter(self.mapper_class.get_n_spaced_colors(len(items_dfs)))
-
-        for df in items_dfs:
-            color = next(colors)
-            mapper.add_heatmap(df, color=color, spread=50, sensitivity=3, opacity=0.3)
-
-        return mapper
+    def __init__(self, items_handler: ItemsHandler, map: ItemsGeoMap):
+        self.map = map
+        self.items_handler = items_handler
 
     def compare_similarity_results(self, item_id, items_lists, scores_lists=None, names=None, print_data=True):
-        df_item_source = self.items_filtered_by_ids([item_id])
-        items_dfs = [self.items_filtered_by_ids(l) for l in items_lists]
+        df_item_source = self.items_handler.items_filtered_by_ids([item_id])
+        items_dfs = [self.items_handler.items_filtered_by_ids(l) for l in items_lists]
 
         # add variant and scores field
         if names is None:
@@ -548,20 +500,20 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
 
         # add counts
         all_data = all_data.join(
-            all_data[self.item_id_col].
+            all_data[self.items_handler.item_id_col].
                 value_counts().to_frame('count'),
-            on=self.item_id_col)
-        all_data = all_data.set_index(self.item_id_col)
+            on=self.items_handler.item_id_col)
+        all_data = all_data.set_index(self.items_handler.item_id_col)
 
         if print_data:
             logger.info('\n' + str(all_data))
 
-        mapper = self.mapper_class(all_data)  # for view init
+        self.map.df_items = all_data
 
         if names is None:
             names = [''] * len(items_dfs)
 
-        colors = self.mapper_class.get_n_spaced_colors(len(items_dfs))
+        colors = self.map.get_n_spaced_colors(len(items_dfs))
 
         # poor man's legend
         logger.info("Poor man's legend: " + str(list(zip(colors, names))))
@@ -572,45 +524,191 @@ class ObsGeoFeatMapper(ObsWithGeoFeatures):
                 size = 5
             else:
                 # filter simil scores only for those items that we have data for
-                listings_with_data = items_dfs[i][self.item_id_col].values
+                listings_with_data = items_dfs[i][self.items_handler.item_id_col].values
                 simil_scores = [score for listing_id, score in
                                 zip(items_lists[i], scores_lists[i])
                                 if listing_id in listings_with_data]
                 size = 3 + (10 * np.array(simil_scores) ** 3).astype(np.int32)
                 size = [int(el) for el in size]
 
-            mapper.add_markers(items_dfs[i], size=size, color=colors[i])
-            mapper.add_heatmap(items_dfs[i], sensitivity=1, opacity=0.4, spread=50, color=colors[i])
+            self.map.add_markers(items_dfs[i], size=size, color=colors[i])
+            self.map.add_heatmap(items_dfs[i], sensitivity=1, opacity=0.4, spread=50, color=colors[i])
 
-        mapper.add_markers(df_item_source, color='black', size=7)
+        self.map.add_markers(df_item_source, color='black', size=7)
 
-        return mapper
+        return self.map
 
     def map_similar_items(self, item_id, similar_items, similarity_scores=None):
         return self.compare_similarity_results(item_id, [similar_items], [similarity_scores])
 
     def map_recommendation_variants(
             self, train_items, test_items, recs_variants, colors, default_marker_size=5):
-        df_train = self.items_filtered_by_ids(train_items)
-        df_test = self.items_filtered_by_ids(test_items)
-        rec_dfs = [self.items_filtered_by_ids(rec) for rec in recs_variants]
+        df_train = self.items_handler.items_filtered_by_ids(train_items)
+        df_test = self.items_handler.items_filtered_by_ids(test_items)
+        rec_dfs = [self.items_handler.items_filtered_by_ids(rec) for rec in recs_variants]
 
         all_data = pd.concat(rec_dfs + [df_train, df_test], sort=False)
-        all_data = all_data.set_index(self.item_id_col).drop_duplicates()
+        all_data = all_data.set_index(self.items_handler.item_id_col).drop_duplicates()
 
-        mapper = self.mapper_class(all_data)  # for view init
+        self.map.df_items = all_data
 
         # add maps for each user's history
         for df, color in zip(rec_dfs, colors):
-            mapper.add_markers(df, color=color, size=default_marker_size)
-            mapper.add_heatmap(df, color=color, sensitivity=1, opacity=0.4, spread=50)
+            self.map.add_markers(df, color=color, size=default_marker_size)
+            self.map.add_heatmap(df, color=color, sensitivity=1, opacity=0.4, spread=50)
 
         if len(df_train):
-            mapper.add_markers(df_train, color='gray', size=6)
+            self.map.add_markers(df_train, color='gray', size=6)
             # mapper.add_heatmap(df_train, color='black', sensitivity=1, opacity=0.4)
 
         if len(df_test):
-            mapper.add_markers(df_test, color='black', size=6)
+            self.map.add_markers(df_test, color='black', size=6)
             # mapper.add_heatmap(df_test, color=(250, 50, 50), sensitivity=1, opacity=0.4)
 
-        return mapper
+        return self.map
+
+
+class ObsItemsGeoMapper(ItemsGeoMapper):
+
+    def __init__(self, obs_handler: ObsWithFeatures, map: ItemsGeoMap):
+        super().__init__(map=map, items_handler=obs_handler)
+        self.obs_handler = obs_handler
+
+    def map_items_for_user(self, user):
+        self.map.df_items = self.obs_handler.get_items_df_for_user(user)
+        return self.map
+
+    def map_items_by_common_items(self, item_id, default_marker_size=2):
+
+        users = self.obs_handler.items_filtered_df_obs(item_id)[self.obs_handler.uid_col].unique().tolist()
+
+        items_dfs = [self.obs_handler.get_items_df_for_user(user) for user in users]
+
+        # unite all data and get counts
+        all_data = pd.concat(items_dfs, sort=False)
+        counts = all_data[self.obs_handler.item_id_col].value_counts()
+        all_data = all_data.set_index(self.obs_handler.item_id_col).drop_duplicates()
+        all_data['counts'] = counts
+        all_data.reset_index(inplace=True)
+
+        self.map.df_items = all_data
+
+        # add maps for each user's history
+        colors = iter(self.map.get_n_spaced_colors(len(items_dfs)))
+        for df in items_dfs:
+            color = next(colors)
+            self.map.add_markers(df, color=color, size=default_marker_size)
+            self.map.add_heatmap(df, color=color, sensitivity=1, opacity=0.4)
+
+        # add common items
+        common_items = all_data[all_data['counts'].values > 1]
+        sizes = list(map(int, np.sqrt(common_items['counts'].values) + default_marker_size))
+        self.map.add_markers(common_items, color='white', size=sizes)
+
+        return self.map
+
+    def map_cluster_labels(self, df_items=None, sample_n=1000):
+
+        if df_items is None:
+            df_items = self.obs_handler.df_items
+
+        unique_labels = df_items[self.obs_handler.cluster_label_col].unique()
+
+        items_dfs = [df_items[df_items[self.obs_handler.cluster_label_col] == label].sample(sample_n)
+                     for label in unique_labels]
+
+        all_data = pd.concat(items_dfs, sort=False)
+
+        self.map.df_items = all_data
+
+        colors = iter(self.map.get_n_spaced_colors(len(items_dfs)))
+
+        for df in items_dfs:
+            color = next(colors)
+            self.map.add_heatmap(df, color=color, spread=50, sensitivity=3, opacity=0.3)
+
+        return self.map
+
+    def compare_similarity_results(self, item_id, items_lists, scores_lists=None, names=None, print_data=True):
+        df_item_source = self.obs_handler.items_filtered_by_ids([item_id])
+        items_dfs = [self.obs_handler.items_filtered_by_ids(l) for l in items_lists]
+
+        # add variant and scores field
+        if names is None:
+            names = [str(i) for i in range(len(items_lists))]
+        if scores_lists is None:
+            scores_lists = [[5] * len(df) for df in items_dfs]
+        all_lists = [df.assign(variant=name, score=scores[:len(df)])
+                     for df, name, scores in
+                     zip(items_dfs + [df_item_source],
+                         names + ['source'], scores_lists + [[0]])]
+        all_data = pd.concat(all_lists, sort=False)
+
+        # add counts
+        all_data = all_data.join(
+            all_data[self.obs_handler.item_id_col].
+                value_counts().to_frame('count'),
+            on=self.obs_handler.item_id_col)
+        all_data = all_data.set_index(self.obs_handler.item_id_col)
+
+        if print_data:
+            logger.info('\n' + str(all_data))
+
+        self.map.df_items = all_data
+
+        if names is None:
+            names = [''] * len(items_dfs)
+
+        colors = self.map.get_n_spaced_colors(len(items_dfs))
+
+        # poor man's legend
+        logger.info("Poor man's legend: " + str(list(zip(colors, names))))
+
+        for i in range(len(items_lists)):
+
+            if scores_lists[i] is None:
+                size = 5
+            else:
+                # filter simil scores only for those items that we have data for
+                listings_with_data = items_dfs[i][self.obs_handler.item_id_col].values
+                simil_scores = [score for listing_id, score in
+                                zip(items_lists[i], scores_lists[i])
+                                if listing_id in listings_with_data]
+                size = 3 + (10 * np.array(simil_scores) ** 3).astype(np.int32)
+                size = [int(el) for el in size]
+
+            self.map.add_markers(items_dfs[i], size=size, color=colors[i])
+            self.map.add_heatmap(items_dfs[i], sensitivity=1, opacity=0.4, spread=50, color=colors[i])
+
+        self.map.add_markers(df_item_source, color='black', size=7)
+
+        return self.map
+
+    def map_similar_items(self, item_id, similar_items, similarity_scores=None):
+        return self.compare_similarity_results(item_id, [similar_items], [similarity_scores])
+
+    def map_recommendation_variants(
+            self, train_items, test_items, recs_variants, colors, default_marker_size=5):
+        df_train = self.obs_handler.items_filtered_by_ids(train_items)
+        df_test = self.obs_handler.items_filtered_by_ids(test_items)
+        rec_dfs = [self.obs_handler.items_filtered_by_ids(rec) for rec in recs_variants]
+
+        all_data = pd.concat(rec_dfs + [df_train, df_test], sort=False)
+        all_data = all_data.set_index(self.obs_handler.item_id_col).drop_duplicates()
+
+        self.map.df_items = all_data
+
+        # add maps for each user's history
+        for df, color in zip(rec_dfs, colors):
+            self.map.add_markers(df, color=color, size=default_marker_size)
+            self.map.add_heatmap(df, color=color, sensitivity=1, opacity=0.4, spread=50)
+
+        if len(df_train):
+            self.map.add_markers(df_train, color='gray', size=6)
+            # mapper.add_heatmap(df_train, color='black', sensitivity=1, opacity=0.4)
+
+        if len(df_test):
+            self.map.add_markers(df_test, color='black', size=6)
+            # mapper.add_heatmap(df_test, color=(250, 50, 50), sensitivity=1, opacity=0.4)
+
+        return self.map

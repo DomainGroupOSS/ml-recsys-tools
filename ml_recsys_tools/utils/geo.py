@@ -1,4 +1,6 @@
 import pprint
+import io
+
 import numpy as np
 import os
 import gmaps
@@ -6,7 +8,7 @@ import ipywidgets.embed
 import colorsys
 
 
-class ItemsGeoMapper:
+class ItemsGeoMap:
 
     def __init__(self, df_items=None, lat_col='lat', long_col='long'):
         self.df_items = df_items
@@ -31,7 +33,7 @@ class ItemsGeoMapper:
             else:
                 return 14
 
-        ranges = self.df_items[self.loc_cols].apply([np.min, np.max]).as_matrix()
+        ranges = self.df_items[self.loc_cols].apply([np.min, np.max]).values
 
         zoom_level_lat = gm_heuristic(ranges[0][0], ranges[1][0])
 
@@ -43,7 +45,9 @@ class ItemsGeoMapper:
         if self.fig is None:
             self.fig = gmaps.figure()
             self.fig.widgets.clear()  # clear any history
-            self.fig = gmaps.figure(center=self._ceter_location(), zoom_level=self._zoom_heuristic())
+            self.fig = gmaps.figure(
+                center=self._ceter_location(),
+                zoom_level=self._zoom_heuristic())
 
     def add_heatmap(self,
                     df_items=None,
@@ -59,7 +63,7 @@ class ItemsGeoMapper:
 
         self.fig.add_layer(
             gmaps.heatmap_layer(
-                df_items[self.loc_cols].as_matrix(),
+                df_items[self.loc_cols].values,
                 opacity=opacity,
                 max_intensity=sensitivity,
                 point_radius=spread,
@@ -84,7 +88,7 @@ class ItemsGeoMapper:
         marker_locs, marker_info = self._markers_with_info(df_items, max_markers=max_markers)
 
         self.fig.add_layer(gmaps.symbol_layer(
-            marker_locs[self.loc_cols].as_matrix(),
+            marker_locs[self.loc_cols].values,
             fill_color=color,
             stroke_color=color,
             fill_opacity=opacity,
@@ -109,18 +113,24 @@ class ItemsGeoMapper:
 
         return marker_locs, marker_info
 
-    def draw_listings(self, df_items=None, **kwargs):
+    def draw_items(self, df_items=None, **kwargs):
         self.add_heatmap(df_items, **kwargs)
         self.add_markers(df_items, **kwargs)
         return self
 
-    def write_html(self, path):
+    def write_html_to_file(self, path, map_height=800):
         for w in self.fig.widgets.values():
-            if isinstance(w, ipywidgets.Layout) and w.height == '400px':
-                w.height = '700px'
+            if isinstance(w, ipywidgets.Layout) and str(w.height).endswith('px'):
+                w.height = f'{map_height}px'
 
         ipywidgets.embed.embed_minimal_html(path, views=[self.fig])
         return self
+
+    def write_html_to_str(self, map_height=800):
+        with io.StringIO() as fp:
+            self.write_html_to_file(fp, map_height=map_height)
+            fp.flush()
+            return fp.getvalue()
 
     @staticmethod
     def random_color():
