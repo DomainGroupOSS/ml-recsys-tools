@@ -7,6 +7,9 @@ import gmaps
 import ipywidgets.embed
 import colorsys
 
+from ml_recsys_tools.data_handlers.interactions_with_features import ItemsHandler, ItemsGeoMapper
+from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
+
 
 class ItemsGeoMap:
 
@@ -153,3 +156,95 @@ class ItemsGeoMap:
                                              colorsys.hsv_to_rgb(*x)))),
                               HSV_tuples))
         return RGB_tuples
+
+
+class PropertyGeoMap(ItemsGeoMap):
+
+    def __init__(self, link_base_url='www.domain.com.au', **kwargs):
+        super().__init__(**kwargs)
+        self.site_url = link_base_url
+
+    def _markers_with_info(self, df_items, max_markers):
+        marker_locs = df_items.iloc[:max_markers]
+        marker_info = []
+        for _, item_data in marker_locs.iterrows():
+            item = item_data.to_dict()
+            url = f"https://{self.site_url}/{item.get('property_id')}"
+            marker_info.append(
+                f"""     
+                <dl><a style="font-size: 16px" href='{url}' target='_blank'>{url}</a><dt> 
+                score: {item.get('score', np.nan) :.2f} | {item.get('price')} $ 
+                {item.get('property_type')} ({item.get('buy_or_rent')}) | {item.get('bedrooms')} B ' \
+                '| {item.get('bathrooms')} T | {item.get('carspaces')} P <br />  ' \
+                '{item.get('land_area')} Sqm | in {item.get('suburb')} | with {item.get('features_list')}'</dt></dl>
+                """)
+        return marker_locs, marker_info
+
+
+class RecommenderGeoVisualiser:
+
+    def __init__(self,
+                 recommender: BaseDFSparseRecommender,
+                 items_handler: ItemsHandler,
+                 link_base_url='www.domain.com.au'):
+        self.recommender = recommender
+        self.items_handler = items_handler
+        self.mapper = ItemsGeoMapper(
+            items_handler=self.items_handler,
+            map=PropertyGeoMap(link_base_url=link_base_url))
+
+    def random_user(self):
+        return np.random.choice(self.recommender.all_users)
+
+    def random_item(self):
+        return np.random.choice(self.recommender.all_items)
+
+    def _user_recommendations_and_scores(self, user):
+        recos = self.recommender.get_recommendations([user])
+        reco_items = np.array(recos[self.recommender._item_col].values[0])
+        reco_scores = np.array(recos[self.recommender._prediction_col].values[0])
+        reco_scores /= reco_scores.max()
+        return reco_items, reco_scores
+
+    def _similar_items_and_scores(self, item):
+        if hasattr(self.recommender, 'get_similar_items'):
+            simils = self.recommender.get_similar_items([item])
+            simil_items = np.array(simils[self.recommender._item_col].values[0])
+            simil_scores = np.array(simils[self.recommender._prediction_col].values[0])
+            simil_scores /= simil_scores.max()
+            return simil_items, simil_scores
+        else:
+            raise NotImplementedError(f"'get_similar_items' is not implemented / supported by "
+                                      f"{self.recommender.__class__.__name__}")
+
+    def _user_training_items(self, user):
+        known_users = np.array([user])[~self.recommender.unknown_users_mask([user])]
+        user_ind = self.recommender.user_inds(known_users)
+        training_items = self.recommender.item_ids(
+            self.recommender.train_mat[user_ind, :].indices).astype(str)
+        return training_items
+
+    def map_recommendations(self, user, path=None):
+        training_items = self._user_training_items(user)
+        reco_items, reco_scores = self._user_recommendations_and_scores(user)
+        map_obj = self.mapper.map_recommendations(
+            train_ids=training_items,
+            reco_ids=reco_items,
+            scores=reco_scores
+        )
+        if path:
+            map_obj.write_html_to_file(path, title=f'user: {user}')
+        else:
+            return map_obj.write_html_to_str(title=f'user: {user}')
+
+    def map_similar_items(self, item, path=None):
+        simil_items, simil_scores = self._similar_items_and_scores(item)
+        map_obj = self.mapper.map_similar_items(
+            source_id=item,
+            similar_ids=simil_items,
+            scores=simil_scores
+        )
+        if path:
+            map_obj.write_html_to_file(path, title=f'item: {item}')
+        else:
+            return map_obj.write_html_to_str(title=f'item: {item}')

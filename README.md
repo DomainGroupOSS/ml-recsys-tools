@@ -92,7 +92,7 @@ Docker (build and run interactively):
     * similarity calculation helpers (similarities, dot, top N, top N on sparse)
     * parallelism utils
     * sklearn transformer extenstions (for feature engineering)
-    * google maps util for displaying geographical data
+    * google maps utils for displaying geographical data / recommendations / similar listings 
     * logging, debug printouts decorators and other isntrumentation and inspection tools
     * pandas utils
     * data helpers: redis, s3    
