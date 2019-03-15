@@ -252,6 +252,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         self.train_mat = None
         self.exclude_mat = None
         self.external_features_mat = None
+        self.items_handler = None
 
     def user_inds(self, user_ids):
         return self.sparse_mat_builder.uid_encoder.transform(user_ids)
