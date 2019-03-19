@@ -14,12 +14,15 @@ import time
 
 from ml_recsys_tools.utils.logger import simple_logger as logger
 from ml_recsys_tools.utils.automl import BayesSearchHoldOut, SearchSpaceGuess
-from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
-from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE, \
-    ObservationsDF
 from ml_recsys_tools.utils.instrumentation import LogCallsTimeAndOutput
 from ml_recsys_tools.utils.parallelism import map_batches_multiproc
 from ml_recsys_tools.utils.similarity import top_N_sorted
+
+from ml_recsys_tools.data_handlers.interaction_handlers_base import InteractionMatrixBuilder, RANDOM_STATE, \
+    ObservationsDF
+from ml_recsys_tools.data_handlers.interactions_with_features import ItemsHandler
+
+from ml_recsys_tools.evaluation.ranks_scoring import mean_scores_report_on_ranks
 
 
 class BaseDFRecommender(ABC, LogCallsTimeAndOutput):
@@ -293,6 +296,12 @@ class BaseDFSparseRecommender(BaseDFRecommender):
             build_sparse_interaction_matrix(train_df)
         # set training mat as default exclude_mat
         self.set_exclude_mat(exclude_obs, exclude_training=exclude_training)
+        self.set_items_handler(train_obs)
+        
+    def set_items_handler(self, train_obs):
+        if isinstance(train_obs, ItemsHandler):
+            self.items_handler = ItemsHandler(df_items=train_obs.df_items, 
+                                              item_id_col=train_obs.item_id_col)
 
     def set_exclude_mat(self, exclude_obs=None, exclude_training=True):
         """
@@ -321,6 +330,7 @@ class BaseDFSparseRecommender(BaseDFRecommender):
         self.sparse_mat_builder = other.sparse_mat_builder
         self.train_mat = other.train_mat
         self.exclude_mat = other.exclude_mat
+        self.items_handler = other.items_handler
 
     def remove_unseen_users(self, user_ids, message_prefix=''):
         return self._filter_array(
