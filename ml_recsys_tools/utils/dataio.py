@@ -100,7 +100,7 @@ class S3FileIO(LogCallsTimeAndOutput):
     def _s3_resource(self):
         creds = {}
         if self.assume_role is not None:
-            client = boto3.client('sts')
+            client = boto3.session.Session().client('sts')
             current_arn = client.get_caller_identity()['Arn']
             if current_arn != self.assume_role:
                 assumedRoleObject = client.assume_role(
@@ -110,7 +110,7 @@ class S3FileIO(LogCallsTimeAndOutput):
                     aws_access_key_id=credentials['AccessKeyId'],
                     aws_secret_access_key=credentials['SecretAccessKey'],
                     aws_session_token=credentials['SessionToken'])
-        return boto3.resource('s3', **creds)
+        return boto3.session.Session().resource('s3', **creds)
 
     def _s3_obj(self, path):
         return self._s3_resource().Bucket(self.bucket_name).Object(path)
@@ -232,7 +232,7 @@ class Emailer:
 
         elif 'SES' in self.backend:
             # https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-raw.html
-            client = boto3.client('ses', region_name=self._SES_region())
+            client = boto3.session.Session().client('ses', region_name=self._SES_region())
             try:
                 client.send_raw_email(
                     Source=self.from_email,
