@@ -47,10 +47,9 @@ class ItemsGeoMap:
     def _check_get_view_fig(self):
         if self.fig is None:
             self.fig = gmaps.figure()
-            self.fig.widgets.clear()  # clear any history
-            self.fig = gmaps.figure(
-                center=self._ceter_location(),
-                zoom_level=self._zoom_heuristic())
+            # self.fig = gmaps.figure(
+            #     center=self._ceter_location(),
+            #     zoom_level=self._zoom_heuristic())
 
     def add_heatmap(self,
                     df_items=None,
