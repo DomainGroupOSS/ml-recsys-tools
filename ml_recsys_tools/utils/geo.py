@@ -132,6 +132,8 @@ class ItemsGeoMap:
 
 class PropertyGeoMap(ItemsGeoMap):
 
+    _score_key = '_score'
+
     def __init__(self, link_base_url='www.domain.com.au', **kwargs):
         super().__init__(**kwargs)
         self.site_url = link_base_url
@@ -145,7 +147,7 @@ class PropertyGeoMap(ItemsGeoMap):
             marker_info.append(
                 f"""     
                 <dl><a style="font-size: 16px" href='{url}' target='_blank'>{url}</a><dt> 
-                score: {item.get('score', np.nan) :.2f} | {item.get('price')} $ 
+                score: {item.get(self._score_key, np.nan) :.2f} | {item.get('price')} $ 
                 {item.get('property_type')} ({item.get('buy_or_rent')}) | {item.get('bedrooms')} B ' \
                 '| {item.get('bathrooms')} T | {item.get('carspaces')} P <br />  ' \
                 '{item.get('land_area')} Sqm | in {item.get('suburb')} | with {item.get('features_list')}'</dt></dl>
