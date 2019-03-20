@@ -10,8 +10,7 @@ import colorsys
 
 class ItemsGeoMap:
 
-    def __init__(self, df_items=None, lat_col='lat', long_col='long'):
-        self.df_items = df_items
+    def __init__(self, lat_col='lat', long_col='long'):
         self.lat_col = lat_col
         self.long_col = long_col
         self.fig = None
@@ -21,47 +20,21 @@ class ItemsGeoMap:
     def loc_cols(self):
         return [self.lat_col, self.long_col]
 
-    def _ceter_location(self):
-        return self.df_items[self.loc_cols].apply(np.mean).tolist()
-
-    def _zoom_heuristic(self):
-
-        # https://stackoverflow.com/questions/6048975/google-maps-v3-how-to-calculate-the-zoom-level-for-a-given-bounds
-        def gm_heuristic(min_deg, max_deg):
-            if max_deg - min_deg > 0:
-                return int(np.log(1000 * 360 / (max_deg - min_deg) / 256) / np.log(2))
-            else:
-                return 14
-
-        ranges = self.df_items[self.loc_cols].apply([np.min, np.max]).values
-
-        zoom_level_lat = gm_heuristic(ranges[0][0], ranges[1][0])
-
-        zoom_level_long = gm_heuristic(ranges[0][1], ranges[1][1])
-
-        return min(zoom_level_lat, zoom_level_long)
-
     def reset_map(self):
         self.fig = None
 
     def _check_get_view_fig(self):
         if self.fig is None:
             self.fig = gmaps.figure()
-            # self.fig = gmaps.figure(
-            #     center=self._ceter_location(),
-            #     zoom_level=self._zoom_heuristic())
 
     def add_heatmap(self,
-                    df_items=None,
+                    df_items,
                     color=(0, 250, 50),
                     opacity=0.6,
                     sensitivity=5,
                     spread=30, ):
 
         self._check_get_view_fig()
-
-        if df_items is None:
-            df_items = self.df_items
 
         self.fig.add_layer(
             gmaps.heatmap_layer(
@@ -75,7 +48,7 @@ class ItemsGeoMap:
         return self
 
     def add_markers(self,
-                    df_items=None,
+                    df_items,
                     max_markers=1000,
                     color='red',
                     size=2,
@@ -84,9 +57,6 @@ class ItemsGeoMap:
                     ):
 
         self._check_get_view_fig()
-
-        if df_items is None:
-            df_items = self.df_items
 
         marker_locs, marker_info = self._markers_with_info(df_items, max_markers=max_markers)
 
@@ -116,7 +86,7 @@ class ItemsGeoMap:
 
         return marker_locs, marker_info
 
-    def draw_items(self, df_items=None, **kwargs):
+    def draw_items(self, df_items, **kwargs):
         self.add_heatmap(df_items, **kwargs)
         self.add_markers(df_items, **kwargs)
         return self
