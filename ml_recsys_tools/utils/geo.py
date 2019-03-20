@@ -122,19 +122,25 @@ class ItemsGeoMap:
         self.add_markers(df_items, **kwargs)
         return self
 
-    def write_html_to_file(self, path, title='exported map', map_height=800):
+    def write_html(self, *, path=None, map_height=800, **kwargs):
+        """
+        writes map to html string or file.
+        :param path: path to file (optional). if None the methods returns the html string.
+        :param map_height: height of map element
+        :return: if path is None return the html string, if path is not None returns the path (file mode).
+        """
         for w in self.fig.widgets.values():
             if isinstance(w, ipywidgets.Layout) and str(w.height).endswith('px'):
                 w.height = f'{map_height}px'
 
-        ipywidgets.embed.embed_minimal_html(path, title=title, views=[self.fig])
-        return self
-
-    def write_html_to_str(self, title='exported map', map_height=800):
-        with io.StringIO() as fp:
-            self.write_html_to_file(fp, title=title, map_height=map_height)
-            fp.flush()
-            return fp.getvalue()
+        if path:
+            ipywidgets.embed.embed_minimal_html(fp=path, views=[self.fig], **kwargs)
+            return path
+        else:
+            with io.StringIO() as fp:
+                ipywidgets.embed.embed_minimal_html(fp=fp, views=[self.fig], **kwargs)
+                fp.flush()
+                return fp.getvalue()
 
     @staticmethod
     def random_color():

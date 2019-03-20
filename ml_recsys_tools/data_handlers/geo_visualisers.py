@@ -12,11 +12,12 @@ class ItemsGeoMapper:
         self.map = map
         self.items_handler = items_handler
 
-    def _join_scores_list(self, items_df, item_ids, scores, score_col='score'):
+    def join_scores_list(self, items_df, item_ids, scores, score_col='_score'):
         return items_df. \
             set_index(self.items_handler.item_id_col). \
             join(pd.Series(scores, index=item_ids, name=score_col)). \
-            reset_index()
+            reset_index().\
+            sort_values(score_col, ascending=False)
 
     def _scale_scores_as_marker_sizes(self, scores, min_size=5):
         scale_scores = np.array(scores) ** 2
@@ -72,9 +73,14 @@ class ItemsGeoMapper:
 
             scale_scores = None
             if scores is not None:
-                rec_items = self._join_scores_list(rec_items, item_ids=rec_ids, scores=scores)
+
+                rec_items = self.join_scores_list(rec_items,
+                                                  item_ids=rec_ids,
+                                                  scores=scores,
+                                                  score_col='_score')
+
                 scale_scores = self._scale_scores_as_marker_sizes(
-                    scores=rec_items['score'].fillna(0).values, min_size=marker_size)
+                    scores=rec_items['_score'].fillna(0).values, min_size=marker_size)
 
             self.map.add_markers(rec_items, color=color, size=scale_scores or marker_size, fill=False)
             self.map.add_heatmap(rec_items, color=color, sensitivity=1, opacity=0.4, spread=50)
@@ -201,10 +207,7 @@ class RecommenderGeoVisualiser:
             reco_ids=reco_items,
             scores=reco_scores
         )
-        if path:
-            map_obj.write_html_to_file(path, title=f'user: {user}')
-        else:
-            return map_obj.write_html_to_str(title=f'user: {user}')
+        return map_obj.write_html(path=path, title=f'user: {user}')
 
     def map_similar_items(self, item, path=None):
         simil_items, simil_scores = self._similar_items_and_scores(item)
@@ -213,7 +216,4 @@ class RecommenderGeoVisualiser:
             similar_ids=simil_items,
             scores=simil_scores
         )
-        if path:
-            map_obj.write_html_to_file(path, title=f'item: {item}')
-        else:
-            return map_obj.write_html_to_str(title=f'item: {item}')
+        return map_obj.write_html(path=path, title=f'item: {item}')
