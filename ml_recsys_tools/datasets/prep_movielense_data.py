@@ -79,6 +79,10 @@ def prep_readable_csvs(out_dir):
     ratings_df = pd.merge(ratings_df, users_df[['user_ind', 'userid']],
                           on='user_ind').drop('user_ind', axis=1)
 
+    # remove item index from movies
+    movies_df.drop('item_ind', axis=1, inplace=True)
+    users_df.drop('user_ind', axis=1, inplace=True)
+
     # save everything
     movies_df.to_csv(os.path.join(out_dir, movies_csv_name), index=None)
     users_df.to_csv(os.path.join(out_dir, users_csv_name), index=None)

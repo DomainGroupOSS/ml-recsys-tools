@@ -22,9 +22,8 @@ print(cf_only.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm ', n_rec=100)
 
 
 # using movie genres and CF (hybrid mode) - slightly better
-feature_columns = list(movies_df.columns.difference(['item_ind', 'itemid']))
-hybrid = LightFMRecommender(external_features=train_obs.get_item_features(bin_cols=feature_columns),
-                            external_features_params=dict(add_identity_mat=True))
+feature_columns = list(movies_df.columns.difference(['itemid']))
+hybrid = LightFMRecommender(external_features=train_obs.get_item_features(bin_cols=feature_columns))
 hybrid.fit(train_obs, epochs=20)
 print(hybrid.eval_on_test_by_ranking(test_obs.df_obs, prefix='lfm hybrid ', n_rec=100))
 

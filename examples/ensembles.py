@@ -19,7 +19,7 @@ lfm_rec = LightFMRecommender()
 lfm_rec.fit(train_obs, epochs=10)
 
 # train and evaluate a Cooccurrence recommender (fast and deterministic)
-from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
+from ml_recsys_tools.recommenders.cooccurrence_recommenders import ItemCoocRecommender
 
 item_cooc_rec = ItemCoocRecommender()
 item_cooc_rec.fit(train_obs)

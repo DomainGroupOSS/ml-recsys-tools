@@ -2,7 +2,7 @@ import warnings
 
 from ml_recsys_tools.data_handlers.interactions_with_features import ObsWithGeoFeatures
 from ml_recsys_tools.data_handlers.interaction_handlers_base import RANDOM_STATE
-from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
+from ml_recsys_tools.recommenders.cooccurrence_recommenders import ItemCoocRecommender
 from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
 from ml_recsys_tools.recommenders.ensembles_base import SubdivisionEnsembleBase
 

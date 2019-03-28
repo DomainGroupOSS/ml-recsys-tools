@@ -5,7 +5,7 @@ from copy import deepcopy
 
 import time
 
-from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF
+from ml_recsys_tools.data_handlers.interactions_with_features import ObsWithFeatures
 from ml_recsys_tools.datasets.prep_movielense_data import get_and_prep_data
 
 from ml_recsys_tools.utils.logger import simple_logger as logger
@@ -35,7 +35,10 @@ class TestRecommendersBasic(TestCaseWithState):
 
     def _setup_obs_handler(self):
         ratings_df = pd.read_csv(rating_csv_path)
-        obs = ObservationsDF(ratings_df, uid_col=self.user_id_col, iid_col=self.item_id_col)
+        movies_df = pd.read_csv(movies_csv_path)
+        obs = ObsWithFeatures(df_obs=ratings_df, df_items=movies_df,
+                             uid_col=self.user_id_col, iid_col=self.item_id_col,
+                             item_id_col=self.item_id_col)
         obs = obs.sample_observations(n_users=1000, n_items=1000)
         self.state.train_obs, self.state.test_obs = obs.split_train_test(ratio=0.2, users_ratio=1.0)
         # add some fake data for sanity tests
@@ -67,6 +70,14 @@ class TestRecommendersBasic(TestCaseWithState):
         self._test_recommender(lfm_rec)
         # self._test_predict_for_user(lfm_rec)
         self.state.lfm_rec = lfm_rec
+
+    def test_b_1_lfm_hybrid(self):
+        self._setup_obs_handler()
+
+        from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
+        lfm_rec = LightFMRecommender(external_features=self.state.train_obs.get_item_features())
+        lfm_rec.fit(self.state.train_obs, epochs=20)
+        self._test_recommender(lfm_rec)
 
     def _test_get_recommendations(self, rec):
         # check format
@@ -280,7 +291,7 @@ class TestRecommendersBasic(TestCaseWithState):
         self.assertDictEqual(best_params_sut, best_params)
 
     def test_c_cooc_recommender(self):
-        from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
+        from ml_recsys_tools.recommenders.cooccurrence_recommenders import ItemCoocRecommender
 
         item_cooc_rec = ItemCoocRecommender()
         item_cooc_rec.fit(self.state.train_obs)
@@ -297,6 +308,19 @@ class TestRecommendersBasic(TestCaseWithState):
         als_rep = als_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='als ')
         logger.info(als_rep)
         self._test_recommender(als_rec)
+
+    def test_c_features_simil_recommender(self):
+        from ml_recsys_tools.recommenders.similarity_recommenders import FeaturesSimilRecommender
+
+        cos_rec = FeaturesSimilRecommender()
+        cos_rec.fit(self.state.train_obs)
+        cos_rep = cos_rec.eval_on_test_by_ranking(self.state.test_obs, prefix='cosine ')
+        logger.info(cos_rep)
+
+        # not using _test_recommender because this recommender will fail on fake_data_test and exclusion_test
+        self._test_get_recommendations(cos_rec)
+        self._test_get_similar_items(cos_rec)
+        self._test_predict_for_user(cos_rec)
 
     def test_c_spotlight_implicit_recommender(self):
         from ml_recsys_tools.recommenders.spotlight_recommenders import EmbeddingFactorsRecommender

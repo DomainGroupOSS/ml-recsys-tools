@@ -13,7 +13,7 @@ obs = ObservationsDF(ratings_df, uid_col='userid', iid_col='itemid')
 train_obs, test_obs = obs.split_train_test(ratio=0.2)
 
 # train and evaluate a Cooccurrence recommender (fast and deterministic)
-from ml_recsys_tools.recommenders.similarity_recommenders import ItemCoocRecommender
+from ml_recsys_tools.recommenders.cooccurrence_recommenders import ItemCoocRecommender
 
 item_cooc_rec = ItemCoocRecommender()
 item_cooc_rec.fit(train_obs)
