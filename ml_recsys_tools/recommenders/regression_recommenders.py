@@ -133,7 +133,7 @@ class BaseFactorsRegressor(BasePredictorRecommender):
         if hasattr(train_obs, 'df_items'):
             ext_feat = train_obs.get_item_features(**self.item_features_params)
             mat_builder = train_obs.get_sparse_matrix_helper()
-            feat_mat = ext_feat.fit_transform_ids_df_to_mat(
+            feat_mat = ext_feat.create_sparse_features_mat(
                 mat_builder.iid_encoder, mode='encode')
             self.df_item_features = pd.DataFrame(
                 index=np.arange(feat_mat.shape[0]),

@@ -6,7 +6,7 @@ from sklearn.cluster import MiniBatchKMeans
 import scipy.sparse as sp
 
 from sklearn.preprocessing import LabelBinarizer, normalize, LabelEncoder
-from sklearn_pandas import DataFrameMapper
+from sklearn_pandas import DataFrameMapper, FunctionTransformer
 
 from ml_recsys_tools.utils.sklearn_extenstions import NumericBinningBinarizer
 
@@ -21,22 +21,24 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
     """
 
     _numeric_duplicate_suffix = '_num'
+    _item_ind_col = '_item_ind'
 
-    def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None, verbose=True):
+    def __init__(self, feat_df, id_col, num_cols=None, cat_cols=None, bin_cols=None, verbose=True):
         super().__init__(verbose=verbose)
         self.feat_df = feat_df.copy()
         self.id_col = id_col
-        self.num_cols = num_cols
-        self.cat_cols = cat_cols
+        self.num_cols = num_cols if num_cols is not None else []
+        self.cat_cols = cat_cols if cat_cols is not None else []
+        self.bin_cols = bin_cols if bin_cols is not None else []
         self._numeric_duplicate_cols = None
         self._feat_weight = None
         self.df_transformer = None
-        if self.num_cols is None and self.cat_cols is None:
-            self.infer_categorical_numerical_columns()
+        if not self.num_cols and not self.cat_cols and not self.bin_cols:
+            self.infer_columns_types()
 
-    def infer_categorical_numerical_columns(self,
-                                            categorical_unique_ratio=0.05,
-                                            categorical_n_unique=20):
+    def infer_columns_types(self,
+                            categorical_unique_ratio=0.05,
+                            categorical_n_unique=20):
 
         len_df = len(self.feat_df)
 
@@ -45,31 +47,37 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
 
         feat_cols = self.feat_df.columns.difference([self.id_col])
 
-        self.num_cols, self.cat_cols = [], []
+        self.num_cols, self.cat_cols, self.bin_cols = [], [], []
 
         for col in feat_cols:
             if str(self.feat_df[col].dtype) in ['O', 'o']:
                 self.cat_cols.append(col)
             else:
                 n_unique = self.feat_df[col].nunique()
-                unique_ratio = n_unique / len_df
-                if n_unique < categorical_n_unique or \
-                        unique_ratio <= categorical_unique_ratio:
-                    self.cat_cols.append(col)
+                if n_unique == 1:
+                    continue  # fixed value column
+                if n_unique == 2:
+                    self.bin_cols.append(col)  # binary column
                 else:
-                    self.num_cols.append(col)
+                    unique_ratio = n_unique / len_df
+                    if n_unique < categorical_n_unique or \
+                            unique_ratio <= categorical_unique_ratio:
+                        self.cat_cols.append(col)
+                    else:
+                        self.num_cols.append(col)
 
     def apply_selection_filter(self, selection_filter=None):
         if selection_filter is not None and len(selection_filter) >= 1:
             # no selection applied for None, '', []
             self.cat_cols = [col for col in self.cat_cols if col in selection_filter]
             self.num_cols = [col for col in self.num_cols if col in selection_filter]
+            self.bin_cols = [col for col in self.bin_cols if col in selection_filter]
 
-        self.feat_df = self.feat_df[[self.id_col] + self.cat_cols + self.num_cols]
+        self.feat_df = self.feat_df[[self.id_col] + self.cat_cols + self.num_cols + self.bin_cols]
 
         return self
 
-    def _check_intersecting_num_and_cat_columns(self):
+    def _check_intersecting_column_names(self):
         self._numeric_duplicate_cols = list(set(self.cat_cols).intersection(set(self.num_cols)))
         if len(self._numeric_duplicate_cols):
             for col in self._numeric_duplicate_cols:
@@ -78,13 +86,13 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                 self.num_cols.remove(col)
                 self.num_cols.append(alt_name)
 
-    def fit_transform_ids_df_to_mat(self,
-                                    items_encoder,
-                                    mode='binarize',
-                                    normalize_output=False,
-                                    add_identity_mat=False,
-                                    numeric_n_bins=128,
-                                    feat_weight=1.0):
+    def create_sparse_features_mat(self,
+                                   items_encoder,
+                                   mode='binarize',
+                                   normalize_output=False,
+                                   add_identity_mat=False,
+                                   numeric_n_bins=128,
+                                   feat_weight=1.0):
         """
         creates a sparse feature matrix from item features
 
@@ -108,22 +116,22 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         :return: sparse feature mat n_items x n_features
         """
 
-        self._check_intersecting_num_and_cat_columns()
+        self._check_intersecting_column_names()
 
         feat_df = self.feat_df[
-            [self.id_col] + self.cat_cols + self.num_cols]
+            [self.id_col] + self.cat_cols + self.num_cols + self.bin_cols]
         # get only features for relevant items
         feat_df = feat_df[feat_df[self.id_col].isin(items_encoder.classes_)]
         # convert from id to index
-        feat_df['item_ind'] = items_encoder.transform(feat_df[self.id_col])
+        feat_df[self._item_ind_col] = items_encoder.transform(feat_df[self.id_col])
 
         # reorder in correct index order
         n_items = len(items_encoder.classes_)
         full_feat_df = pd.merge(
-            pd.DataFrame({'item_ind': np.arange(n_items)}),
-            feat_df.drop([self.id_col], axis=1), on='item_ind', how='left'). \
-            drop_duplicates('item_ind'). \
-            set_index('item_ind', drop=True)
+            pd.DataFrame({self._item_ind_col: np.arange(n_items)}),
+            feat_df.drop([self.id_col], axis=1), on=self._item_ind_col, how='left'). \
+            drop_duplicates(self._item_ind_col). \
+            set_index(self._item_ind_col, drop=True)
 
         # remove nans resulting form join
         # https://stackoverflow.com/questions/34913590/fillna-in-multiple-columns-in-place-in-python-pandas
@@ -137,6 +145,7 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                 mode=mode,
                 categorical_feat_cols=self.cat_cols,
                 numeric_feat_cols=self.num_cols,
+                binary_feat_cols=self.bin_cols,
                 numeric_n_bins=numeric_n_bins)
 
             feat_mat = self.df_transformer.fit_transform(full_feat_df)
@@ -201,17 +210,16 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
         return sp.csc_matrix((new_data, new_indices, new_ind_ptr), dtype=np.float32)
 
     @staticmethod
-    def init_df_transformer(mode, categorical_feat_cols, numeric_feat_cols,
+    def init_df_transformer(mode, categorical_feat_cols, numeric_feat_cols, binary_feat_cols,
                             numeric_n_bins=64):
         if mode=='binarize':
             feat_mapper = DataFrameMapper(
-                [(cat_col,
-                  LabelBinarizer(sparse_output=True))
+                [(cat_col, LabelBinarizer(sparse_output=True))
                  for cat_col in categorical_feat_cols] +
-                [(num_col,
-                  NumericBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
-                  # GrayCodesNumericBinarizer(n_bins=numeric_n_bins, sparse_output=True))
-                 for num_col in numeric_feat_cols],
+                [(num_col, NumericBinningBinarizer(n_bins=numeric_n_bins, sparse_output=True))
+                 for num_col in numeric_feat_cols] +
+                [(bin_col, LabelBinarizer(sparse_output=True))
+                 for bin_col in binary_feat_cols],
                 sparse=True
             )
         elif mode=='encode':
@@ -219,7 +227,8 @@ class ExternalFeaturesDF(LogCallsTimeAndOutput):
                 [(cat_col,
                   LabelEncoder())
                  for cat_col in categorical_feat_cols],
-                default = None  # pass other columns as is
+                sparse=True,
+                default=None  # pass other columns as is
             )
         else:
             raise NotImplementedError('Unknown transform mode')
@@ -265,7 +274,7 @@ class ItemsHandler(LogCallsTimeAndOutput):
         feat_df = self.df_items
 
         ext_feat = ExternalFeaturesDF(
-            feat_df=feat_df, id_col=self.item_id_col)
+            feat_df=feat_df, id_col=self.item_id_col, **kwargs)
 
         ext_feat.apply_selection_filter(selection_filter)
 

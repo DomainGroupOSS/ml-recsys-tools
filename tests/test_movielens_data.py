@@ -19,7 +19,11 @@ class TestMovieLens(unittest.TestCase):
         self.assertEqual(len(users_df), 6040)
 
         movies_df = pd.read_csv(movies_csv_path)
-        self.assertListEqual(list(movies_df.columns), ['item_ind', 'itemid', 'genres'])
+        self.assertListEqual(list(movies_df.columns),
+                             ['item_ind', 'itemid', 'Adventure', 'FilmNoir', 'Comedy', 'SciFi',
+                               'Fantasy', 'Crime', 'Mystery', 'Action', 'Thriller', 'Horror',
+                               'Musical', 'Drama', 'Western', 'War', 'Animation', 'Romance',
+                               'Childrens', 'Documentary'])
         self.assertEqual(len(movies_df), 3883)
 
         from ml_recsys_tools.data_handlers.interaction_handlers_base import ObservationsDF

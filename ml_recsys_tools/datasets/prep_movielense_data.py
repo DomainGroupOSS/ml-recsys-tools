@@ -51,10 +51,7 @@ def download_raw_data(dir_path):
 
 def prep_readable_csvs(out_dir):
     # read the movies data
-    movies_df = pd.read_csv(os.path.join(out_dir, 'movies.dat'),
-                            delimiter='::', header=None,
-                            names=['item_ind', 'title', 'genres']). \
-        rename({'title': 'itemid'}, axis=1)
+    movies_df = read_movies(out_dir)
 
     # read the users data
     users_df = pd.read_csv(os.path.join(out_dir, 'users.dat'),
@@ -86,6 +83,28 @@ def prep_readable_csvs(out_dir):
     movies_df.to_csv(os.path.join(out_dir, movies_csv_name), index=None)
     users_df.to_csv(os.path.join(out_dir, users_csv_name), index=None)
     ratings_df.to_csv(os.path.join(out_dir, ratings_csv_name), index=None)
+
+
+def read_movies(out_dir):
+    movies_raw = pd.read_csv(os.path.join(out_dir, 'movies.dat'),
+                             delimiter='::', header=None,
+                             names=['item_ind', 'title', 'genres']). \
+        rename({'title': 'itemid'}, axis=1)
+
+    # process
+    genres = set()
+    for l in movies_raw.genres.str.split('|').values:
+        genres.update(l)
+
+    # regex to create indicator columns
+    regex = '|'.join([f"""(?P<{g.replace('-', '').replace("'", "")}>{g})""" for g in genres])
+
+    # create indicator columns
+    split = movies_raw['genres'].str.extract(regex).notnull().astype(int)
+
+    movies_df = pd.concat([movies_raw.drop('genres', axis=1), split], axis=1, sort=False)
+
+    return movies_df
 
 
 def get_occupation_names_df():

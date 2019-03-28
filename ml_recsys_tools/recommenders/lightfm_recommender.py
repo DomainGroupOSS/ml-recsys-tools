@@ -85,7 +85,7 @@ class LightFMRecommender(BaseFactorizationRecommender):
     def _add_external_features(self):
         if self.external_features is not None:
             self.external_features_mat = self.external_features.\
-                fit_transform_ids_df_to_mat(
+                create_sparse_features_mat(
                     items_encoder=self.sparse_mat_builder.iid_encoder,
                     **self.external_features_params)
             simple_logger.info('External item features matrix: %s' %
