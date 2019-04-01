@@ -201,34 +201,6 @@ def collect_named_init_params(cls, skip_empty=True, ignore_classes=(object, ABC)
     return params
 
 
-# https://stackoverflow.com/questions/10067262/automatically-decorating-every-instance-method-in-a-class
-# decorate all instance methods (unless excluded) with the same decorator
-def decorate_all_metaclass(decorator):
-    # check if an object should be decorated
-    def do_decorate(attr, value):
-        return ('__' not in attr and
-                isinstance(value, (FunctionType, classmethod)) and
-                getattr(value, 'decorate', True))
-
-    class DecorateAll(ABCMeta):
-        def __new__(cls, name, bases, dct):
-            if dct.get('decorate', True):
-                for attr, value in dct.items():
-                    if do_decorate(attr, value):
-                        if isinstance(value, classmethod):
-                            dct[attr] = classmethod(decorator(value.__func__))
-                        else:
-                            dct[attr] = decorator(value)
-            return super(DecorateAll, cls).__new__(cls, name, bases, dct)
-
-        def __setattr__(self, attr, value):
-            if do_decorate(attr, value):
-                value = decorator(value)
-            super(DecorateAll, self).__setattr__(attr, value)
-
-    return DecorateAll
-
-
 def override_defaults(defaults):
     def decorator(f):
         @functools.wraps(f)
@@ -258,6 +230,44 @@ def override_defaults(defaults):
         return wrapper
 
     return decorator
+
+
+# https://stackoverflow.com/questions/10067262/automatically-decorating-every-instance-method-in-a-class
+# decorate all instance methods (unless excluded) with the same decorator
+def decorate_all_metaclass(decorator):
+    # check if an object should be decorated
+    def do_decorate(attr, value):
+        return ('__' not in attr and
+                isinstance(value, (FunctionType, classmethod)) and
+                getattr(value, 'decorate', True))
+
+    class DecorateAll(ABCMeta):
+        def __new__(cls, name, bases, dct):
+            if dct.get('decorate', True):
+                for attr, value in dct.items():
+                    if do_decorate(attr, value):
+                        if isinstance(value, classmethod):
+                            dct[attr] = classmethod(decorator(value.__func__))
+                        else:
+                            dct[attr] = decorator(value)
+            return super(DecorateAll, cls).__new__(cls, name, bases, dct)
+
+        def __setattr__(self, attr, value):
+            if do_decorate(attr, value):
+                value = decorator(value)
+            super(DecorateAll, self).__setattr__(attr, value)
+
+    return DecorateAll
+
+
+def decorate_all_patch(klass, decorator):
+    for attr, value in klass.__dict__.items():
+        if '__' not in attr and callable(value) and type(value) is not type:
+            if isinstance(value, classmethod):
+                setattr(klass, attr, classmethod(decorator(value.__func__)))
+            else:
+                setattr(klass, attr, decorator(value))
+    return klass
 
 
 class LogCallsTimeAndOutput(metaclass=decorate_all_metaclass(log_time_and_shape)):

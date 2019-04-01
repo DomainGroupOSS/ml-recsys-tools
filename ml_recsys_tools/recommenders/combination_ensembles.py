@@ -81,17 +81,20 @@ class CombinedSimilRecoEns(SimilarityDFRecommender):
 
 class CascadeEnsemble(CombinationEnsembleBase):
 
-    def __init__(self, recommenders, **kwargs):
+    def __init__(self, recommenders, candidates_n_rec=None, **kwargs):
         super().__init__(recommenders, **kwargs)
         assert len(recommenders) == 2, \
             'only 2 recommenders supported'
         assert hasattr(self.recommenders[1], 'predict_on_df'), \
             'no "predict_on_df" for second recommender'
+        self.candidates_n_rec = candidates_n_rec
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclusions=True, **kwargs):
         recos_df = self.recommenders[0].get_recommendations(
-            user_ids=user_ids, item_ids=item_ids, n_rec=n_rec,
+            user_ids=user_ids,
+            item_ids=item_ids,
+            n_rec=self.candidates_n_rec or n_rec,
             exclusions=exclusions,
             results_format='flat', **kwargs)
         pred_mat_builder = self.get_prediction_mat_builder_adapter(self.sparse_mat_builder)

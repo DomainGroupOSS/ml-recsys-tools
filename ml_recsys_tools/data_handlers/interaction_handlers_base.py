@@ -259,7 +259,7 @@ class ObservationsDF(LogCallsTimeAndOutput):
                 col_name=self.uid_col, random_state=random_state)
 
         elif time_split_column:
-            self.df_obs.sort_values(time_split_column, inplace=True)
+            self.df_obs = self.df_obs.sort_values(time_split_column)
             split_ind = int((len(self.df_obs)-1) * ratio)
             return self.df_obs.iloc[:-split_ind].copy(), self.df_obs.iloc[-split_ind:].copy()
 
