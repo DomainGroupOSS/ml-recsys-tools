@@ -47,6 +47,20 @@ class RedisTable(redis.StrictRedis):
                 data = json.dumps(data)
         return data
 
+    @staticmethod
+    def _decode_data(data, key):
+        if data:
+            try:
+                data = gzip.decompress(data)
+            except (OSError, TypeError):
+                pass  # not gzip compressed
+            try:
+                data = json.loads(data)
+            except Exception as e:
+                logger.exception(e)
+                logger.error(f'Failed unpacking redis query. key: {key}, response: {data}')
+        return data
+
     def set_json(self, key_name, key_value, data, compress=False, **kwargs):
         return super().set(
             self.table_index_key(key_name, key_value),
@@ -61,7 +75,7 @@ class RedisTable(redis.StrictRedis):
             **kwargs)
 
     def table_index_key(self, key, value):
-        return self.table_name + ':' + key + ':' + value
+        return f"{self.table_name}:{key}:{value}"
 
     def query(self, index_key, index_value):
         """
@@ -73,18 +87,17 @@ class RedisTable(redis.StrictRedis):
         """
         key = self.table_index_key(index_key, index_value)
         data = self.get(key)
-        if data:
-            try:
-                data = gzip.decompress(data)
-            except (OSError, TypeError):
-                pass  # not gzip compressed
-            try:
-                data = json.loads(data)
-            except Exception as e:
-                logger.exception(e)
-                logger.error('Failed unpacking redis query. key: %s, response: %s' %
-                             (key, data))
-        return data
+        decoded_data = self._decode_data(data, key)
+        return decoded_data
+
+    def query_multiple(self, index_key, index_values):
+        """
+        :returns list of response JSONs as dicts, Nones if not found, or response string if JSON conversion fails
+        """
+        keys = [self.table_index_key(index_key, v) for v in index_values]
+        results = self.mget(keys)
+        decoded_results = [self._decode_data(r, k) for k, r in zip(keys, results)]
+        return decoded_results
 
 
 class S3FileIO(LogCallsTimeAndOutput):
@@ -160,11 +173,11 @@ class S3FileIO(LogCallsTimeAndOutput):
                 return self._stream_to_file(temp, local_fileobj)
 
     def pickle(self, obj, remote_path, compress=True):
-        logger.log(self.log_level, 'S3: pickling to %s' % remote_path)
+        logger.log(self.log_level, f'S3: pickling to {remote_path}')
         return self.write_binary(pickle.dumps(obj), remote_path, compress=compress)
 
     def unpickle(self, remote_path, in_memory=True):
-        logger.log(self.log_level, 'S3: unpickling from %s' % remote_path)
+        logger.log(self.log_level, f'S3: unpickling from {remote_path}')
         if in_memory:
             return pickle.loads(self.read(remote_path))
         else:
@@ -173,14 +186,14 @@ class S3FileIO(LogCallsTimeAndOutput):
                 return pickle.load(temp)
 
     def local_to_remote(self, local_path, remote_path, compress=True):
-        logger.log(self.log_level, 'S3: copying from %s to %s' % (local_path, remote_path))
+        logger.log(self.log_level, f'S3: copying from {local_path} to {remote_path}')
         with open(local_path, 'rb') as local:
             self.write_binary(local.read(), remote_path, compress=compress)
 
     def remote_to_local(self, remote_path, local_path, overwrite=True, in_memory=True):
         if not os.path.exists(local_path) or overwrite:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            logger.log(self.log_level, 'S3: copying from %s to %s' % (remote_path, local_path))
+            logger.log(self.log_level, f'S3: copying from {remote_path} to {local_path}')
             with open(local_path, 'wb') as local:
                 if in_memory:
                     local.write(self.read(remote_path))
@@ -244,7 +257,7 @@ class Emailer:
                 logger.error(e.response['Error']['Message'])
                 raise e
         else:
-            raise ValueError('Unknown email backend: %s' % self.backend)
+            raise ValueError(f'Unknown email backend: {self.backend}')
 
     def _text_attachment(self, text_file):
         with open(text_file) as fp:
