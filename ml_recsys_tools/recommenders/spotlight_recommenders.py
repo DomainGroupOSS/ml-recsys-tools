@@ -4,12 +4,11 @@ import numpy as np
 from spotlight.interactions import Interactions
 from spotlight.factorization.implicit import ImplicitFactorizationModel
 from spotlight.sequence.implicit import ImplicitSequenceModel
-from spotlight.sequence.representations import CNNNet
+from spotlight.sequence.representations import CNNNet, MixtureLSTMNet
 
 from ml_recsys_tools.recommenders.factorization_base import BaseFactorizationRecommender
 from ml_recsys_tools.recommenders.recommender_base import BaseDFSparseRecommender
 from ml_recsys_tools.utils.instrumentation import collect_named_init_params
-from ml_recsys_tools.utils.similarity import top_N_sorted
 
 
 def spotlight_interactions_from_sparse(sp_mat):
@@ -43,7 +42,7 @@ class EmbeddingFactorsRecommender(BaseFactorizationRecommender):
 
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
-        self.model.fit(self.spotlight_dataset, **self.fit_params)
+        self.model.fit(self.spotlight_dataset, verbose=self.fit_params.get('verbose', False))
 
     def fit_partial(self, train_obs, epochs=1):
         self._set_epochs(epochs)
@@ -86,7 +85,8 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
 
     default_fit_params = dict(
         max_sequence_length=200,
-        timestamp_col='first_timestamp'
+        timestamp_col='first_timestamp',
+        verbose=True
     )
 
     def _interactions_sequence_from_obs(
@@ -124,7 +124,7 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
     def fit(self, train_obs, **fit_params):
         self._prep_for_fit(train_obs, **fit_params)
         self.model = ImplicitSequenceModel(**self.model_params)
-        self.model.fit(self.sequence_interactions)
+        self.model.fit(self.sequence_interactions, verbose=self.fit_params.get('verbose', False))
 
     def _get_recommendations_flat(self, user_ids, n_rec, item_ids=None,
                                   exclusions=True, **kwargs):
@@ -148,9 +148,45 @@ class SequenceEmbeddingRecommender(BaseDFSparseRecommender):
         return pred_mat
 
 
-class CNNEmbeddingRecommender(SequenceEmbeddingRecommender):
+class PoolingRecommender(SequenceEmbeddingRecommender):
+    default_model_params = {**SequenceEmbeddingRecommender.default_model_params,
+                            **dict(representation='pooling')}
 
-    cnn_default_params = dict(
+
+class LSMTRecommender(SequenceEmbeddingRecommender):
+    default_model_params = {**SequenceEmbeddingRecommender.default_model_params,
+                            **dict(representation='lstm')}
+
+
+class LSMTMixtureRecommender(SequenceEmbeddingRecommender):
+
+    net_class = MixtureLSTMNet
+
+    net_default_params = dict(num_mixtures=4)
+
+    default_fit_params = dict(
+        **SequenceEmbeddingRecommender.default_fit_params,
+        **net_default_params
+    )
+
+    def _net_params(self):
+        return dict(
+            embedding_dim=self.model_params['embedding_dim'],
+            **{k:v for k, v in self.fit_params.items()
+               if k in collect_named_init_params(self.net_class)[self.net_class]})
+
+    def _prep_for_fit(self, train_obs, **fit_params):
+        super()._prep_for_fit(train_obs, **fit_params)
+        self.model_params['representation'] = self.net_class(
+            num_items=self.sequence_interactions.num_items,
+            **self._net_params())
+
+
+class CNNEmbeddingRecommender(LSMTMixtureRecommender):
+
+    net_class = CNNNet
+
+    net_default_params = dict(
         kernel_width=9,
         dilation=1,
         num_layers=3,
@@ -159,23 +195,15 @@ class CNNEmbeddingRecommender(SequenceEmbeddingRecommender):
 
     default_fit_params = dict(
         **SequenceEmbeddingRecommender.default_fit_params,
-        **cnn_default_params
+        **net_default_params
     )
 
-    def _cnn_net(self, interactions):
-        cnn_params = dict(
-            num_items=interactions.num_items,
-            embedding_dim=self.model_params['embedding_dim'],
-            **{k:v for k, v in self.fit_params.items()
-               if k in collect_named_init_params(CNNNet)['CNNNet']})
-
+    def _net_params(self):
+        cnn_params = super()._net_params()
         # updating dilation parameter to be the right tuple
         cnn_params['dilation'] = [cnn_params['dilation']*(2**i)
                                       for i in range(cnn_params['num_layers'])]
+        return cnn_params
 
-        return CNNNet(**cnn_params)
 
-    def _prep_for_fit(self, train_obs, **fit_params):
-        super()._prep_for_fit(train_obs, **fit_params)
-        self.model_params['representation'] = self._cnn_net(self.sequence_interactions)
 
