@@ -75,7 +75,7 @@ class TestRecommendersBasic(TestCaseWithState):
         self._setup_obs_handler()
 
         from ml_recsys_tools.recommenders.lightfm_recommender import LightFMRecommender
-        lfm_rec = LightFMRecommender(external_features=self.state.train_obs.get_item_features())
+        lfm_rec = LightFMRecommender(external_features=self.state.train_obs.get_item_features(), no_components=50)
         lfm_rec.fit(self.state.train_obs, epochs=20)
         self._test_recommender(lfm_rec)
 
